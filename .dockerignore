@@ -1,0 +1,11 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+node_modules
+npm-debug.log
+.git
+.gitignore
+.idea
+
