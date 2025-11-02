@@ -2,16 +2,20 @@
 Client pour l'API ESI (Eve Swagger Interface) d'Eve Online
 """
 
+import os
 import requests
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+from cache_decorator import cached
 
 
 class EveAPIClient:
     """Client pour interagir avec l'API ESI d'Eve Online"""
 
     def __init__(
-        self, base_url: str = "https://esi.evetech.net/latest", timeout: int = 10
+        self,
+        base_url: str = "https://esi.evetech.net/latest",
+        timeout: int = 10,
     ):
         """
         Initialise le client API
@@ -53,6 +57,7 @@ class EveAPIClient:
         except requests.RequestException as e:
             raise Exception(f"Erreur de connexion à l'API {url}: {e}")
 
+    @cached()
     def get_regions_list(self) -> List[int]:
         """
         Récupère la liste des IDs de régions
@@ -65,6 +70,7 @@ class EveAPIClient:
         """
         return self._get("/universe/regions/")
 
+    @cached()
     def get_region_details(self, region_id: int) -> Dict[str, Any]:
         """
         Récupère les détails d'une région
@@ -126,6 +132,7 @@ class EveAPIClient:
 
         return regions
 
+    @cached()
     def get_constellation_details(self, constellation_id: int) -> Dict[str, Any]:
         """
         Récupère les détails d'une constellation
@@ -141,6 +148,7 @@ class EveAPIClient:
         """
         return self._get(f"/universe/constellations/{constellation_id}/")
 
+    @cached()
     def get_system_details(self, system_id: int) -> Dict[str, Any]:
         """
         Récupère les détails d'un système solaire
@@ -156,6 +164,7 @@ class EveAPIClient:
         """
         return self._get(f"/universe/systems/{system_id}/")
 
+    @cached()
     def get_item_type(self, type_id: int) -> Dict[str, Any]:
         """
         Récupère les informations d'un type d'item

@@ -8,6 +8,7 @@ import requests
 from flask import Flask, jsonify
 from flask_cors import CORS
 from simple_cache import SimpleCache
+from cache_manager import CacheManager
 from eve_api_client import EveAPIClient
 
 app = Flask(__name__)
@@ -17,6 +18,9 @@ CORS(app)
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "cache")
 CACHE_EXPIRY_HOURS = int(os.getenv("CACHE_EXPIRY_HOURS", "240"))
 cache = SimpleCache(cache_dir=CACHE_DIR, expiry_hours=CACHE_EXPIRY_HOURS)
+
+# Initialiser le gestionnaire de cache statique
+CacheManager.initialize(cache)
 
 # Client API Eve Online
 eve_client = EveAPIClient()
