@@ -15,35 +15,18 @@
         <div class="form-group">
           <label for="group-select">Groupe de marché:</label>
           <div v-if="loadingGroups" class="loading-small">Chargement des groupes...</div>
-          <TreeSelect
-            v-else
-            :tree="marketGroupsTree"
-            :value="selectedGroupId"
-            placeholder="Sélectionner un groupe..."
-            :disabled="!selectedRegionId || loadingGroups"
-            @input="handleGroupSelect"
-            @change="handleGroupChange"
-          />
+          <TreeSelect v-else :tree="marketGroupsTree" :value="selectedGroupId" placeholder="Sélectionner un groupe..."
+            :disabled="!selectedRegionId || loadingGroups" @input="handleGroupSelect" @change="handleGroupChange" />
         </div>
 
         <div class="form-group">
           <label for="threshold-input">Seuil de bénéfice (%):</label>
-          <input 
-            id="threshold-input" 
-            type="number" 
-            v-model.number="profitThreshold" 
-            min="0" 
-            max="100" 
-            step="0.1"
-            :disabled="!selectedGroupId"
-          />
+          <input id="threshold-input" type="number" v-model.number="profitThreshold" min="0" max="100" step="0.1"
+            :disabled="!selectedGroupId" />
         </div>
 
-        <button 
-          class="search-button" 
-          @click="searchDeals" 
-          :disabled="!selectedRegionId || !selectedGroupId || searching"
-        >
+        <button class="search-button" @click="searchDeals"
+          :disabled="!selectedRegionId || !selectedGroupId || searching">
           {{ searching ? 'Recherche en cours...' : 'Rechercher les bonnes affaires' }}
         </button>
       </div>
@@ -64,7 +47,7 @@
               Total bénéfice potentiel: <strong>{{ formatPrice(searchResults.total_profit_isk || 0) }} ISK</strong>
             </p>
             <p>
-              Seuil: <strong>{{ searchResults.profit_threshold }}%</strong> | 
+              Seuil: <strong>{{ searchResults.profit_threshold }}%</strong> |
               Région: <strong>{{ regionName }}</strong> |
               Groupe: <strong>{{ groupName }}</strong>
             </p>
@@ -121,22 +104,16 @@
                   • <span class="jumps-info unknown">Sauts inconnus</span>
                 </span>
               </div>
-              
+
               <!-- Affichage de la route avec niveaux de danger -->
               <div v-if="deal.route_details && deal.route_details.length > 0" class="route-display">
                 <span class="route-label">Route:</span>
                 <div class="route-jumps">
-                  <div 
-                    v-for="(system, index) in deal.route_details" 
-                    :key="system.system_id"
-                    class="route-jump"
-                  >
-                    <div 
-                      class="danger-indicator"
-                      :class="getDangerClass(system.security_status)"
-                      :title="`${system.name}\nSécurité: ${system.security_status.toFixed(1)}`"
-                    >
-                      <span class="tooltip-text">{{ system.name }}<br>Sécurité: {{ system.security_status.toFixed(1) }}</span>
+                  <div v-for="(system, index) in deal.route_details" :key="system.system_id" class="route-jump">
+                    <div class="danger-indicator" :class="getDangerClass(system.security_status)"
+                      :title="`${system.name}\nSécurité: ${system.security_status.toFixed(1)}`">
+                      <span class="tooltip-text">{{ system.name }}<br>Sécurité: {{ system.security_status.toFixed(1)
+                      }}</span>
                     </div>
                     <span v-if="index < deal.route_details.length - 1" class="route-arrow">→</span>
                   </div>
@@ -183,7 +160,7 @@ export default {
         return []
       }
       const deals = [...this.searchResults.deals]
-      
+
       switch (this.sortBy) {
         case 'jumps':
           return deals.sort((a, b) => {
@@ -206,7 +183,7 @@ export default {
     if (routeRegionId) {
       this.selectedRegionId = parseInt(routeRegionId)
       await this.onRegionChange()
-      
+
       // Si on a un group_id dans les query params, le sélectionner
       const groupId = this.$route.query.group_id
       if (groupId) {
@@ -267,10 +244,10 @@ export default {
       try {
         const response = await axios.get('http://localhost:5000/api/v1/markets/categories')
         const categories = response.data.categories || []
-        
+
         // Construire l'arbre hiérarchique
         this.marketGroupsTree = this.buildTree(categories)
-        
+
         // Conserver aussi la liste plate pour compatibilité
         this.marketGroups = categories.map(cat => ({
           group_id: cat.group_id,
@@ -753,15 +730,18 @@ export default {
 }
 
 .danger-high-sec {
-  background: #48bb78; /* Vert pour high-sec */
+  background: #48bb78;
+  /* Vert pour high-sec */
 }
 
 .danger-low-sec {
-  background: #ed8936; /* Orange pour low-sec */
+  background: #ed8936;
+  /* Orange pour low-sec */
 }
 
 .danger-null-sec {
-  background: #f56565; /* Rouge pour null-sec */
+  background: #f56565;
+  /* Rouge pour null-sec */
 }
 
 .route-arrow {
@@ -792,5 +772,4 @@ export default {
   font-size: 0.95em;
   background: white;
 }
-
 </style>
