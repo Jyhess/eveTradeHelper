@@ -32,7 +32,8 @@ def set_deals_service(service: DealsService):
 async def get_market_deals(
     region_id: int,
     group_id: int,
-    profit_threshold: float = 5.0,
+    min_profit_isk: float = 100000.0,
+    max_transport_volume: Optional[float] = None,
     deals_service: DealsService = Depends(get_deals_service),
 ):
     """
@@ -43,14 +44,15 @@ async def get_market_deals(
     Args:
         region_id: ID de la région
         group_id: ID du groupe de marché
-        profit_threshold: Seuil de bénéfice minimum en % (défaut: 5.0)
+        min_profit_isk: Seuil de bénéfice minimum en ISK (défaut: 100000.0)
+        max_transport_volume: Volume de transport maximum autorisé en m³ (None = illimité)
 
     Returns:
         Réponse JSON avec les items permettant un bénéfice supérieur au seuil
     """
     try:
         result = await deals_service.find_market_deals(
-            region_id, group_id, profit_threshold
+            region_id, group_id, min_profit_isk, max_transport_volume
         )
         return result
 

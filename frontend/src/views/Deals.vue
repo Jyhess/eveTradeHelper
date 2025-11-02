@@ -19,10 +19,17 @@
             :disabled="!selectedRegionId || loadingGroups" @input="handleGroupSelect" @change="handleGroupChange" />
         </div>
 
-        <div class="form-group">
-          <label for="threshold-input">Seuil de bénéfice (%):</label>
-          <input id="threshold-input" type="number" v-model.number="profitThreshold" min="0" max="100" step="0.1"
-            :disabled="!selectedGroupId" />
+        <div class="form-group thresholds-row">
+          <div class="threshold-item">
+            <label for="min-profit-input">Seuil de bénéfice (ISK):</label>
+            <input id="min-profit-input" type="number" v-model.number="minProfitIsk" min="0" step="1000"
+              placeholder="100000" :disabled="!selectedGroupId" />
+          </div>
+          <div class="threshold-item">
+            <label for="max-volume-input">Volume max de transport (m³):</label>
+            <input id="max-volume-input" type="number" v-model.number="maxTransportVolume" min="0" step="0.01"
+              placeholder="Illimité" :disabled="!selectedGroupId" />
+          </div>
         </div>
 
         <button class="search-button" @click="searchDeals"
@@ -40,8 +47,13 @@
           <h2>Résultats</h2>
           <div class="results-stats">
             <p>
-              <strong>{{ searchResults.deals.length }}</strong> bonne(s) affaire(s) trouvée(s)
-              sur <strong>{{ searchResults.total_types }}</strong> type(s) analysé(s)
+              <strong>{{ filteredDealsCount }}</strong> bonne(s) affaire(s) affichée(s)
+              <span v-if="maxTransportVolume && filteredDealsCount < searchResults.deals.length">
+                ({{ searchResults.deals.length }} au total)
+              </span>
+              <span v-else-if="!maxTransportVolume">
+                sur <strong>{{ searchResults.total_types }}</strong> type(s) analysé(s)
+              </span>
             </p>
             <p>
               Total bénéfice potentiel: <strong>{{ formatPrice(searchResults.total_profit_isk || 0) }} ISK</strong>
@@ -50,13 +62,24 @@
               Seuil: <strong>{{ searchResults.profit_threshold }}%</strong> |
               Région: <strong>{{ regionName }}</strong> |
               Groupe: <strong>{{ groupName }}</strong>
+              <span v-if="maxTransportVolume">
+                | Volume max: <strong>{{ formatVolume(maxTransportVolume) }} m³</strong>
+              </span>
             </p>
           </div>
         </div>
 
-        <div v-if="searchResults.deals.length === 0" class="no-results">
-          <p>Aucune bonne affaire trouvée avec le seuil de {{ searchResults.profit_threshold }}%</p>
-          <p>Essayez de réduire le seuil ou de sélectionner un autre groupe.</p>
+        <div v-if="filteredDealsCount === 0" class="no-results">
+          <p>
+            Aucune bonne affaire trouvée avec les critères suivants :
+          </p>
+          <ul style="text-align: left; display: inline-block;">
+            <li>Seuil de bénéfice: {{ formatPrice(searchResults.min_profit_isk || 0) }} ISK</li>
+            <li v-if="searchResults.max_transport_volume">
+              Volume max: {{ formatVolume(searchResults.max_transport_volume) }} m³
+            </li>
+          </ul>
+          <p>Essayez de réduire le seuil de bénéfice, d'augmenter le volume max ou de sélectionner un autre groupe.</p>
         </div>
 
         <div v-else class="deals-list">
@@ -184,7 +207,8 @@ export default {
       selectedGroupId: null,
       groupName: '',
       loadingGroups: false,
-      profitThreshold: 5.0,
+      minProfitIsk: 100000, // Seuil de bénéfice minimum en ISK
+      maxTransportVolume: null, // null = illimité
       searching: false,
       searchResults: null,
       error: '',
@@ -196,8 +220,10 @@ export default {
       if (!this.searchResults || !this.searchResults.deals) {
         return []
       }
+      // Les deals sont déjà filtrés côté backend, on ne fait que trier
       const deals = [...this.searchResults.deals]
 
+      // Trier selon le critère sélectionné
       switch (this.sortBy) {
         case 'jumps':
           return deals.sort((a, b) => {
@@ -211,6 +237,13 @@ export default {
         default:
           return deals.sort((a, b) => (b.profit_percent || 0) - (a.profit_percent || 0))
       }
+    },
+    filteredDealsCount() {
+      // Compteur pour afficher combien de deals sont retournés
+      if (!this.searchResults || !this.searchResults.deals) {
+        return 0
+      }
+      return this.searchResults.deals.length
     }
   },
   async mounted() {
@@ -401,13 +434,15 @@ export default {
       }
 
       try {
-        const response = await axios.get('http://localhost:5000/api/v1/markets/deals', {
-          params: {
-            region_id: this.selectedRegionId,
-            group_id: this.selectedGroupId,
-            profit_threshold: this.profitThreshold
-          }
-        })
+        const params = {
+          region_id: this.selectedRegionId,
+          group_id: this.selectedGroupId,
+          min_profit_isk: this.minProfitIsk
+        }
+        if (this.maxTransportVolume !== null && this.maxTransportVolume > 0) {
+          params.max_transport_volume = this.maxTransportVolume
+        }
+        const response = await axios.get('http://localhost:5000/api/v1/markets/deals', { params })
         this.searchResults = response.data
       } catch (error) {
         this.error = 'Erreur lors de la recherche: ' + (error.response?.data?.detail || error.message)
@@ -496,6 +531,19 @@ export default {
   gap: 8px;
 }
 
+.form-group.thresholds-row {
+  flex-direction: row;
+  gap: 20px;
+  align-items: flex-end;
+}
+
+.form-group.thresholds-row .threshold-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .form-group label {
   font-weight: 600;
   color: #667eea;
@@ -507,6 +555,14 @@ export default {
   border: 1px solid #e0e0e0;
   border-radius: 6px;
   font-size: 1em;
+}
+
+.form-group small.hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.85em;
+  color: #666;
+  font-style: italic;
 }
 
 .form-group select:disabled,

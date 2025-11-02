@@ -81,7 +81,11 @@ class DealsService:
         return collect_all_types_recursive(group_id, set())
 
     async def analyze_type_profitability(
-        self, region_id: int, type_id: int, profit_threshold: float
+        self,
+        region_id: int,
+        type_id: int,
+        min_profit_isk: float,
+        max_transport_volume: Optional[float] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         Analyse un type d'item pour trouver les opportunités de profit
@@ -89,10 +93,11 @@ class DealsService:
         Args:
             region_id: ID de la région
             type_id: ID du type d'item
-            profit_threshold: Seuil de bénéfice minimum en %
+            min_profit_isk: Seuil de bénéfice minimum en ISK
+            max_transport_volume: Volume de transport maximum autorisé en m³ (None = illimité)
 
         Returns:
-            Dictionnaire avec les détails de l'opportunité si le bénéfice >= seuil,
+            Dictionnaire avec les détails de l'opportunité si le bénéfice >= seuil et volume <= limite,
             None sinon
         """
         try:
@@ -139,19 +144,31 @@ class DealsService:
             if tradable_volume <= 0:
                 return None
 
+            # Récupérer les détails du type pour le volume unitaire
+            type_details = await self.repository.get_item_type(type_id)
+            item_volume = type_details.get("volume", 0.0)  # Volume unitaire en m³
+
+            # Vérifier la limite de volume de transport si spécifiée
+            if max_transport_volume is not None and max_transport_volume > 0:
+                # Limiter le volume échangeable pour respecter la limite de transport
+                max_tradable_volume = (
+                    int(max_transport_volume / item_volume)
+                    if item_volume > 0
+                    else tradable_volume
+                )
+                if max_tradable_volume <= 0:
+                    return None
+                tradable_volume = min(tradable_volume, max_tradable_volume)
+
             # Calculer le bénéfice en ISK (prix de vente - prix d'achat) * volume échangeable
             profit_isk = (sell_price - buy_price) * tradable_volume
 
-            # Calculer le bénéfice en %
-            profit_percent = ((sell_price - buy_price) / buy_price) * 100
-
-            # Filtrer selon le seuil
-            if profit_percent < profit_threshold:
+            # Filtrer selon le seuil de bénéfice minimum en ISK
+            if profit_isk < min_profit_isk:
                 return None
 
-            # Récupérer les détails du type
-            type_details = await self.repository.get_item_type(type_id)
-            item_volume = type_details.get("volume", 0.0)  # Volume unitaire en m³
+            # Calculer le bénéfice en % (pour l'affichage)
+            profit_percent = ((sell_price - buy_price) / buy_price) * 100
 
             # Calculer les totaux
             total_buy_cost = buy_price * tradable_volume  # Coût total d'achat
@@ -259,7 +276,8 @@ class DealsService:
         self,
         region_id: int,
         group_id: int,
-        profit_threshold: float = 5.0,
+        min_profit_isk: float = 100000.0,
+        max_transport_volume: Optional[float] = None,
         max_concurrent: int = 20,
     ) -> Dict[str, Any]:
         """
@@ -270,7 +288,8 @@ class DealsService:
         Args:
             region_id: ID de la région
             group_id: ID du groupe de marché
-            profit_threshold: Seuil de bénéfice minimum en % (défaut: 5.0)
+            min_profit_isk: Seuil de bénéfice minimum en ISK (défaut: 100000.0)
+            max_transport_volume: Volume de transport maximum autorisé en m³ (None = illimité)
             max_concurrent: Nombre maximum d'analyses simultanées (défaut: 20)
 
         Returns:
@@ -278,7 +297,8 @@ class DealsService:
         """
         logger.info(
             f"Recherche de bonnes affaires pour le groupe {group_id} "
-            f"dans la région {region_id} (seuil: {profit_threshold}%)"
+            f"dans la région {region_id} (seuil: {min_profit_isk} ISK"
+            f"{f', volume max: {max_transport_volume} m³' if max_transport_volume else ''})"
         )
 
         # Collecter tous les types du groupe (et sous-groupes)
@@ -288,7 +308,8 @@ class DealsService:
             return {
                 "region_id": region_id,
                 "group_id": group_id,
-                "profit_threshold": profit_threshold,
+                "min_profit_isk": min_profit_isk,
+                "max_transport_volume": max_transport_volume,
                 "total_types": 0,
                 "deals": [],
             }
@@ -301,7 +322,7 @@ class DealsService:
         async def analyze_with_limit(type_id: int):
             async with semaphore:
                 return await self.analyze_type_profitability(
-                    region_id, type_id, profit_threshold
+                    region_id, type_id, min_profit_isk, max_transport_volume
                 )
 
         results = await asyncio.gather(
@@ -322,13 +343,15 @@ class DealsService:
         total_profit_isk = sum(deal.get("profit_isk", 0) for deal in deals)
 
         logger.info(
-            f"Trouvé {len(deals)} bonnes affaires avec bénéfice >= {profit_threshold}%"
+            f"Trouvé {len(deals)} bonnes affaires avec bénéfice >= {min_profit_isk} ISK"
+            f"{f' et volume <= {max_transport_volume} m³' if max_transport_volume else ''}"
         )
 
         return {
             "region_id": region_id,
             "group_id": group_id,
-            "profit_threshold": profit_threshold,
+            "min_profit_isk": min_profit_isk,
+            "max_transport_volume": max_transport_volume,
             "total_types": len(all_types),
             "total_profit_isk": round(total_profit_isk, 2),
             "deals": deals,
