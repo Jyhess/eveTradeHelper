@@ -1,17 +1,17 @@
 """
 Interface du repository pour Eve Online
-Définit le contrat que doit respecter tout repository Eve
+Définit le contrat que doit respecter tout repository Eve (version asynchrone)
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 
 class EveRepository(ABC):
-    """Interface abstraite pour le repository Eve Online"""
+    """Interface abstraite pour le repository Eve Online (asynchrone)"""
 
     @abstractmethod
-    def get_regions_list(self) -> List[int]:
+    async def get_regions_list(self) -> List[int]:
         """
         Récupère la liste des IDs de régions
 
@@ -21,7 +21,7 @@ class EveRepository(ABC):
         pass
 
     @abstractmethod
-    def get_region_details(self, region_id: int) -> Dict[str, Any]:
+    async def get_region_details(self, region_id: int) -> Dict[str, Any]:
         """
         Récupère les détails d'une région
 
@@ -34,7 +34,7 @@ class EveRepository(ABC):
         pass
 
     @abstractmethod
-    def get_constellation_details(self, constellation_id: int) -> Dict[str, Any]:
+    async def get_constellation_details(self, constellation_id: int) -> Dict[str, Any]:
         """
         Récupère les détails d'une constellation
 
@@ -47,7 +47,7 @@ class EveRepository(ABC):
         pass
 
     @abstractmethod
-    def get_system_details(self, system_id: int) -> Dict[str, Any]:
+    async def get_system_details(self, system_id: int) -> Dict[str, Any]:
         """
         Récupère les détails d'un système solaire
 
@@ -60,7 +60,7 @@ class EveRepository(ABC):
         pass
 
     @abstractmethod
-    def get_item_type(self, type_id: int) -> Dict[str, Any]:
+    async def get_item_type(self, type_id: int) -> Dict[str, Any]:
         """
         Récupère les informations d'un type d'item
 
@@ -73,7 +73,7 @@ class EveRepository(ABC):
         pass
 
     @abstractmethod
-    def get_stargate_details(self, stargate_id: int) -> Dict[str, Any]:
+    async def get_stargate_details(self, stargate_id: int) -> Dict[str, Any]:
         """
         Récupère les détails d'une stargate (porte stellaire)
 
@@ -84,4 +84,3 @@ class EveRepository(ABC):
             Dictionnaire contenant les détails de la stargate
         """
         pass
-

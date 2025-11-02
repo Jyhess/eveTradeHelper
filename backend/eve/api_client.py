@@ -1,16 +1,15 @@
 """
 Client pour l'API ESI (Eve Swagger Interface) d'Eve Online
+Version asynchrone avec httpx
 """
 
-import os
-import requests
+import httpx
 from typing import List, Dict, Any, Optional
-from datetime import datetime
 from eve.cache_decorator import cached
 
 
 class EveAPIClient:
-    """Client pour interagir avec l'API ESI d'Eve Online"""
+    """Client pour interagir avec l'API ESI d'Eve Online (asynchrone)"""
 
     def __init__(
         self,
@@ -26,10 +25,25 @@ class EveAPIClient:
         """
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self._client: Optional[httpx.AsyncClient] = None
 
-    def _get(self, endpoint: str, params: Optional[Dict] = None) -> Dict[str, Any]:
+    async def _get_client(self) -> httpx.AsyncClient:
+        """Obtient ou crée un client HTTP asynchrone"""
+        if self._client is None:
+            self._client = httpx.AsyncClient(timeout=self.timeout)
+        return self._client
+
+    async def close(self):
+        """Ferme le client HTTP"""
+        if self._client:
+            await self._client.aclose()
+            self._client = None
+
+    async def _get(
+        self, endpoint: str, params: Optional[Dict] = None
+    ) -> Dict[str, Any]:
         """
-        Effectue une requête GET vers l'API
+        Effectue une requête GET vers l'API (asynchrone)
 
         Args:
             endpoint: Chemin de l'endpoint (ex: "/universe/regions/")
@@ -39,26 +53,26 @@ class EveAPIClient:
             Réponse JSON de l'API
 
         Raises:
-            requests.RequestException: Si la requête échoue
-            Exception: Si le statut HTTP n'est pas 200
+            Exception: Si la requête échoue
         """
         url = f"{self.base_url}{endpoint}"
+        client = await self._get_client()
 
         try:
-            response = requests.get(url, params=params, timeout=self.timeout)
+            response = await client.get(url, params=params)
             response.raise_for_status()
             return response.json()
-        except requests.Timeout:
+        except httpx.TimeoutException:
             raise Exception(f"Timeout lors de l'appel à l'API: {url}")
-        except requests.HTTPError as e:
+        except httpx.HTTPStatusError as e:
             raise Exception(
-                f"Erreur HTTP {response.status_code} lors de l'appel à {url}: {e}"
+                f"Erreur HTTP {e.response.status_code} lors de l'appel à {url}: {e}"
             )
-        except requests.RequestException as e:
+        except httpx.RequestError as e:
             raise Exception(f"Erreur de connexion à l'API {url}: {e}")
 
     @cached()
-    def get_regions_list(self) -> List[int]:
+    async def get_regions_list(self) -> List[int]:
         """
         Récupère la liste des IDs de régions
 
@@ -68,10 +82,10 @@ class EveAPIClient:
         Raises:
             Exception: Si l'appel API échoue
         """
-        return self._get("/universe/regions/")
+        return await self._get("/universe/regions/")
 
     @cached()
-    def get_region_details(self, region_id: int) -> Dict[str, Any]:
+    async def get_region_details(self, region_id: int) -> Dict[str, Any]:
         """
         Récupère les détails d'une région
 
@@ -84,10 +98,10 @@ class EveAPIClient:
         Raises:
             Exception: Si l'appel API échoue
         """
-        return self._get(f"/universe/regions/{region_id}/")
+        return await self._get(f"/universe/regions/{region_id}/")
 
     @cached()
-    def get_constellation_details(self, constellation_id: int) -> Dict[str, Any]:
+    async def get_constellation_details(self, constellation_id: int) -> Dict[str, Any]:
         """
         Récupère les détails d'une constellation
 
@@ -100,10 +114,10 @@ class EveAPIClient:
         Raises:
             Exception: Si l'appel API échoue
         """
-        return self._get(f"/universe/constellations/{constellation_id}/")
+        return await self._get(f"/universe/constellations/{constellation_id}/")
 
     @cached()
-    def get_system_details(self, system_id: int) -> Dict[str, Any]:
+    async def get_system_details(self, system_id: int) -> Dict[str, Any]:
         """
         Récupère les détails d'un système solaire
 
@@ -116,10 +130,10 @@ class EveAPIClient:
         Raises:
             Exception: Si l'appel API échoue
         """
-        return self._get(f"/universe/systems/{system_id}/")
+        return await self._get(f"/universe/systems/{system_id}/")
 
     @cached()
-    def get_item_type(self, type_id: int) -> Dict[str, Any]:
+    async def get_item_type(self, type_id: int) -> Dict[str, Any]:
         """
         Récupère les informations d'un type d'item
 
@@ -132,10 +146,10 @@ class EveAPIClient:
         Raises:
             Exception: Si l'appel API échoue
         """
-        return self._get(f"/universe/types/{type_id}/")
+        return await self._get(f"/universe/types/{type_id}/")
 
     @cached()
-    def get_stargate_details(self, stargate_id: int) -> Dict[str, Any]:
+    async def get_stargate_details(self, stargate_id: int) -> Dict[str, Any]:
         """
         Récupère les détails d'une stargate (porte stellaire)
 
@@ -148,9 +162,9 @@ class EveAPIClient:
         Raises:
             Exception: Si l'appel API échoue
         """
-        return self._get(f"/universe/stargates/{stargate_id}/")
+        return await self._get(f"/universe/stargates/{stargate_id}/")
 
-    def get_market_prices(self, region_id: int) -> List[Dict[str, Any]]:
+    async def get_market_prices(self, region_id: int) -> List[Dict[str, Any]]:
         """
         Récupère les prix de marché pour une région
 
@@ -163,9 +177,9 @@ class EveAPIClient:
         Raises:
             Exception: Si l'appel API échoue
         """
-        return self._get(f"/markets/{region_id}/orders/")
+        return await self._get(f"/markets/{region_id}/orders/")
 
-    def search(
+    async def search(
         self, categories: List[str], search: str, strict: bool = False
     ) -> Dict[str, Any]:
         """
@@ -187,4 +201,4 @@ class EveAPIClient:
             "search": search,
             "strict": str(strict).lower(),
         }
-        return self._get("/search/", params=params)
+        return await self._get("/search/", params=params)
