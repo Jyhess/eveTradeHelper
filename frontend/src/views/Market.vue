@@ -1,10 +1,5 @@
 <template>
   <div class="market-page">
-    <h1>Eve Trade Helper</h1>
-    <p class="subtitle">Marché - Catégories</p>
-
-    <Breadcrumb :items="breadcrumbItems" />
-
     <div class="card">
       <div v-if="loading" class="loading">
         Chargement des catégories du marché...
@@ -142,13 +137,12 @@
 
 <script>
 import axios from 'axios'
-import Breadcrumb from '../components/Breadcrumb.vue'
 import TreeNode from '../components/TreeNode.vue'
+import eventBus from '../utils/eventBus'
 
 export default {
   name: 'Market',
   components: {
-    Breadcrumb,
     TreeNode
   },
   props: {
@@ -183,40 +177,6 @@ export default {
     }
   },
   computed: {
-    breadcrumbItems() {
-      const items = [
-        { label: 'Accueil', path: '/regions' },
-        { label: 'Régions', path: '/regions' }
-      ]
-
-      if (this.regionId && this.regionName) {
-        items.push({
-          label: this.regionName,
-          path: `/regions/${this.regionId}/constellations`
-        })
-      }
-
-      if (this.constellationId && this.constellationName) {
-        items.push({
-          label: this.constellationName,
-          path: `/constellations/${this.constellationId}/systems`
-        })
-      }
-
-      if (this.systemId && this.systemName) {
-        items.push({
-          label: this.systemName,
-          path: `/systems/${this.systemId}`
-        })
-      }
-
-      items.push({
-        label: 'Marché',
-        path: this.getMarketPath()
-      })
-
-      return items
-    },
     treeData() {
       return this.buildTree(this.categories)
     }
@@ -330,6 +290,11 @@ export default {
         const region = response.data.regions?.find(r => r.region_id === parseInt(this.regionId))
         if (region) {
           this.regionName = region.name
+          // Mettre à jour le breadcrumb
+          eventBus.emit('breadcrumb-update', {
+            regionName: this.regionName,
+            regionId: this.regionId
+          })
         }
       } catch (error) {
         console.error('Erreur lors de la récupération du nom de la région:', error)
@@ -346,6 +311,11 @@ export default {
         )
         if (constellation) {
           this.constellationName = constellation.name
+          // Mettre à jour le breadcrumb
+          eventBus.emit('breadcrumb-update', {
+            constellationName: this.constellationName,
+            constellationId: this.constellationId
+          })
         }
       } catch (error) {
         console.error('Erreur lors de la récupération du nom de la constellation:', error)
@@ -358,6 +328,11 @@ export default {
         )
         if (response.data.system) {
           this.systemName = response.data.system.name
+          // Mettre à jour le breadcrumb
+          eventBus.emit('breadcrumb-update', {
+            systemName: this.systemName,
+            systemId: this.systemId
+          })
         }
       } catch (error) {
         console.error('Erreur lors de la récupération du nom du système:', error)
@@ -489,20 +464,6 @@ export default {
   padding: 20px;
 }
 
-h1 {
-  font-size: 2.5em;
-  color: white;
-  margin-bottom: 10px;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
-  text-align: center;
-}
-
-.subtitle {
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 1.2em;
-  margin-bottom: 30px;
-  text-align: center;
-}
 
 .card {
   background: white;

@@ -1,10 +1,5 @@
 <template>
   <div class="regions-page">
-    <h1>Eve Trade Helper</h1>
-    <p class="subtitle">Régions d'Eve Online</p>
-    
-    <Breadcrumb :items="breadcrumbItems" />
-    
     <div class="card">
       <div v-if="error" class="error">{{ error }}</div>
       
@@ -65,13 +60,9 @@
 
 <script>
 import axios from 'axios'
-import Breadcrumb from '../components/Breadcrumb.vue'
 
 export default {
   name: 'Regions',
-  components: {
-    Breadcrumb
-  },
   data() {
     return {
       regions: [],
@@ -82,12 +73,6 @@ export default {
     }
   },
   computed: {
-    breadcrumbItems() {
-      return [
-        { label: 'Accueil', path: '/regions' },
-        { label: 'Régions', path: '/regions' }
-      ]
-    },
     filteredRegions() {
       if (!this.searchFilter) {
         return this.regions
@@ -132,20 +117,6 @@ export default {
   padding: 20px;
 }
 
-h1 {
-  font-size: 2.5em;
-  color: white;
-  margin-bottom: 10px;
-  text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
-  text-align: center;
-}
-
-.subtitle {
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 1.2em;
-  margin-bottom: 30px;
-  text-align: center;
-}
 
 .card {
   background: white;

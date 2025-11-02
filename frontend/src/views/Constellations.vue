@@ -1,10 +1,5 @@
 <template>
   <div class="constellations-page">
-    <h1>Eve Trade Helper</h1>
-    <p class="subtitle">Constellations</p>
-    
-    <Breadcrumb :items="breadcrumbItems" />
-    
     <div class="card">
       <div v-if="loading" class="loading">
         Chargement des constellations...
@@ -15,11 +10,18 @@
       <div v-else-if="constellations.length > 0" class="constellations-container">
         <div class="stats">
           <p><strong>{{ total }} constellations</strong> dans la région <strong>{{ regionName }}</strong></p>
-          <p class="market-link">
-            <router-link :to="`/markets/region/${regionId}`" class="market-button">
-              📊 Voir le marché de cette région
-            </router-link>
-          </p>
+          <div class="action-links">
+            <p class="market-link">
+              <router-link :to="`/markets/region/${regionId}`" class="market-button">
+                📊 Voir le marché de cette région
+              </router-link>
+            </p>
+            <p class="deals-link">
+              <router-link :to="`/deals/region/${regionId}`" class="deals-button">
+                💰 Trouver les bonnes affaires
+              </router-link>
+            </p>
+          </div>
         </div>
         
         <div class="constellations-grid">
@@ -57,13 +59,10 @@
 
 <script>
 import axios from 'axios'
-import Breadcrumb from '../components/Breadcrumb.vue'
+import eventBus from '../utils/eventBus'
 
 export default {
   name: 'Constellations',
-  components: {
-    Breadcrumb
-  },
   props: {
     regionId: {
       type: [String, Number],
@@ -77,23 +76,6 @@ export default {
       loading: false,
       error: '',
       regionName: ''
-    }
-  },
-  computed: {
-    breadcrumbItems() {
-      const items = [
-        { label: 'Accueil', path: '/regions' },
-        { label: 'Régions', path: '/regions' }
-      ]
-      
-      if (this.regionName) {
-        items.push({
-          label: this.regionName,
-          path: `/regions/${this.regionId}/constellations`
-        })
-      }
-      
-      return items
     }
   },
   methods: {
@@ -112,6 +94,14 @@ export default {
         // Récupérer le nom de la région depuis les régions
         if (this.constellations.length > 0) {
           await this.fetchRegionName()
+        }
+        
+        // Mettre à jour le breadcrumb dans le header
+        if (this.regionName) {
+          eventBus.emit('breadcrumb-update', {
+            regionName: this.regionName,
+            regionId: this.regionId
+          })
         }
       } catch (error) {
         this.error = 'Erreur: ' + (error.response?.data?.error || error.message)
@@ -149,20 +139,6 @@ export default {
   padding: 20px;
 }
 
-h1 {
-  font-size: 2.5em;
-  color: white;
-  margin-bottom: 10px;
-  text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
-  text-align: center;
-}
-
-.subtitle {
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 1.2em;
-  margin-bottom: 30px;
-  text-align: center;
-}
 
 .card {
   background: white;
@@ -202,14 +178,23 @@ h1 {
   color: #667eea;
 }
 
-.market-link {
+.action-links {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
   margin-top: 10px;
+  flex-wrap: wrap;
 }
 
-.market-button {
+.market-link,
+.deals-link {
+  margin: 0;
+}
+
+.market-button,
+.deals-button {
   display: inline-block;
   padding: 10px 20px;
-  background: #48bb78;
   color: white;
   text-decoration: none;
   border-radius: 6px;
@@ -217,8 +202,21 @@ h1 {
   transition: background 0.2s, transform 0.2s;
 }
 
+.market-button {
+  background: #48bb78;
+}
+
 .market-button:hover {
   background: #38a169;
+  transform: translateY(-1px);
+}
+
+.deals-button {
+  background: #667eea;
+}
+
+.deals-button:hover {
+  background: #5568d3;
   transform: translateY(-1px);
 }
 

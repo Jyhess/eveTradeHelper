@@ -1,10 +1,5 @@
 <template>
   <div class="deals-page">
-    <h1>Eve Trade Helper</h1>
-    <p class="subtitle">Recherche de bonnes affaires</p>
-
-    <Breadcrumb :items="breadcrumbItems" />
-
     <div class="card">
       <div class="search-section">
         <div class="form-group">
@@ -157,13 +152,12 @@
 
 <script>
 import axios from 'axios'
-import Breadcrumb from '../components/Breadcrumb.vue'
 import TreeSelect from '../components/TreeSelect.vue'
+import eventBus from '../utils/eventBus'
 
 export default {
   name: 'Deals',
   components: {
-    Breadcrumb,
     TreeSelect
   },
   data() {
@@ -184,16 +178,6 @@ export default {
     }
   },
   computed: {
-    breadcrumbItems() {
-      const items = [
-        { name: 'Accueil', path: '/' },
-        { name: 'Bonnes affaires', path: '/deals' }
-      ]
-      if (this.regionName) {
-        items.push({ name: this.regionName, path: null })
-      }
-      return items
-    },
     sortedDeals() {
       if (!this.searchResults || !this.searchResults.deals) {
         return []
@@ -263,6 +247,11 @@ export default {
       const region = this.regions.find(r => r.region_id === this.selectedRegionId)
       if (region) {
         this.regionName = region.name
+        // Mettre à jour le breadcrumb
+        eventBus.emit('breadcrumb-update', {
+          regionName: this.regionName,
+          regionId: this.selectedRegionId
+        })
       }
 
       await this.fetchMarketGroups()
@@ -444,20 +433,6 @@ export default {
   color: #333;
 }
 
-h1 {
-  text-align: center;
-  color: white;
-  margin-bottom: 10px;
-  font-size: 2.5em;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-.subtitle {
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 1.2em;
-  margin-bottom: 30px;
-  text-align: center;
-}
 
 .card {
   background: white;

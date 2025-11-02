@@ -1,10 +1,5 @@
 <template>
   <div class="systems-page">
-    <h1>Eve Trade Helper</h1>
-    <p class="subtitle">Systèmes</p>
-    
-    <Breadcrumb :items="breadcrumbItems" />
-    
     <div class="card">
       <div v-if="loading" class="loading">
         Chargement des systèmes...
@@ -62,13 +57,10 @@
 
 <script>
 import axios from 'axios'
-import Breadcrumb from '../components/Breadcrumb.vue'
+import eventBus from '../utils/eventBus'
 
 export default {
   name: 'Systems',
-  components: {
-    Breadcrumb
-  },
   props: {
     constellationId: {
       type: [String, Number],
@@ -84,30 +76,6 @@ export default {
       constellationName: '',
       regionId: null,
       regionName: ''
-    }
-  },
-  computed: {
-    breadcrumbItems() {
-      const items = [
-        { label: 'Accueil', path: '/regions' },
-        { label: 'Régions', path: '/regions' }
-      ]
-      
-      if (this.regionName) {
-        items.push({
-          label: this.regionName,
-          path: `/regions/${this.regionId}/constellations`
-        })
-      }
-      
-      if (this.constellationName) {
-        items.push({
-          label: this.constellationName,
-          path: `/constellations/${this.constellationId}/systems`
-        })
-      }
-      
-      return items
     }
   },
   methods: {
@@ -152,6 +120,13 @@ export default {
             this.constellationName = constellation.name
             this.regionId = region.region_id
             this.regionName = region.name
+            // Mettre à jour le breadcrumb dans le header
+            eventBus.emit('breadcrumb-update', {
+              regionName: this.regionName,
+              regionId: this.regionId,
+              constellationName: this.constellationName,
+              constellationId: this.constellationId
+            })
             break
           }
         }
@@ -182,20 +157,6 @@ export default {
   padding: 20px;
 }
 
-h1 {
-  font-size: 2.5em;
-  color: white;
-  margin-bottom: 10px;
-  text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
-  text-align: center;
-}
-
-.subtitle {
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 1.2em;
-  margin-bottom: 30px;
-  text-align: center;
-}
 
 .card {
   background: white;

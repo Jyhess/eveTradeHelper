@@ -1,10 +1,5 @@
 <template>
   <div class="system-detail-page">
-    <h1>Eve Trade Helper</h1>
-    <p class="subtitle">Détails du système</p>
-    
-    <Breadcrumb :items="breadcrumbItems" />
-    
     <div class="card">
       <div v-if="loading" class="loading">
         Chargement des informations du système...
@@ -98,13 +93,10 @@
 
 <script>
 import axios from 'axios'
-import Breadcrumb from '../components/Breadcrumb.vue'
+import eventBus from '../utils/eventBus'
 
 export default {
   name: 'SystemDetail',
-  components: {
-    Breadcrumb
-  },
   props: {
     systemId: {
       type: [String, Number],
@@ -123,37 +115,6 @@ export default {
       constellationId: null,
       regionId: null,
       regionName: ''
-    }
-  },
-  computed: {
-    breadcrumbItems() {
-      const items = [
-        { label: 'Accueil', path: '/regions' },
-        { label: 'Régions', path: '/regions' }
-      ]
-      
-      if (this.regionName) {
-        items.push({
-          label: this.regionName,
-          path: `/regions/${this.regionId}/constellations`
-        })
-      }
-      
-      if (this.constellationName) {
-        items.push({
-          label: this.constellationName,
-          path: `/constellations/${this.constellationId}/systems`
-        })
-      }
-      
-      if (this.system) {
-        items.push({
-          label: this.system.name,
-          path: `/systems/${this.systemId}`
-        })
-      }
-      
-      return items
     }
   },
   methods: {
@@ -199,6 +160,16 @@ export default {
           this.regionId = response.data.region.region_id
           this.regionName = response.data.region.name
         }
+        
+        // Mettre à jour le breadcrumb dans le header
+        eventBus.emit('breadcrumb-update', {
+          regionName: this.regionName,
+          regionId: this.regionId,
+          constellationName: this.constellationName,
+          constellationId: this.constellationId,
+          systemName: this.system ? this.system.name : '',
+          systemId: this.systemId
+        })
       } catch (error) {
         console.error('Erreur lors de la récupération des informations:', error)
       }
@@ -243,20 +214,6 @@ export default {
   padding: 20px;
 }
 
-h1 {
-  font-size: 2.5em;
-  color: white;
-  margin-bottom: 10px;
-  text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
-  text-align: center;
-}
-
-.subtitle {
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 1.2em;
-  margin-bottom: 30px;
-  text-align: center;
-}
 
 .card {
   background: white;

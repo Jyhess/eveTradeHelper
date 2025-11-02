@@ -32,11 +32,9 @@ export default {
 
 <style scoped>
 .breadcrumb {
-  margin-bottom: 20px;
-  padding: 15px 20px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  backdrop-filter: blur(10px);
+  margin: 0;
+  padding: 0;
+  background: transparent;
 }
 
 .breadcrumb-list {
@@ -54,25 +52,25 @@ export default {
 }
 
 .breadcrumb-link {
-  color: rgba(255, 255, 255, 0.9);
+  color: #667eea;
   text-decoration: none;
   transition: color 0.2s;
   font-size: 0.95em;
 }
 
 .breadcrumb-link:hover {
-  color: white;
+  color: #5568d3;
   text-decoration: underline;
 }
 
 .breadcrumb-current {
-  color: white;
+  color: #333;
   font-weight: 600;
   font-size: 0.95em;
 }
 
 .breadcrumb-separator {
-  color: rgba(255, 255, 255, 0.6);
+  color: #999;
   margin: 0 10px;
   font-size: 0.9em;
 }
