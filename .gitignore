@@ -15,9 +15,11 @@ env/
 # Cache
 backend/cache/
 cache/
+backend/tests/test_cache/
 *.json
 !package.json
 !package-lock.json
+!backend/tests/reference/*.json
 
 # Node.js
 node_modules/

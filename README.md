@@ -24,6 +24,11 @@ Application web simple avec backend Python (Flask) et frontend Vue.js, orchestr�
 │   ├── tasks.json          # Tâches (démarrage serveur Vue.js, etc.)
 │   ├── settings.json       # Paramètres du workspace
 │   └── extensions.json     # Extensions recommandées
+├── backend/
+│   ├── tests/              # Tests d'intégration
+│   │   ├── reference/      # Données de référence pour comparaison
+│   │   └── test_*.py       # Fichiers de tests
+│   └── ...
 ├── .venv/                  # Environnement virtuel Python (créé localement)
 ├── setup_env.bat           # Script de configuration automatique (Windows)
 ├── setup_env.sh            # Script de configuration automatique (Linux/Mac)
@@ -153,6 +158,29 @@ Application web simple avec backend Python (Flask) et frontend Vue.js, orchestr�
 - Démarrer le frontend : `cd frontend && npm run serve`
 - Build de production frontend : `cd frontend && npm run build`
 - Désactiver le venv : `deactivate`
+
+### Tests
+
+Les tests d'intégration comparent les réponses de l'API ESI avec des données de référence.
+
+```bash
+# Installer les dépendances de test (si pas déjà fait)
+pip install pytest pytest-cov
+
+# Exécuter tous les tests
+pytest backend/tests/
+
+# Exécuter avec détails
+pytest backend/tests/ -v
+
+# Exécuter un fichier spécifique
+pytest backend/tests/test_eve_api_client.py
+
+# Générer un rapport de couverture
+pytest backend/tests/ --cov=backend --cov-report=html
+```
+
+**Note** : Lors du premier lancement, les tests vont créer des fichiers de référence dans `backend/tests/reference/`. Ces fichiers seront utilisés pour comparer les résultats lors des exécutions suivantes.
 
 ## Débogage
 
