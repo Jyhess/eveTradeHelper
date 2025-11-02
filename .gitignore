@@ -12,6 +12,13 @@ venv/
 ENV/
 env/
 
+# Cache
+backend/cache/
+cache/
+*.json
+!package.json
+!package-lock.json
+
 # Node.js
 node_modules/
 npm-debug.log*

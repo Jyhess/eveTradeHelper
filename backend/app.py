@@ -7,12 +7,19 @@ import os
 import requests
 from flask import Flask, jsonify
 from flask_cors import CORS
+from simple_cache import SimpleCache
+from eve_api_client import EveAPIClient
 
 app = Flask(__name__)
 CORS(app)
 
-# Base URL de l'API ESI d'Eve Online
-ESI_BASE_URL = "https://esi.evetech.net/latest"
+# Configuration du cache
+CACHE_DIR = os.path.join(os.path.dirname(__file__), "cache")
+CACHE_EXPIRY_HOURS = int(os.getenv("CACHE_EXPIRY_HOURS", "240"))
+cache = SimpleCache(cache_dir=CACHE_DIR, expiry_hours=CACHE_EXPIRY_HOURS)
+
+# Client API Eve Online
+eve_client = EveAPIClient()
 
 
 @app.route("/api/hello", methods=["GET"])
@@ -25,53 +32,75 @@ def health():
     return jsonify({"status": "ok"})
 
 
+def fetch_regions_from_api(limit: int = 50):
+    """Récupère les régions depuis l'API ESI"""
+    # Utiliser le client API pour récupérer les régions
+    regions = eve_client.get_regions_with_details(limit=limit)
+
+    # Récupérer la liste complète des IDs pour les métadonnées
+    region_ids = eve_client.get_regions_list()
+
+    return regions, region_ids
+
+
 @app.route("/api/v1/regions", methods=["GET"])
 def get_regions():
     """
     Récupère la liste des régions d'Eve Online avec leurs détails
+    Utilise un cache JSON local pour éviter les appels répétés à l'API ESI
     """
+    cache_key = "regions_list"
+
     try:
-        # Récupérer la liste des IDs de régions
-        regions_list_url = f"{ESI_BASE_URL}/universe/regions/"
-        response = requests.get(regions_list_url, timeout=10)
-
-        if response.status_code != 200:
-            return (
-                jsonify({"error": f"Erreur API ESI: {response.status_code}"}),
-                response.status_code,
-            )
-
-        region_ids = response.json()
-
-        # Récupérer les détails de chaque région
-        regions = []
-        for region_id in region_ids[:50]:  # Limiter à 50 régions pour les performances
-            try:
-                region_detail_url = f"{ESI_BASE_URL}/universe/regions/{region_id}/"
-                detail_response = requests.get(region_detail_url, timeout=10)
-
-                if detail_response.status_code == 200:
-                    region_data = detail_response.json()
-                    regions.append(
-                        {
-                            "region_id": region_id,
-                            "name": region_data.get("name", "Unknown"),
-                            "description": region_data.get("description", ""),
-                            "constellations": region_data.get("constellations", []),
-                        }
-                    )
-            except Exception as e:
-                # Continuer même si une région échoue
-                app.logger.warning(
-                    f"Erreur lors de la récupération de la région {region_id}: {e}"
+        # Vérifier si le cache est valide
+        if cache.is_valid(cache_key):
+            # Utiliser le cache
+            app.logger.info("Utilisation du cache pour les régions")
+            regions = cache.get(cache_key)
+            if regions:
+                # Trier par nom pour un affichage cohérent
+                regions_sorted = sorted(regions, key=lambda x: x.get("name", ""))
+                return jsonify(
+                    {
+                        "total": len(regions_sorted),
+                        "regions": regions_sorted,
+                        "cached": True,
+                    }
                 )
-                continue
 
-        return jsonify({"total": len(regions), "regions": regions})
+        # Le cache est expiré ou n'existe pas, récupérer depuis l'API
+        app.logger.info("Récupération des régions depuis l'API ESI")
+        limit = int(os.getenv("REGIONS_LIMIT", "50"))
+        regions, region_ids = fetch_regions_from_api(limit=limit)
+
+        # Sauvegarder dans le cache
+        cache.set(cache_key, regions, metadata={"region_ids": region_ids})
+
+        # Trier par nom
+        regions_sorted = sorted(regions, key=lambda x: x.get("name", ""))
+
+        return jsonify(
+            {"total": len(regions_sorted), "regions": regions_sorted, "cached": False}
+        )
 
     except requests.RequestException as e:
+        # En cas d'erreur API, essayer de retourner le cache même expiré
+        app.logger.warning(f"Erreur API, tentative d'utilisation du cache expiré: {e}")
+        regions = cache.get(cache_key)
+        if regions:
+            regions_sorted = sorted(regions, key=lambda x: x.get("name", ""))
+            return jsonify(
+                {
+                    "total": len(regions_sorted),
+                    "regions": regions_sorted,
+                    "cached": True,
+                    "warning": "Cache expiré mais API indisponible",
+                }
+            )
         return jsonify({"error": f"Erreur de connexion à l'API ESI: {str(e)}"}), 500
+
     except Exception as e:
+        app.logger.error(f"Erreur inattendue: {e}")
         return jsonify({"error": f"Erreur inattendue: {str(e)}"}), 500
 
 
