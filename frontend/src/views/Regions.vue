@@ -6,20 +6,38 @@
     <Breadcrumb :items="breadcrumbItems" />
     
     <div class="card">
-      <button @click="fetchRegions" class="btn" :disabled="loading">
-        {{ loading ? 'Chargement...' : 'Charger les régions' }}
-      </button>
-      
       <div v-if="error" class="error">{{ error }}</div>
       
-      <div v-if="regions.length > 0" class="regions-container">
+      <div class="filter-section">
+        <input
+          v-model="searchFilter"
+          type="text"
+          class="filter-input"
+          placeholder="Rechercher une région..."
+          :disabled="loading"
+        />
+        <div class="filter-info" v-if="!loading">
+          <span v-if="searchFilter">
+            {{ filteredRegions.length }} région(s) trouvée(s) sur {{ total }}
+          </span>
+          <span v-else>
+            {{ total }} région(s) au total
+          </span>
+        </div>
+      </div>
+      
+      <div v-if="loading" class="loading">
+        Chargement des régions...
+      </div>
+      
+      <div v-else-if="filteredRegions.length > 0" class="regions-container">
         <div class="stats">
-          <p><strong>{{ total }} régions</strong> chargées</p>
+          <p><strong>{{ filteredRegions.length }}</strong> région(s) {{ searchFilter ? 'trouvée(s)' : 'chargée(s)' }}</p>
         </div>
         
         <div class="regions-grid">
           <router-link 
-            v-for="region in regions" 
+            v-for="region in filteredRegions" 
             :key="region.region_id" 
             :to="`/regions/${region.region_id}/constellations`"
             class="region-card"
@@ -36,6 +54,10 @@
             </div>
           </router-link>
         </div>
+      </div>
+      
+      <div v-else-if="!loading && regions.length > 0" class="no-results">
+        <p>Aucune région ne correspond à votre recherche "{{ searchFilter }}"</p>
       </div>
     </div>
   </div>
@@ -55,7 +77,8 @@ export default {
       regions: [],
       total: 0,
       loading: false,
-      error: ''
+      error: '',
+      searchFilter: ''
     }
   },
   computed: {
@@ -64,6 +87,18 @@ export default {
         { label: 'Accueil', path: '/regions' },
         { label: 'Régions', path: '/regions' }
       ]
+    },
+    filteredRegions() {
+      if (!this.searchFilter) {
+        return this.regions
+      }
+      
+      const filter = this.searchFilter.toLowerCase().trim()
+      return this.regions.filter(region => 
+        region.name.toLowerCase().includes(filter) ||
+        region.description?.toLowerCase().includes(filter) ||
+        region.region_id.toString().includes(filter)
+      )
     }
   },
   methods: {
@@ -119,26 +154,50 @@ h1 {
   box-shadow: 0 10px 30px rgba(0,0,0,0.3);
 }
 
-.btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  padding: 12px 30px;
-  font-size: 1.1em;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+.filter-section {
   margin-bottom: 20px;
 }
 
-.btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+.filter-input {
+  width: 100%;
+  padding: 12px 20px;
+  font-size: 1em;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
 }
 
-.btn:disabled {
-  opacity: 0.6;
+.filter-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.filter-input:disabled {
+  background-color: #f5f5f5;
   cursor: not-allowed;
+}
+
+.filter-info {
+  margin-top: 10px;
+  color: #666;
+  font-size: 0.9em;
+  text-align: right;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #667eea;
+  font-size: 1.1em;
+}
+
+.no-results {
+  text-align: center;
+  padding: 40px;
+  color: #999;
+  font-style: italic;
 }
 
 .error {
@@ -229,4 +288,5 @@ h1 {
   font-size: 1.1em;
 }
 </style>
+
 

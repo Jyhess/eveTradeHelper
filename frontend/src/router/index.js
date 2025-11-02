@@ -18,13 +18,13 @@ const routes = [
     path: '/regions/:regionId/constellations',
     name: 'Constellations',
     component: Constellations,
-    props: true
+    props: route => ({ regionId: parseInt(route.params.regionId) })
   },
   {
     path: '/constellations/:constellationId/systems',
     name: 'Systems',
     component: Systems,
-    props: true
+    props: route => ({ constellationId: parseInt(route.params.constellationId) })
   }
 ]
 
