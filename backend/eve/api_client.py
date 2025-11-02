@@ -86,51 +86,6 @@ class EveAPIClient:
         """
         return self._get(f"/universe/regions/{region_id}/")
 
-    def get_regions_with_details(
-        self, limit: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        Récupère la liste des régions avec leurs détails
-
-        Args:
-            limit: Nombre maximum de régions à récupérer (None = toutes)
-
-        Returns:
-            Liste des régions avec leurs détails
-
-        Raises:
-            Exception: Si l'appel API échoue
-        """
-        # Récupérer la liste des IDs
-        region_ids = self.get_regions_list()
-
-        # Appliquer la limite si spécifiée
-        if limit:
-            region_ids = region_ids[:limit]
-
-        # Récupérer les détails de chaque région
-        regions = []
-        for region_id in region_ids:
-            try:
-                region_data = self.get_region_details(region_id)
-                regions.append(
-                    {
-                        "region_id": region_id,
-                        "name": region_data.get("name", "Unknown"),
-                        "description": region_data.get("description", ""),
-                        "constellations": region_data.get("constellations", []),
-                    }
-                )
-            except Exception as e:
-                # Logger l'erreur mais continuer avec les autres régions
-                import logging
-
-                logging.warning(
-                    f"Erreur lors de la récupération de la région {region_id}: {e}"
-                )
-                continue
-
-        return regions
 
     @cached()
     def get_constellation_details(self, constellation_id: int) -> Dict[str, Any]:

@@ -101,8 +101,15 @@ class TestEveAPIClientRegions:
 
     def test_get_regions_with_details(self, eve_client, reference_data):
         """Test de récupération des régions avec leurs détails (limité à 5 pour les tests)"""
+        from eve.repository import EveRepositoryImpl
+        from domain.region_service import RegionService
+        
+        # Utiliser le service de domaine au lieu de la méthode directe
+        repository = EveRepositoryImpl(eve_client)
+        region_service = RegionService(repository)
+        
         limit = 5
-        result = eve_client.get_regions_with_details(limit=limit)
+        result = region_service.get_regions_with_details(limit=limit)
         
         # Vérifications de base
         assert isinstance(result, list), "Le résultat doit être une liste"
