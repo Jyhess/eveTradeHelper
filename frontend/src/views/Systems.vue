@@ -38,6 +38,12 @@
                   Position: ({{ Math.round(system.position.x) }}, {{ Math.round(system.position.y) }}, {{ Math.round(system.position.z) }})
                 </small>
               </div>
+              <router-link 
+                :to="`/systems/${system.system_id}`"
+                class="system-detail-link"
+              >
+                Voir les détails et connexions →
+              </router-link>
             </div>
           </div>
         </div>
@@ -313,6 +319,23 @@ h1 {
   border-top: 1px solid #ddd;
   color: #888;
   font-size: 0.85em;
+}
+
+.system-detail-link {
+  display: inline-block;
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #ddd;
+  color: #4299e1;
+  text-decoration: none;
+  font-size: 0.9em;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.system-detail-link:hover {
+  color: #667eea;
+  text-decoration: underline;
 }
 </style>
 

@@ -86,7 +86,6 @@ class EveAPIClient:
         """
         return self._get(f"/universe/regions/{region_id}/")
 
-
     @cached()
     def get_constellation_details(self, constellation_id: int) -> Dict[str, Any]:
         """
@@ -134,6 +133,22 @@ class EveAPIClient:
             Exception: Si l'appel API échoue
         """
         return self._get(f"/universe/types/{type_id}/")
+
+    @cached()
+    def get_stargate_details(self, stargate_id: int) -> Dict[str, Any]:
+        """
+        Récupère les détails d'une stargate (porte stellaire)
+
+        Args:
+            stargate_id: ID de la stargate
+
+        Returns:
+            Dictionnaire contenant les détails de la stargate
+
+        Raises:
+            Exception: Si l'appel API échoue
+        """
+        return self._get(f"/universe/stargates/{stargate_id}/")
 
     def get_market_prices(self, region_id: int) -> List[Dict[str, Any]]:
         """

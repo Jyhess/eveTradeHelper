@@ -72,3 +72,16 @@ class EveRepository(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_stargate_details(self, stargate_id: int) -> Dict[str, Any]:
+        """
+        Récupère les détails d'une stargate (porte stellaire)
+
+        Args:
+            stargate_id: ID de la stargate
+
+        Returns:
+            Dictionnaire contenant les détails de la stargate
+        """
+        pass
+

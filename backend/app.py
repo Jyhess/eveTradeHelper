@@ -31,7 +31,7 @@ eve_repository = EveRepositoryImpl(api_client)
 region_service = RegionService(eve_repository)
 
 # Application Layer : APIs
-region_api = RegionAPI(region_service, cache)
+region_api = RegionAPI(region_service)
 health_api = HealthAPI()
 
 # Enregistrer les blueprints

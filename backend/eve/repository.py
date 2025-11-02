@@ -39,3 +39,7 @@ class EveRepositoryImpl(EveRepository):
         """Récupère les informations d'un type d'item"""
         return self.api_client.get_item_type(type_id)
 
+    def get_stargate_details(self, stargate_id: int) -> Dict[str, Any]:
+        """Récupère les détails d'une stargate"""
+        return self.api_client.get_stargate_details(stargate_id)
+

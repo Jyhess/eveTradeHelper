@@ -189,6 +189,7 @@ pytest backend/tests/ --cov=backend --cov-report=html
 - `GET /api/v1/regions` : Liste toutes les régions avec leurs détails
 - `GET /api/v1/regions/<region_id>/constellations` : Liste toutes les constellations d'une région avec leurs détails
 - `GET /api/v1/constellations/<constellation_id>/systems` : Liste tous les systèmes d'une constellation avec leurs détails
+- `GET /api/v1/systems/<system_id>/connections` : Liste tous les systèmes connectés à un système donné via les stargates
 
 Exemple :
 ```bash
@@ -200,6 +201,9 @@ curl http://localhost:5000/api/v1/regions/10000002/constellations
 
 # Récupérer les systèmes d'une constellation (ex: 20000001)
 curl http://localhost:5000/api/v1/constellations/20000001/systems
+
+# Récupérer les systèmes connectés à un système (ex: 30000001 - Jita)
+curl http://localhost:5000/api/v1/systems/30000001/connections
 ```
 
 ## Débogage

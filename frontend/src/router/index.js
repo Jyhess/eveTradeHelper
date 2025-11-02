@@ -25,6 +25,12 @@ const routes = [
     name: 'Systems',
     component: Systems,
     props: route => ({ constellationId: parseInt(route.params.constellationId) })
+  },
+  {
+    path: '/systems/:systemId',
+    name: 'SystemDetail',
+    component: () => import('../views/SystemDetail.vue'),
+    props: route => ({ systemId: parseInt(route.params.systemId) })
   }
 ]
 
