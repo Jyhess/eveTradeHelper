@@ -76,48 +76,85 @@
               </div>
             </div>
             <div class="deal-details">
-              <div class="price-info">
-                <div class="price-item">
-                  <span class="price-label">Meilleur prix d'achat:</span>
-                  <span class="price-value buy-price">{{ formatPrice(deal.best_buy_price) }} ISK</span>
-                </div>
-                <div class="price-item">
-                  <span class="price-label">Meilleur prix de vente:</span>
-                  <span class="price-value sell-price">{{ formatPrice(deal.best_sell_price) }} ISK</span>
-                </div>
-                <div class="price-item profit-item">
-                  <span class="price-label">Bénéfice:</span>
-                  <span class="price-value profit-value">{{ formatPrice(deal.profit_isk) }} ISK</span>
-                </div>
-              </div>
-              <div class="order-stats">
-                <span>{{ deal.buy_order_count }} ordre(s) d'achat</span>
-                <span>•</span>
-                <span>{{ deal.sell_order_count }} ordre(s) de vente</span>
-                <span v-if="deal.tradable_volume">
-                  • <span class="volume-info">Vol: {{ deal.tradable_volume.toLocaleString('fr-FR') }}</span>
-                </span>
-                <span v-if="deal.jumps !== null && deal.jumps !== undefined">
-                  • <span class="jumps-info">{{ deal.jumps }} saut(s)</span>
-                </span>
-                <span v-else-if="deal.jumps === null || deal.jumps === undefined">
-                  • <span class="jumps-info unknown">Sauts inconnus</span>
+              <!-- Ligne 1: Calcul financier -->
+              <div class="detail-line financial-line">
+                <span class="detail-label">Finance:</span>
+                <span class="detail-content">
+                  <span class="volume">{{ deal.tradable_volume.toLocaleString('fr-FR') }}</span>
+                  <span class="operator">×</span>
+                  <span class="price">{{ formatPrice(deal.buy_price) }} ISK</span>
+                  <span class="equals">=</span>
+                  <span class="total-buy">{{ formatPrice(deal.total_buy_cost) }} ISK</span>
+                  <span class="arrow">→</span>
+                  <span class="price">{{ formatPrice(deal.sell_price) }} ISK</span>
+                  <span class="equals">=</span>
+                  <span class="total-sell">{{ formatPrice(deal.total_sell_revenue) }} ISK</span>
+                  <span class="arrow">=></span>
+                  <span class="profit-total">{{ formatPrice(deal.profit_isk) }} ISK ({{ deal.profit_percent }}%)</span>
                 </span>
               </div>
 
-              <!-- Affichage de la route avec niveaux de danger -->
-              <div v-if="deal.route_details && deal.route_details.length > 0" class="route-display">
-                <span class="route-label">Route:</span>
-                <div class="route-jumps">
-                  <div v-for="(system, index) in deal.route_details" :key="system.system_id" class="route-jump">
-                    <div class="danger-indicator" :class="getDangerClass(system.security_status)"
-                      :title="`${system.name}\nSécurité: ${system.security_status.toFixed(1)}`">
-                      <span class="tooltip-text">{{ system.name }}<br>Sécurité: {{ system.security_status.toFixed(1)
-                      }}</span>
+              <!-- Ligne 2: Transport -->
+              <div class="detail-line transport-line">
+                <span class="detail-label">Transport:</span>
+                <span class="detail-content">
+                  <span class="volume">{{ deal.tradable_volume.toLocaleString('fr-FR') }}</span>
+                  <span class="operator">×</span>
+                  <span class="volume-unit">{{ formatVolume(deal.item_volume) }} m³</span>
+                  <span class="equals">=</span>
+                  <span class="total-volume">{{ formatVolume(deal.total_transport_volume) }} m³</span>
+                  <span class="separator">•</span>
+                  <span class="jumps-label">Sauts:</span>
+                  <span class="jumps-value">
+                    <span v-if="deal.jumps !== null && deal.jumps !== undefined">{{ deal.jumps }}</span>
+                    <span v-else>Inconnu</span>
+                  </span>
+                  <span class="separator">•</span>
+                  <span class="time-label">Temps:</span>
+                  <span class="time-value">
+                    <span v-if="deal.estimated_time_minutes !== null && deal.estimated_time_minutes !== undefined">
+                      {{ formatTime(deal.estimated_time_minutes) }}
+                    </span>
+                    <span v-else>Inconnu</span>
+                  </span>
+                </span>
+              </div>
+
+              <!-- Ligne 3: Route -->
+              <div v-if="deal.route_details && deal.route_details.length > 0" class="detail-line route-line">
+                <span class="detail-label">Route:</span>
+                <span class="detail-content route-content">
+                  <span class="route-start">{{ deal.route_details[0].name }}</span>
+                  <span class="route-separator">[</span>
+                  <div class="route-systems-inline">
+                    <div v-for="(system, index) in deal.route_details" :key="system.system_id"
+                      class="route-system-inline">
+                      <div class="danger-indicator-small" :class="getDangerClass(system.security_status)"
+                        :title="`${system.name}\nSécurité: ${system.security_status.toFixed(1)}`">
+                        <span class="tooltip-text-small">{{ system.name }}<br>Sécurité: {{
+                          system.security_status.toFixed(1) }}</span>
+                      </div>
+                      <span v-if="index < deal.route_details.length - 1" class="route-arrow-small">→</span>
                     </div>
-                    <span v-if="index < deal.route_details.length - 1" class="route-arrow">→</span>
                   </div>
-                </div>
+                  <span class="route-separator">]</span>
+                  <span class="route-end">{{ deal.route_details[deal.route_details.length - 1].name }}</span>
+                </span>
+              </div>
+
+              <!-- Ligne 4: Ordres -->
+              <div class="detail-line orders-line">
+                <span class="detail-label">Ordres:</span>
+                <span class="detail-content">
+                  <span class="orders-buy">{{ deal.buy_order_count }} achat</span>
+                  <span class="orders-separator">-</span>
+                  <span class="orders-sell">{{ deal.sell_order_count }} vente</span>
+                  <span class="separator">•</span>
+                  <router-link :to="`/markets/region/${selectedRegionId}?type_id=${deal.type_id}`"
+                    class="market-link-inline">
+                    📊 Détails marché
+                  </router-link>
+                </span>
               </div>
             </div>
           </div>
@@ -151,7 +188,7 @@ export default {
       searching: false,
       searchResults: null,
       error: '',
-      sortBy: 'profit'
+      sortBy: 'profit_isk' // Tri par défaut sur les bénéfices totaux (ISK)
     }
   },
   computed: {
@@ -380,10 +417,31 @@ export default {
       }
     },
     formatPrice(price) {
+      if (!price && price !== 0) return 'N/A'
       if (price >= 1000) {
         return Math.round(price).toLocaleString('fr-FR')
       }
       return price.toFixed(2).replace('.', ',')
+    },
+    formatVolume(volume) {
+      if (!volume && volume !== 0) return 'N/A'
+      // Format avec 2 décimales pour les petits volumes, arrondi pour les grands
+      if (volume >= 1000) {
+        return Math.round(volume).toLocaleString('fr-FR')
+      }
+      return volume.toFixed(2).replace('.', ',')
+    },
+    formatTime(minutes) {
+      if (!minutes && minutes !== 0) return 'N/A'
+      if (minutes < 60) {
+        return `${minutes} min`
+      }
+      const hours = Math.floor(minutes / 60)
+      const mins = minutes % 60
+      if (mins === 0) {
+        return `${hours}h`
+      }
+      return `${hours}h ${mins}min`
     },
     getProfitBadgeClass(profitPercent) {
       if (profitPercent >= 20) return 'profit-excellent'
@@ -392,9 +450,13 @@ export default {
       return 'profit-low'
     },
     getDangerClass(securityStatus) {
-      if (securityStatus >= 0.5) return 'danger-high-sec'
-      if (securityStatus > 0.0) return 'danger-low-sec'
-      return 'danger-null-sec'
+      if (securityStatus < 0) return 'danger-negative'
+      if (securityStatus <= 0.2) return 'danger-red'
+      if (securityStatus <= 0.4) return 'danger-orange'
+      if (securityStatus <= 0.5) return 'danger-yellow'
+      if (securityStatus <= 0.6) return 'danger-green'
+      if (securityStatus <= 0.8) return 'danger-green' // Vert aussi jusqu'à 0.8
+      return 'danger-blue' // > 0.8
     }
   }
 }
@@ -649,33 +711,231 @@ export default {
   font-weight: 500;
 }
 
-.route-display {
-  margin-top: 10px;
-  padding: 10px;
-  background: #f8f9fa;
-  border-radius: 6px;
+/* Lignes de détails compactes */
+.detail-line {
   display: flex;
   align-items: center;
-  gap: 10px;
+  padding: 8px 12px;
+  margin-bottom: 6px;
+  border-radius: 6px;
+  font-size: 0.95em;
+  gap: 12px;
 }
 
-.route-label {
+.detail-label {
   font-weight: 600;
   color: #667eea;
-  font-size: 0.9em;
+  min-width: 80px;
+  flex-shrink: 0;
 }
 
-.route-jumps {
+.detail-content {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+/* Ligne financière */
+.financial-line {
+  background: #f8f9fa;
+  border-left: 3px solid #667eea;
+}
+
+.financial-line .volume,
+.financial-line .price {
+  color: #666;
+}
+
+.financial-line .operator,
+.financial-line .equals {
+  color: #999;
+  font-weight: 600;
+}
+
+.financial-line .total-buy {
+  color: #dc3545;
+  font-weight: 600;
+}
+
+.financial-line .total-sell {
+  color: #28a745;
+  font-weight: 600;
+}
+
+.financial-line .profit-total {
+  color: #667eea;
+  font-weight: 700;
+  font-size: 1.05em;
+}
+
+.financial-line .arrow {
+  color: #999;
+  margin: 0 4px;
+}
+
+/* Ligne transport */
+.transport-line {
+  background: #e7f3ff;
+  border-left: 3px solid #0066cc;
+}
+
+.transport-line .volume,
+.transport-line .volume-unit {
+  color: #0066cc;
+}
+
+.transport-line .total-volume {
+  color: #0066cc;
+  font-weight: 600;
+}
+
+.transport-line .jumps-label,
+.transport-line .time-label {
+  color: #666;
+  margin-left: 8px;
+}
+
+.transport-line .jumps-value,
+.transport-line .time-value {
+  color: #333;
+  font-weight: 600;
+}
+
+.transport-line .separator {
+  color: #999;
+  margin: 0 4px;
+}
+
+/* Ligne route */
+.route-line {
+  background: #fff3cd;
+  border-left: 3px solid #ffc107;
+}
+
+.route-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
-.route-jump {
+.route-start,
+.route-end {
+  font-weight: 700;
+  color: #856404;
+}
+
+.route-separator {
+  color: #856404;
+  font-weight: 600;
+}
+
+.route-systems-inline {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 3px;
+}
+
+.route-system-inline {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.danger-indicator-small {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  cursor: help;
+  transition: transform 0.2s;
+}
+
+.danger-indicator-small:hover {
+  transform: scale(1.3);
+}
+
+.danger-indicator-small .tooltip-text-small {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: white;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  white-space: nowrap;
+  z-index: 1000;
+  transition: opacity 0.3s, visibility 0.3s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  line-height: 1.4;
+}
+
+.danger-indicator-small:hover .tooltip-text-small {
+  visibility: visible;
+  opacity: 1;
+}
+
+.danger-indicator-small .tooltip-text-small::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: #333;
+}
+
+.route-arrow-small {
+  color: #856404;
+  font-size: 0.9em;
+  font-weight: 600;
+  margin: 0 2px;
+}
+
+/* Ligne ordres */
+.orders-line {
+  background: #d1ecf1;
+  border-left: 3px solid #0c5460;
+}
+
+.orders-line .orders-buy {
+  color: #dc3545;
+  font-weight: 600;
+}
+
+.orders-line .orders-separator {
+  color: #0c5460;
+  font-weight: 600;
+  margin: 0 4px;
+}
+
+.orders-line .orders-sell {
+  color: #28a745;
+  font-weight: 600;
+}
+
+.orders-line .separator {
+  color: #999;
+  margin: 0 8px;
+}
+
+.market-link-inline {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.market-link-inline:hover {
+  color: #5568d3;
+  text-decoration: underline;
 }
 
 .danger-indicator {
@@ -729,26 +989,42 @@ export default {
   border-top-color: #333;
 }
 
-.danger-high-sec {
-  background: #48bb78;
-  /* Vert pour high-sec */
+.danger-negative {
+  background: #000000;
+  /* Noir pour sécurité < 0 */
 }
 
-.danger-low-sec {
-  background: #ed8936;
-  /* Orange pour low-sec */
-}
-
-.danger-null-sec {
+.danger-red {
   background: #f56565;
-  /* Rouge pour null-sec */
+  /* Rouge pour sécurité <= 0.2 */
+}
+
+.danger-orange {
+  background: #ed8936;
+  /* Orange pour sécurité <= 0.4 */
+}
+
+.danger-yellow {
+  background: #f6e05e;
+  /* Jaune pour sécurité <= 0.5 */
+}
+
+.danger-green {
+  background: #48bb78;
+  /* Vert pour sécurité <= 0.6 (ou jusqu'à 0.8) */
+}
+
+.danger-blue {
+  background: #4299e1;
+  /* Bleu pour sécurité > 0.8 */
 }
 
 .route-arrow {
-  color: #999;
-  font-size: 0.9em;
-  margin: 0 3px;
+  color: #856404;
+  font-size: 1.2em;
+  font-weight: 600;
 }
+
 
 .sort-controls {
   display: flex;

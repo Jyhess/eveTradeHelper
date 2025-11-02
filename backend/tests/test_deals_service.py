@@ -25,6 +25,7 @@ class MockRepository(EveRepository):
         self.market_groups_details = {}
         self.market_orders = {}
         self.item_types = {}
+        self.system_details = {}
 
     async def get_market_groups_list(self) -> List[int]:
         return self.market_groups_list
@@ -48,13 +49,11 @@ class MockRepository(EveRepository):
     async def get_region_details(self, region_id: int) -> Dict[str, Any]:
         return {}
 
-    async def get_constellation_details(
-        self, constellation_id: int
-    ) -> Dict[str, Any]:
+    async def get_constellation_details(self, constellation_id: int) -> Dict[str, Any]:
         return {}
 
     async def get_system_details(self, system_id: int) -> Dict[str, Any]:
-        return {}
+        return self.system_details.get(system_id, {})
 
     async def get_stargate_details(self, stargate_id: int) -> Dict[str, Any]:
         return {}
@@ -80,7 +79,9 @@ def deals_service(mock_repository):
 class TestDealsServiceCollectTypes:
     """Tests pour la collecte de types d'un groupe"""
 
-    async def test_collect_all_types_from_simple_group(self, deals_service, mock_repository):
+    async def test_collect_all_types_from_simple_group(
+        self, deals_service, mock_repository
+    ):
         """Test avec un groupe simple sans sous-groupes"""
         # Configuration
         group_id = 1
@@ -178,16 +179,49 @@ class TestDealsServiceAnalyzeType:
         profit_threshold = 5.0
 
         # Configuration : ordres d'achat et de vente
+        # buy_order = quelqu'un veut ACHETER → on peut VENDRE à ce prix
+        # sell_order = quelqu'un veut VENDRE → on peut ACHETER à ce prix
         mock_repository.market_orders = {
             (region_id, type_id): [
-                {"is_buy_order": True, "price": 110},  # Meilleur prix d'achat
-                {"is_buy_order": True, "price": 105},
-                {"is_buy_order": False, "price": 95},  # Meilleur prix de vente
-                {"is_buy_order": False, "price": 100},
+                {
+                    "is_buy_order": True,
+                    "price": 110,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                    "location_id": 30000142,
+                },  # Meilleur prix pour VENDRE
+                {
+                    "is_buy_order": True,
+                    "price": 105,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                    "location_id": 30000142,
+                },
+                {
+                    "is_buy_order": False,
+                    "price": 95,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                    "location_id": 30000142,
+                },  # Meilleur prix pour ACHETER
+                {
+                    "is_buy_order": False,
+                    "price": 100,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                    "location_id": 30000142,
+                },
             ]
         }
         mock_repository.item_types = {
-            type_id: {"name": "Test Item", "description": "A test item"}
+            type_id: {"name": "Test Item", "description": "A test item", "volume": 1.0}
+        }
+        mock_repository.system_details = {
+            30000142: {
+                "system_id": 30000142,
+                "name": "Test System",
+                "security_status": 0.9,
+            }
         }
 
         # Exécution
@@ -199,10 +233,16 @@ class TestDealsServiceAnalyzeType:
         assert result is not None
         assert result["type_id"] == type_id
         assert result["type_name"] == "Test Item"
-        assert result["best_buy_price"] == 110
-        assert result["best_sell_price"] == 95
+        assert (
+            result["buy_price"] == 95
+        )  # Prix auquel on ACHÈTE (le plus bas parmi les sell_orders)
+        assert (
+            result["sell_price"] == 110
+        )  # Prix auquel on VEND (le plus élevé parmi les buy_orders)
+        # Bénéfice = (110 - 95) * 10 = 150 ISK
+        # Bénéfice % = (110 - 95) / 95 * 100 = 15.79%
         assert result["profit_percent"] == pytest.approx(15.79, rel=0.01)
-        assert result["profit_isk"] == 15
+        assert result["profit_isk"] == pytest.approx(150, rel=0.01)
         assert result["buy_order_count"] == 2
         assert result["sell_order_count"] == 2
 
@@ -243,9 +283,7 @@ class TestDealsServiceAnalyzeType:
         }
 
         # Exécution
-        result = await deals_service.analyze_type_profitability(
-            region_id, type_id, 5.0
-        )
+        result = await deals_service.analyze_type_profitability(region_id, type_id, 5.0)
 
         # Vérification : doit retourner None
         assert result is None
@@ -264,9 +302,7 @@ class TestDealsServiceAnalyzeType:
         }
 
         # Exécution
-        result = await deals_service.analyze_type_profitability(
-            region_id, type_id, 5.0
-        )
+        result = await deals_service.analyze_type_profitability(region_id, type_id, 5.0)
 
         # Vérification : doit retourner None
         assert result is None
@@ -310,9 +346,7 @@ class TestDealsServiceAnalyzeType:
         mock_repository.get_market_orders = failing_get_market_orders
 
         # Exécution
-        result = await deals_service.analyze_type_profitability(
-            region_id, type_id, 5.0
-        )
+        result = await deals_service.analyze_type_profitability(region_id, type_id, 5.0)
 
         # Vérification : doit retourner None sans lever d'exception
         assert result is None
@@ -323,9 +357,7 @@ class TestDealsServiceAnalyzeType:
 class TestDealsServiceFindDeals:
     """Tests pour la recherche complète de bonnes affaires"""
 
-    async def test_find_market_deals_empty_group(
-        self, deals_service, mock_repository
-    ):
+    async def test_find_market_deals_empty_group(self, deals_service, mock_repository):
         """Test avec un groupe vide"""
         mock_repository.market_groups_list = []
         mock_repository.market_groups_details = {}
@@ -433,4 +465,3 @@ class TestDealsServiceFindDeals:
         assert result["deals"][0]["profit_percent"] == 15.0  # 102
         assert result["deals"][1]["profit_percent"] == 10.0  # 103
         assert result["deals"][2]["profit_percent"] == 5.0  # 101
-

@@ -135,9 +135,13 @@ export default {
       }
     },
     getSecurityClass(securityStatus) {
-      if (securityStatus >= 0.5) return 'high-sec'
-      if (securityStatus > 0.0) return 'low-sec'
-      return 'null-sec'
+      if (securityStatus < 0) return 'sec-negative'
+      if (securityStatus <= 0.2) return 'sec-red'
+      if (securityStatus <= 0.4) return 'sec-orange'
+      if (securityStatus <= 0.5) return 'sec-yellow'
+      if (securityStatus <= 0.6) return 'sec-green'
+      if (securityStatus <= 0.8) return 'sec-green' // Vert aussi jusqu'à 0.8
+      return 'sec-blue' // > 0.8
     }
   },
   mounted() {
@@ -268,19 +272,34 @@ export default {
   font-size: 0.95em;
 }
 
-.security-status.high-sec {
-  background: #c6f6d5;
-  color: #22543d;
+.security-status.sec-negative {
+  background: #000000;
+  color: #ffffff;
 }
 
-.security-status.low-sec {
+.security-status.sec-red {
+  background: #fed7d7;
+  color: #742a2a;
+}
+
+.security-status.sec-orange {
   background: #feebc8;
   color: #7c2d12;
 }
 
-.security-status.null-sec {
-  background: #fed7d7;
-  color: #742a2a;
+.security-status.sec-yellow {
+  background: #fef9e7;
+  color: #744210;
+}
+
+.security-status.sec-green {
+  background: #c6f6d5;
+  color: #22543d;
+}
+
+.security-status.sec-blue {
+  background: #bee3f8;
+  color: #2c5282;
 }
 
 .security-status strong {

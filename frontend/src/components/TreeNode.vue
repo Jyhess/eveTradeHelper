@@ -22,7 +22,8 @@
     </div>
     <div v-if="expanded && hasChildren" class="tree-children">
       <TreeNode v-for="child in node.children" :key="child.is_type ? `type_${child.type_id}` : child.group_id"
-        :node="child" :level="level + 1" :type-details="typeDetails" :region-id="regionId" @node-selected="$emit('node-selected', $event)" />
+        :node="child" :level="level + 1" :type-details="typeDetails" :region-id="regionId" :expanded-paths="expandedPaths"
+        @node-selected="$emit('node-selected', $event)" />
     </div>
   </div>
 </template>
@@ -46,6 +47,10 @@ export default {
     regionId: {
       type: [String, Number],
       default: null
+    },
+    expandedPaths: {
+      type: [Set, Array],
+      default: () => new Set()
     }
   },
   data() {
@@ -59,6 +64,18 @@ export default {
     },
     isType() {
       return this.node.is_type === true
+    },
+    shouldBeExpanded() {
+      // Vérifier si ce nœud doit être développé selon expandedPaths
+      if (!this.expandedPaths || (this.expandedPaths instanceof Set && this.expandedPaths.size === 0)) {
+        return false
+      }
+      const nodeId = this.node.group_id || this.node.type_id
+      // Convertir Set en Array si nécessaire pour includes
+      const pathsArray = this.expandedPaths instanceof Set 
+        ? Array.from(this.expandedPaths) 
+        : this.expandedPaths
+      return pathsArray.includes(nodeId)
     },
     indentStyle() {
       return {
@@ -118,6 +135,28 @@ export default {
           types: this.node.types || []
         })
       }
+    }
+  },
+  watch: {
+    shouldBeExpanded(newVal) {
+      if (newVal && this.hasChildren) {
+        this.expanded = true
+      }
+    },
+    expandedPaths: {
+      handler() {
+        if (this.shouldBeExpanded && this.hasChildren) {
+          this.expanded = true
+        }
+      },
+      deep: true,
+      immediate: true
+    }
+  },
+  mounted() {
+    // Vérifier si on doit être développé au montage
+    if (this.shouldBeExpanded && this.hasChildren) {
+      this.expanded = true
     }
   }
 }

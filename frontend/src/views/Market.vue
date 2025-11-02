@@ -15,7 +15,8 @@
         <div class="main-content">
           <div class="tree-container">
             <TreeNode v-for="rootNode in treeData" :key="rootNode.group_id" :node="rootNode" :level="0"
-              :type-details="typeDetails" :region-id="regionId" @node-selected="handleNodeSelected" />
+              :type-details="typeDetails" :region-id="regionId" :expanded-paths="expandedPaths"
+              @node-selected="handleNodeSelected" />
           </div>
 
           <!-- Panneau latéral -->
@@ -173,7 +174,8 @@ export default {
       typeDetails: {},
       marketOrders: null,
       marketOrdersLoading: false,
-      marketOrdersError: ''
+      marketOrdersError: '',
+      expandedPaths: new Set() // Chemins (group_id) à développer pour atteindre un type
     }
   },
   computed: {
@@ -204,6 +206,13 @@ export default {
         }
         if (this.systemId) {
           await this.fetchSystemName()
+        }
+
+        // Vérifier si on doit aller directement sur un type depuis l'URL
+        await this.$nextTick()
+        const typeIdFromQuery = this.$route.query.type_id
+        if (typeIdFromQuery) {
+          await this.navigateToType(parseInt(typeIdFromQuery))
         }
       } catch (error) {
         this.error = 'Erreur: ' + (error.response?.data?.detail || error.message)
@@ -425,6 +434,75 @@ export default {
       this.selectedTypeId = null
       this.marketOrders = null
     },
+    // Trouve un type dans l'arbre et retourne le chemin (group_id des parents) jusqu'à lui
+    findTypePath(tree, typeId, currentPath = []) {
+      for (const node of tree) {
+        // Si c'est le type qu'on cherche
+        if (node.is_type && node.type_id === typeId) {
+          return currentPath // Retourne le chemin jusqu'aux parents (group_id seulement)
+        }
+        
+        // Construire le nouveau chemin avec le group_id du parent (pas les types)
+        let newPath = currentPath
+        if (!node.is_type && node.group_id) {
+          newPath = [...currentPath, node.group_id]
+        }
+        
+        // Si ce nœud a des enfants, chercher récursivement
+        if (node.children && node.children.length > 0) {
+          const found = this.findTypePath(node.children, typeId, newPath)
+          if (found !== null) {
+            return found
+          }
+        }
+      }
+      return null
+    },
+    // Navigue jusqu'à un type spécifique dans l'arbre
+    async navigateToType(typeId) {
+      // Trouver le chemin jusqu'à ce type
+      const path = this.findTypePath(this.treeData, typeId)
+      
+      if (path) {
+        // Développer tous les parents dans le chemin
+        this.expandedPaths = new Set(path)
+        
+        // Attendre un tick pour que les composants TreeNode se mettent à jour
+        await this.$nextTick()
+        
+        // Sélectionner le type
+        this.selectedTypeId = typeId
+        this.selectedCategory = null
+        this.marketOrders = null
+        
+        // Charger les détails du type
+        if (!this.typeDetails[typeId]) {
+          await this.fetchTypeDetails(typeId)
+        }
+        
+        // Charger les ordres de marché si on a une région
+        if (this.regionId) {
+          await this.fetchMarketOrders(typeId)
+        }
+        
+        // Scroller jusqu'à l'élément si possible (optionnel)
+        await this.$nextTick()
+        this.scrollToSelectedType()
+      } else {
+        console.warn(`Type ${typeId} non trouvé dans l'arbre`)
+      }
+    },
+    scrollToSelectedType() {
+      // Trouver l'élément sélectionné dans le DOM et scroller vers lui
+      // Cette fonction peut être améliorée si nécessaire
+      const selectedElements = document.querySelectorAll('.type-node')
+      selectedElements.forEach(el => {
+        if (el.textContent && this.typeDetails[this.selectedTypeId] && 
+            el.textContent.includes(this.typeDetails[this.selectedTypeId].name)) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      })
+    },
     formatPrice(price) {
       if (price >= 1000) {
         // Pour les prix >= 1000, pas de décimales
@@ -453,6 +531,11 @@ export default {
     },
     systemId() {
       this.fetchCategories()
+    },
+    '$route.query.type_id'(newTypeId) {
+      if (newTypeId && this.treeData.length > 0) {
+        this.navigateToType(parseInt(newTypeId))
+      }
     }
   }
 }

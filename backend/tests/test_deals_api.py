@@ -131,8 +131,8 @@ class TestDealsAPI:
             deal = data["deals"][0]
             assert "type_id" in deal
             assert "type_name" in deal
-            assert "best_buy_price" in deal
-            assert "best_sell_price" in deal
+            assert "buy_price" in deal
+            assert "sell_price" in deal
             assert "profit_percent" in deal
             assert "profit_isk" in deal
             assert "buy_order_count" in deal
@@ -140,8 +140,8 @@ class TestDealsAPI:
 
             assert isinstance(deal["type_id"], int)
             assert isinstance(deal["type_name"], str)
-            assert isinstance(deal["best_buy_price"], (int, float))
-            assert isinstance(deal["best_sell_price"], (int, float))
+            assert isinstance(deal["buy_price"], (int, float))
+            assert isinstance(deal["sell_price"], (int, float))
             assert isinstance(deal["profit_percent"], (int, float))
             assert isinstance(deal["profit_isk"], (int, float))
             assert isinstance(deal["buy_order_count"], int)
@@ -197,7 +197,10 @@ class TestDealsAPI:
         )
 
         # L'endpoint devrait gérer gracieusement un groupe inexistant
-        assert response.status_code in [200, 500]  # Peut retourner 200 avec 0 deals ou 500 si erreur
+        assert response.status_code in [
+            200,
+            500,
+        ]  # Peut retourner 200 avec 0 deals ou 500 si erreur
 
     def test_get_market_deals_endpoint_invalid_threshold(self, client):
         """Test avec un seuil invalide"""
@@ -237,4 +240,3 @@ class TestDealsAPI:
             # Les deals devraient tous respecter le seuil
             for deal in data["deals"]:
                 assert deal["profit_percent"] >= data["profit_threshold"]
-

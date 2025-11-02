@@ -104,42 +104,46 @@ class DealsService:
             if not buy_orders or not sell_orders:
                 return None
 
-            # Meilleur prix d'achat (le plus élevé)
-            best_buy_order = max(buy_orders, key=lambda x: x.get("price", 0))
-            best_buy_price = best_buy_order.get("price", 0)
-            best_buy_location_id = best_buy_order.get("location_id")
-            best_buy_volume = min(
-                best_buy_order.get("volume_remain", 0),
-                best_buy_order.get("volume_total", 0),
-            )
+            # Dans Eve Online :
+            # - buy_order (is_buy_order=True) = quelqu'un veut ACHETER → on peut VENDRE à ce prix
+            # - sell_order (is_buy_order=False) = quelqu'un veut VENDRE → on peut ACHETER à ce prix
 
-            # Meilleur prix de vente (le plus bas)
-            best_sell_order = min(
-                sell_orders, key=lambda x: x.get("price", float("inf"))
-            )
-            best_sell_price = best_sell_order.get("price", float("inf"))
-            best_sell_location_id = best_sell_order.get("location_id")
-            best_sell_volume = min(
+            # Meilleur prix pour VENDRE (le plus élevé parmi les buy_orders)
+            best_sell_order = max(buy_orders, key=lambda x: x.get("price", 0))
+            sell_price = best_sell_order.get("price", 0)  # Prix auquel on VEND
+            sell_location_id = best_sell_order.get("location_id")
+            sell_volume = min(
                 best_sell_order.get("volume_remain", 0),
                 best_sell_order.get("volume_total", 0),
             )
 
-            if best_buy_price <= 0 or best_sell_price <= 0:
+            # Meilleur prix pour ACHETER (le plus bas parmi les sell_orders)
+            best_buy_order = min(
+                sell_orders, key=lambda x: x.get("price", float("inf"))
+            )
+            buy_price = best_buy_order.get(
+                "price", float("inf")
+            )  # Prix auquel on ACHÈTE
+            buy_location_id = best_buy_order.get("location_id")
+            buy_volume = min(
+                best_buy_order.get("volume_remain", 0),
+                best_buy_order.get("volume_total", 0),
+            )
+
+            if sell_price <= 0 or buy_price <= 0:
                 return None
 
             # Calculer le volume échangeable (minimum entre les deux)
-            tradable_volume = min(best_buy_volume, best_sell_volume)
+            tradable_volume = min(sell_volume, buy_volume)
 
             if tradable_volume <= 0:
                 return None
 
-            # Calculer le bénéfice en ISK (différence de prix * volume échangeable)
-            profit_isk = (best_buy_price - best_sell_price) * tradable_volume
+            # Calculer le bénéfice en ISK (prix de vente - prix d'achat) * volume échangeable
+            profit_isk = (sell_price - buy_price) * tradable_volume
 
             # Calculer le bénéfice en %
-            profit_percent = (
-                (best_buy_price - best_sell_price) / best_sell_price
-            ) * 100
+            profit_percent = ((sell_price - buy_price) / buy_price) * 100
 
             # Filtrer selon le seuil
             if profit_percent < profit_threshold:
@@ -147,25 +151,35 @@ class DealsService:
 
             # Récupérer les détails du type
             type_details = await self.repository.get_item_type(type_id)
+            item_volume = type_details.get("volume", 0.0)  # Volume unitaire en m³
+
+            # Calculer les totaux
+            total_buy_cost = buy_price * tradable_volume  # Coût total d'achat
+            total_sell_revenue = sell_price * tradable_volume  # Revenu total de vente
+            total_transport_volume = item_volume * tradable_volume  # Volume total en m³
 
             # Calculer le nombre de sauts si on a des location_id valides
             jumps = None
-            if best_buy_location_id and best_sell_location_id:
+            buy_system_id = None
+            sell_system_id = None
+            route_details = []
+
+            if buy_location_id and sell_location_id:
                 try:
                     # Les location_id >= 60000000 sont des stations, sinon ce sont des systèmes
-                    buy_system_id = best_buy_location_id
-                    sell_system_id = best_sell_location_id
+                    buy_system_id = buy_location_id
+                    sell_system_id = sell_location_id
 
                     # Si c'est une station, récupérer le système parent
-                    if best_buy_location_id >= 60000000:
+                    if buy_location_id >= 60000000:
                         station_data = await self.repository.get_station_details(
-                            best_buy_location_id
+                            buy_location_id
                         )
                         buy_system_id = station_data.get("system_id")
 
-                    if best_sell_location_id >= 60000000:
+                    if sell_location_id >= 60000000:
                         station_data = await self.repository.get_station_details(
-                            best_sell_location_id
+                            sell_location_id
                         )
                         sell_system_id = station_data.get("system_id")
 
@@ -214,18 +228,28 @@ class DealsService:
                 route_details = []
                 jumps = None
 
+            # Calculer le temps de transport estimé (1 minute par saut)
+            estimated_time_minutes = jumps if jumps is not None else None
+
             return {
                 "type_id": type_id,
                 "type_name": type_details.get("name", f"Type {type_id}"),
-                "best_buy_price": best_buy_price,
-                "best_sell_price": best_sell_price,
+                "buy_price": buy_price,  # Prix auquel on ACHÈTE
+                "sell_price": sell_price,  # Prix auquel on VEND
                 "profit_percent": round(profit_percent, 2),
                 "profit_isk": round(profit_isk, 2),
                 "tradable_volume": tradable_volume,
+                "item_volume": item_volume,  # Volume unitaire en m³
+                "total_buy_cost": round(total_buy_cost, 2),
+                "total_sell_revenue": round(total_sell_revenue, 2),
+                "total_transport_volume": round(total_transport_volume, 2),
                 "buy_order_count": len(buy_orders),
                 "sell_order_count": len(sell_orders),
                 "jumps": jumps,
+                "estimated_time_minutes": estimated_time_minutes,
                 "route_details": route_details,
+                "buy_system_id": buy_system_id if buy_location_id else None,
+                "sell_system_id": sell_system_id if sell_location_id else None,
             }
         except Exception as e:
             logger.warning(f"Erreur lors de l'analyse du type {type_id}: {e}")
