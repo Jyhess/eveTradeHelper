@@ -43,6 +43,10 @@ class EveRepositoryImpl(EveRepository):
         """Récupère les détails d'une stargate"""
         return await self.api_client.get_stargate_details(stargate_id)
 
+    async def get_station_details(self, station_id: int) -> Dict[str, Any]:
+        """Récupère les détails d'une station"""
+        return await self.api_client.get_station_details(station_id)
+
     async def get_market_groups_list(self) -> List[int]:
         """Récupère la liste des IDs de groupes de marché"""
         return await self.api_client.get_market_groups_list()

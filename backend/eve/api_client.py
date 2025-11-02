@@ -165,6 +165,22 @@ class EveAPIClient:
         return await self._get(f"/universe/stargates/{stargate_id}/")
 
     @cached()
+    async def get_station_details(self, station_id: int) -> Dict[str, Any]:
+        """
+        Récupère les détails d'une station
+
+        Args:
+            station_id: ID de la station
+
+        Returns:
+            Dictionnaire contenant les détails de la station
+
+        Raises:
+            Exception: Si l'appel API échoue
+        """
+        return await self._get(f"/universe/stations/{station_id}/")
+
+    @cached()
     async def get_market_groups_list(self) -> List[int]:
         """
         Récupère la liste des IDs de groupes de marché

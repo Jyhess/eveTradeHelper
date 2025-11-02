@@ -7,7 +7,7 @@ import os
 import logging
 from cachetools import TTLCache
 from fastapi import APIRouter, HTTPException, Depends
-from typing import Optional
+from typing import Optional, Dict, Any
 from domain.region_service import RegionService
 from application.utils import cached_async
 
@@ -381,13 +381,14 @@ async def get_market_orders(
     """
     Récupère les ordres de marché pour une région, optionnellement filtrés par type
     Le cache est géré automatiquement par la couche infrastructure (EveAPIClient)
+    Enrichit les ordres avec les noms des systèmes et stations
 
     Args:
         region_id: ID de la région
         type_id: Optionnel, ID du type d'item pour filtrer les ordres
 
     Returns:
-        Réponse JSON avec les ordres de marché
+        Réponse JSON avec les ordres de marché enrichis
     """
     try:
         logger.info(
@@ -405,12 +406,94 @@ async def get_market_orders(
         buy_orders.sort(key=lambda x: x.get("price", 0), reverse=True)
         sell_orders.sort(key=lambda x: x.get("price", 0))
 
+        # Limiter à 50 meilleurs ordres pour éviter trop d'appels API
+        buy_orders = buy_orders[:50]
+        sell_orders = sell_orders[:50]
+
+        # Enrichir les ordres avec les noms des systèmes et stations
+        import asyncio
+
+        async def enrich_order(order: Dict[str, Any]) -> Dict[str, Any]:
+            """Enrichit un ordre avec les noms du système et de la station"""
+            location_id = order.get("location_id")
+            if not location_id:
+                return order
+
+            enriched_order = order.copy()
+
+            # Les IDs >= 60000000 sont des stations, sinon ce sont des systèmes
+            if location_id >= 60000000:
+                # C'est une station
+                try:
+                    station_data = await region_service.repository.get_station_details(
+                        location_id
+                    )
+                    enriched_order["station_name"] = station_data.get(
+                        "name", "Unknown Station"
+                    )
+                    enriched_order["station_id"] = location_id
+
+                    # Récupérer aussi le système de la station
+                    system_id = station_data.get("system_id")
+                    if system_id:
+                        system_data = (
+                            await region_service.repository.get_system_details(
+                                system_id
+                            )
+                        )
+                        enriched_order["system_name"] = system_data.get(
+                            "name", "Unknown System"
+                        )
+                        enriched_order["system_id"] = system_id
+                except Exception as e:
+                    logger.warning(
+                        f"Erreur lors de la récupération de la station {location_id}: {e}"
+                    )
+                    enriched_order["station_name"] = f"Station {location_id}"
+                    enriched_order["station_id"] = location_id
+            else:
+                # C'est un système
+                try:
+                    system_data = await region_service.repository.get_system_details(
+                        location_id
+                    )
+                    enriched_order["system_name"] = system_data.get(
+                        "name", "Unknown System"
+                    )
+                    enriched_order["system_id"] = location_id
+                except Exception as e:
+                    logger.warning(
+                        f"Erreur lors de la récupération du système {location_id}: {e}"
+                    )
+                    enriched_order["system_name"] = f"Système {location_id}"
+                    enriched_order["system_id"] = location_id
+
+            return enriched_order
+
+        # Enrichir tous les ordres en parallèle
+        buy_orders_enriched = await asyncio.gather(
+            *[enrich_order(order) for order in buy_orders], return_exceptions=True
+        )
+        sell_orders_enriched = await asyncio.gather(
+            *[enrich_order(order) for order in sell_orders], return_exceptions=True
+        )
+
+        # Filtrer les erreurs (garder les ordres même si l'enrichissement a échoué)
+        buy_orders_final = [
+            order if not isinstance(order, Exception) else buy_orders[i]
+            for i, order in enumerate(buy_orders_enriched)
+        ]
+        sell_orders_final = [
+            order if not isinstance(order, Exception) else sell_orders[i]
+            for i, order in enumerate(sell_orders_enriched)
+        ]
+
         return {
             "region_id": region_id,
             "type_id": type_id,
             "total": len(orders),
-            "buy_orders": buy_orders[:50],  # Limiter à 50 meilleurs ordres
-            "sell_orders": sell_orders[:50],
+            "buy_orders": buy_orders_final,
+            "sell_orders": sell_orders_final,
         }
 
     except Exception as e:

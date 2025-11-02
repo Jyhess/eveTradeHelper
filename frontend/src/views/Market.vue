@@ -19,20 +19,15 @@
 
         <div class="main-content">
           <div class="tree-container">
-            <TreeNode
-              v-for="rootNode in treeData"
-              :key="rootNode.group_id"
-              :node="rootNode"
-              :level="0"
-              :type-details="typeDetails"
-              @node-selected="handleNodeSelected"
-            />
+            <TreeNode v-for="rootNode in treeData" :key="rootNode.group_id" :node="rootNode" :level="0"
+              :type-details="typeDetails" @node-selected="handleNodeSelected" />
           </div>
 
           <!-- Panneau latéral -->
           <div v-if="selectedCategory || selectedTypeId" class="details-panel">
             <div class="panel-header">
-              <h3>{{ selectedCategory ? selectedCategory.name : (typeDetails[selectedTypeId]?.name || `Type ${selectedTypeId}`) }}</h3>
+              <h3>{{ selectedCategory ? selectedCategory.name : (typeDetails[selectedTypeId]?.name || `Type
+                ${selectedTypeId}`) }}</h3>
               <button class="close-button" @click="closePanel">×</button>
             </div>
             <div class="panel-content">
@@ -46,12 +41,8 @@
                 <div v-if="selectedCategory.types && selectedCategory.types.length > 0" class="types-section">
                   <h4>{{ selectedCategory.types.length }} type(s) d'item</h4>
                   <div class="types-list">
-                    <div
-                      v-for="typeId in selectedCategory.types"
-                      :key="typeId"
-                      class="type-item"
-                      @click="selectType(typeId)"
-                    >
+                    <div v-for="typeId in selectedCategory.types" :key="typeId" class="type-item"
+                      @click="selectType(typeId)">
                       Type ID: {{ typeId }}
                       <span v-if="typeDetails[typeId]" class="type-name">
                         - {{ typeDetails[typeId].name }}
@@ -72,7 +63,7 @@
                 <!-- Ordres de marché (si on est sur une page de région) -->
                 <div v-if="regionId" class="market-orders">
                   <h4>Offres de marché ({{ regionName }})</h4>
-                  
+
                   <div v-if="marketOrdersLoading" class="loading-small">
                     Chargement des offres...
                   </div>
@@ -84,14 +75,21 @@
                     <div v-if="marketOrders.buy_orders && marketOrders.buy_orders.length > 0" class="orders-section">
                       <h5>Ordres d'achat ({{ marketOrders.buy_orders.length }})</h5>
                       <div class="orders-list">
-                        <div
-                          v-for="order in marketOrders.buy_orders.slice(0, 10)"
-                          :key="order.order_id"
-                          class="order-item buy-order"
-                        >
-                          <div class="order-price">{{ formatPrice(order.price) }} ISK</div>
+                        <div v-for="order in marketOrders.buy_orders.slice(0, 10)" :key="order.order_id"
+                          class="order-item buy-order">
                           <div class="order-quantity">Qté: {{ order.volume_remain || order.volume_total }}</div>
-                          <div class="order-location">Système: {{ order.location_id }}</div>
+                          <div class="order-price">{{ formatPrice(order.price) }} ISK</div>
+                          <div class="order-location">
+                            <span v-if="order.station_name && order.system_name">
+                              {{ order.station_name }} ({{ order.system_name }})
+                            </span>
+                            <span v-else-if="order.system_name">
+                              {{ order.system_name }}
+                            </span>
+                            <span v-else>
+                              Système: {{ order.location_id }}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -100,14 +98,21 @@
                     <div v-if="marketOrders.sell_orders && marketOrders.sell_orders.length > 0" class="orders-section">
                       <h5>Ordres de vente ({{ marketOrders.sell_orders.length }})</h5>
                       <div class="orders-list">
-                        <div
-                          v-for="order in marketOrders.sell_orders.slice(0, 10)"
-                          :key="order.order_id"
-                          class="order-item sell-order"
-                        >
-                          <div class="order-price">{{ formatPrice(order.price) }} ISK</div>
+                        <div v-for="order in marketOrders.sell_orders.slice(0, 10)" :key="order.order_id"
+                          class="order-item sell-order">
                           <div class="order-quantity">Qté: {{ order.volume_remain || order.volume_total }}</div>
-                          <div class="order-location">Système: {{ order.location_id }}</div>
+                          <div class="order-price">{{ formatPrice(order.price) }} ISK</div>
+                          <div class="order-location">
+                            <span v-if="order.station_name && order.system_name">
+                              {{ order.station_name }} ({{ order.system_name }})
+                            </span>
+                            <span v-else-if="order.system_name">
+                              {{ order.system_name }}
+                            </span>
+                            <span v-else>
+                              Système: {{ order.location_id }}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -267,7 +272,7 @@ export default {
       // Deuxième passe : construire l'arbre
       categories.forEach(category => {
         const node = categoryMap.get(category.group_id)
-        
+
         if (category.parent_group_id && categoryMap.has(category.parent_group_id)) {
           // Ajouter ce nœud comme enfant de son parent
           const parent = categoryMap.get(category.parent_group_id)
@@ -374,12 +379,12 @@ export default {
         this.selectedTypeId = node.type_id
         this.selectedCategory = null
         this.marketOrders = null
-        
+
         // Charger les détails du type
         if (!this.typeDetails[node.type_id]) {
           this.fetchTypeDetails(node.type_id)
         }
-        
+
         // Charger les ordres si on a une région
         if (this.regionId) {
           this.fetchMarketOrders(node.type_id)
@@ -446,10 +451,19 @@ export default {
       this.marketOrders = null
     },
     formatPrice(price) {
-      return new Intl.NumberFormat('fr-FR', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      }).format(price)
+      if (price >= 1000) {
+        // Pour les prix >= 1000, pas de décimales
+        return new Intl.NumberFormat('fr-FR', {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0
+        }).format(price)
+      } else {
+        // Pour les prix < 1000, avec décimales
+        return new Intl.NumberFormat('fr-FR', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        }).format(price)
+      }
     }
   },
   mounted() {
@@ -479,7 +493,7 @@ h1 {
   font-size: 2.5em;
   color: white;
   margin-bottom: 10px;
-  text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
   text-align: center;
 }
 
@@ -494,7 +508,7 @@ h1 {
   background: white;
   border-radius: 12px;
   padding: 30px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
 .loading {
@@ -689,8 +703,9 @@ h1 {
   border-radius: 4px;
   margin-bottom: 8px;
   display: flex;
-  justify-content: space-between;
+  flex-direction: row;
   align-items: center;
+  gap: 15px;
 }
 
 .order-item.buy-order {
@@ -703,15 +718,26 @@ h1 {
   border-color: #faad14;
 }
 
+.order-quantity {
+  font-size: 0.9em;
+  color: #666;
+  min-width: 120px;
+  flex-shrink: 0;
+}
+
 .order-price {
   font-weight: 600;
   color: #333;
+  font-size: 1em;
+  min-width: 150px;
+  flex-shrink: 0;
+  text-align: right;
 }
 
-.order-quantity,
 .order-location {
   font-size: 0.9em;
   color: #666;
+  flex: 1;
 }
 
 .no-orders,
