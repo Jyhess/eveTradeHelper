@@ -35,6 +35,9 @@ class RegionAPI:
     def _register_routes(self):
         """Enregistre les routes de l'API"""
         self.blueprint.route("/api/v1/regions", methods=["GET"])(self.get_regions)
+        self.blueprint.route(
+            "/api/v1/regions/<int:region_id>/constellations", methods=["GET"]
+        )(self.get_region_constellations)
 
     def get_regions(self):
         """
@@ -102,3 +105,89 @@ class RegionAPI:
                     }
                 )
             return jsonify({"error": f"Erreur de connexion à l'API ESI: {str(e)}"}), 500
+
+    def get_region_constellations(self, region_id: int):
+        """
+        Récupère les détails de toutes les constellations d'une région
+        Utilise un cache JSON local pour éviter les appels répétés à l'API ESI
+
+        Args:
+            region_id: ID de la région
+
+        Returns:
+            Réponse JSON avec les constellations
+        """
+        cache_key = f"region_{region_id}_constellations"
+
+        try:
+            # Vérifier si le cache est valide
+            if self.cache.is_valid(cache_key):
+                # Utiliser le cache
+                current_app.logger.info(
+                    f"Utilisation du cache pour les constellations de la région {region_id}"
+                )
+                constellations = self.cache.get(cache_key)
+                if constellations:
+                    # Trier par nom pour un affichage cohérent
+                    constellations_sorted = sorted(
+                        constellations, key=lambda x: x.get("name", "")
+                    )
+                    return jsonify(
+                        {
+                            "region_id": region_id,
+                            "total": len(constellations_sorted),
+                            "constellations": constellations_sorted,
+                            "cached": True,
+                        }
+                    )
+
+            # Le cache est expiré ou n'existe pas, récupérer depuis le service
+            current_app.logger.info(
+                f"Récupération des constellations de la région {region_id} depuis l'API ESI"
+            )
+            constellations = (
+                self.region_service.get_region_constellations_with_details(region_id)
+            )
+
+            # Sauvegarder dans le cache
+            self.cache.set(cache_key, constellations)
+
+            # Trier par nom
+            constellations_sorted = sorted(
+                constellations, key=lambda x: x.get("name", "")
+            )
+
+            return jsonify(
+                {
+                    "region_id": region_id,
+                    "total": len(constellations_sorted),
+                    "constellations": constellations_sorted,
+                    "cached": False,
+                }
+            )
+
+        except Exception as e:
+            # En cas d'erreur API, essayer de retourner le cache même expiré
+            current_app.logger.warning(
+                f"Erreur API, tentative d'utilisation du cache expiré: {e}"
+            )
+            constellations = self.cache.get(cache_key)
+            if constellations:
+                constellations_sorted = sorted(
+                    constellations, key=lambda x: x.get("name", "")
+                )
+                return jsonify(
+                    {
+                        "region_id": region_id,
+                        "total": len(constellations_sorted),
+                        "constellations": constellations_sorted,
+                        "cached": True,
+                        "warning": "Cache expiré mais API indisponible",
+                    }
+                )
+            return jsonify(
+                {
+                    "error": f"Erreur de connexion à l'API ESI: {str(e)}",
+                    "region_id": region_id,
+                }
+            ), 500

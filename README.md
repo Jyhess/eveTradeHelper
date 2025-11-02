@@ -182,6 +182,22 @@ pytest backend/tests/ --cov=backend --cov-report=html
 
 **Note** : Lors du premier lancement, les tests vont créer des fichiers de référence dans `backend/tests/reference/`. Ces fichiers seront utilisés pour comparer les résultats lors des exécutions suivantes.
 
+## API Endpoints
+
+### Régions
+
+- `GET /api/v1/regions` : Liste toutes les régions avec leurs détails
+- `GET /api/v1/regions/<region_id>/constellations` : Liste toutes les constellations d'une région avec leurs détails
+
+Exemple :
+```bash
+# Récupérer toutes les régions
+curl http://localhost:5000/api/v1/regions
+
+# Récupérer les constellations de la région 10000002 (The Forge)
+curl http://localhost:5000/api/v1/regions/10000002/constellations
+```
+
 ## Débogage
 
 ### Points d'arrêt (Breakpoints)

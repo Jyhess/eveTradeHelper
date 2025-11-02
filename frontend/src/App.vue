@@ -31,7 +31,55 @@
                 <p class="constellations">
                   <strong>{{ region.constellations?.length || 0 }}</strong> constellation(s)
                 </p>
+                <button 
+                  @click="showConstellations(region.region_id, region.name)" 
+                  class="btn-constellations"
+                  :disabled="loadingConstellations === region.region_id"
+                >
+                  {{ loadingConstellations === region.region_id ? 'Chargement...' : 'Voir les constellations' }}
+                </button>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Modal pour afficher les constellations -->
+      <div v-if="showModal" class="modal-overlay" @click="closeModal">
+        <div class="modal-content" @click.stop>
+          <div class="modal-header">
+            <h2>Constellations de {{ selectedRegionName }}</h2>
+            <button class="btn-close" @click="closeModal">×</button>
+          </div>
+          <div class="modal-body">
+            <div v-if="constellationsLoading" class="loading">
+              Chargement des constellations...
+            </div>
+            <div v-else-if="constellationsError" class="error">
+              {{ constellationsError }}
+            </div>
+            <div v-else-if="constellations.length > 0" class="constellations-grid">
+              <div 
+                v-for="constellation in constellations" 
+                :key="constellation.constellation_id" 
+                class="constellation-card"
+              >
+                <h4>{{ constellation.name }}</h4>
+                <div class="constellation-info">
+                  <p class="constellation-id">ID: {{ constellation.constellation_id }}</p>
+                  <p class="systems-count">
+                    <strong>{{ constellation.systems?.length || 0 }}</strong> système(s)
+                  </p>
+                  <div v-if="constellation.position" class="position">
+                    <small>
+                      Position: ({{ constellation.position.x }}, {{ constellation.position.y }}, {{ constellation.position.z }})
+                    </small>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else class="no-data">
+              Aucune constellation trouvée pour cette région.
             </div>
           </div>
         </div>
@@ -50,7 +98,14 @@ export default {
       regions: [],
       total: 0,
       loading: false,
-      error: ''
+      error: '',
+      showModal: false,
+      selectedRegionId: null,
+      selectedRegionName: '',
+      constellations: [],
+      constellationsLoading: false,
+      constellationsError: '',
+      loadingConstellations: null
     }
   },
   methods: {
@@ -69,6 +124,35 @@ export default {
       } finally {
         this.loading = false
       }
+    },
+    async showConstellations(regionId, regionName) {
+      this.selectedRegionId = regionId
+      this.selectedRegionName = regionName
+      this.showModal = true
+      this.constellations = []
+      this.constellationsError = ''
+      this.constellationsLoading = true
+      this.loadingConstellations = regionId
+      
+      try {
+        const response = await axios.get(
+          `http://localhost:5000/api/v1/regions/${regionId}/constellations`
+        )
+        this.constellations = response.data.constellations || []
+      } catch (error) {
+        this.constellationsError = 'Erreur: ' + (error.response?.data?.error || error.message)
+        console.error('Erreur lors du chargement des constellations:', error)
+      } finally {
+        this.constellationsLoading = false
+        this.loadingConstellations = null
+      }
+    },
+    closeModal() {
+      this.showModal = false
+      this.selectedRegionId = null
+      this.selectedRegionName = ''
+      this.constellations = []
+      this.constellationsError = ''
     }
   }
 }
@@ -228,6 +312,168 @@ h1 {
 .constellations strong {
   color: #667eea;
   font-size: 1.1em;
+}
+
+.btn-constellations {
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  color: white;
+  border: none;
+  padding: 8px 20px;
+  font-size: 0.9em;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  margin-top: 15px;
+  width: 100%;
+}
+
+.btn-constellations:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
+}
+
+.btn-constellations:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Modal styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  max-width: 900px;
+  width: 100%;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 30px;
+  border-bottom: 2px solid #e0e0e0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.5em;
+}
+
+.btn-close {
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 2em;
+  cursor: pointer;
+  padding: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.btn-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.modal-body {
+  padding: 30px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #667eea;
+  font-size: 1.1em;
+}
+
+.no-data {
+  text-align: center;
+  padding: 40px;
+  color: #999;
+  font-style: italic;
+}
+
+.constellations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.constellation-card {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 15px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.constellation-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.constellation-card h4 {
+  margin: 0 0 10px 0;
+  color: #48bb78;
+  font-size: 1.2em;
+  border-bottom: 2px solid #48bb78;
+  padding-bottom: 8px;
+}
+
+.constellation-info {
+  text-align: left;
+}
+
+.constellation-id {
+  font-size: 0.85em;
+  color: #666;
+  margin: 5px 0;
+}
+
+.systems-count {
+  margin: 10px 0;
+  color: #333;
+  font-size: 0.95em;
+}
+
+.systems-count strong {
+  color: #48bb78;
+  font-size: 1.1em;
+}
+
+.position {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #ddd;
+  color: #888;
+  font-size: 0.85em;
 }
 </style>
 

@@ -67,3 +67,51 @@ class RegionService:
                 continue
 
         return regions
+
+    def get_region_constellations_with_details(
+        self, region_id: int
+    ) -> List[Dict[str, Any]]:
+        """
+        Récupère les détails de toutes les constellations d'une région
+        Logique métier : orchestration des appels au repository
+
+        Args:
+            region_id: ID de la région
+
+        Returns:
+            Liste des constellations avec leurs détails formatés
+
+        Raises:
+            Exception: Si une erreur survient lors de la récupération
+        """
+        # Récupérer les détails de la région pour obtenir les IDs des constellations
+        region_data = self.repository.get_region_details(region_id)
+        constellation_ids = region_data.get("constellations", [])
+
+        # Récupérer les détails de chaque constellation
+        constellations = []
+        for constellation_id in constellation_ids:
+            try:
+                constellation_data = self.repository.get_constellation_details(
+                    constellation_id
+                )
+                # Transformation des données selon le besoin métier
+                constellations.append(
+                    {
+                        "constellation_id": constellation_id,
+                        "name": constellation_data.get("name", "Unknown"),
+                        "systems": constellation_data.get("systems", []),
+                        "position": constellation_data.get("position", {}),
+                    }
+                )
+            except Exception as e:
+                # Logger l'erreur mais continuer avec les autres constellations
+                # C'est une décision métier : on ne fait pas échouer toute la requête
+                import logging
+
+                logging.warning(
+                    f"Erreur lors de la récupération de la constellation {constellation_id}: {e}"
+                )
+                continue
+
+        return constellations
