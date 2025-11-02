@@ -1,0 +1,37 @@
+import { createRouter, createWebHistory } from 'vue-router'
+import Regions from '../views/Regions.vue'
+import Constellations from '../views/Constellations.vue'
+import Systems from '../views/Systems.vue'
+
+const routes = [
+  {
+    path: '/',
+    name: 'Home',
+    redirect: '/regions'
+  },
+  {
+    path: '/regions',
+    name: 'Regions',
+    component: Regions
+  },
+  {
+    path: '/regions/:regionId/constellations',
+    name: 'Constellations',
+    component: Constellations,
+    props: true
+  },
+  {
+    path: '/constellations/:constellationId/systems',
+    name: 'Systems',
+    component: Systems,
+    props: true
+  }
+]
+
+const router = createRouter({
+  history: createWebHistory(),
+  routes
+})
+
+export default router
+
