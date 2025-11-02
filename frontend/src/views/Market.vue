@@ -20,7 +20,7 @@
         <div class="main-content">
           <div class="tree-container">
             <TreeNode v-for="rootNode in treeData" :key="rootNode.group_id" :node="rootNode" :level="0"
-              :type-details="typeDetails" @node-selected="handleNodeSelected" />
+              :type-details="typeDetails" :region-id="regionId" @node-selected="handleNodeSelected" />
           </div>
 
           <!-- Panneau latéral -->

@@ -10,10 +10,19 @@
         <span v-else>{{ node.name }}</span>
       </span>
       <span class="node-badge">{{ badgeValue }}</span>
+      <router-link 
+        v-if="!isType && regionId" 
+        :to="dealsLink" 
+        class="deals-link"
+        @click.stop
+        title="Trouver les bonnes affaires dans ce groupe"
+      >
+        💰
+      </router-link>
     </div>
     <div v-if="expanded && hasChildren" class="tree-children">
       <TreeNode v-for="child in node.children" :key="child.is_type ? `type_${child.type_id}` : child.group_id"
-        :node="child" :level="level + 1" :type-details="typeDetails" @node-selected="$emit('node-selected', $event)" />
+        :node="child" :level="level + 1" :type-details="typeDetails" :region-id="regionId" @node-selected="$emit('node-selected', $event)" />
     </div>
   </div>
 </template>
@@ -33,6 +42,10 @@ export default {
     typeDetails: {
       type: Object,
       default: () => ({})
+    },
+    regionId: {
+      type: [String, Number],
+      default: null
     }
   },
   data() {
@@ -69,6 +82,18 @@ export default {
         return this.typeDetails[this.node.type_id] || null
       }
       return null
+    },
+    dealsLink() {
+      if (!this.regionId || !this.node.group_id) {
+        return '/deals'
+      }
+      return {
+        path: '/deals',
+        query: {
+          region_id: this.regionId,
+          group_id: this.node.group_id
+        }
+      }
     }
   },
   methods: {
@@ -163,6 +188,22 @@ export default {
   font-size: 0.85em;
   font-weight: 600;
   margin-left: 10px;
+}
+
+.deals-link {
+  margin-left: 10px;
+  padding: 4px 8px;
+  background: #667eea;
+  color: white;
+  border-radius: 6px;
+  text-decoration: none;
+  font-size: 0.9em;
+  transition: background 0.2s;
+  display: inline-block;
+}
+
+.deals-link:hover {
+  background: #5568d3;
 }
 
 .tree-children {

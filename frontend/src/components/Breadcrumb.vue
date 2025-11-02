@@ -7,10 +7,10 @@
         class="breadcrumb-item"
         :class="{ 'active': index === items.length - 1 }"
       >
-        <router-link v-if="index < items.length - 1" :to="item.path" class="breadcrumb-link">
-          {{ item.label }}
+        <router-link v-if="item.path && index < items.length - 1" :to="item.path" class="breadcrumb-link">
+          {{ item.label || item.name }}
         </router-link>
-        <span v-else class="breadcrumb-current">{{ item.label }}</span>
+        <span v-else class="breadcrumb-current">{{ item.label || item.name }}</span>
         <span v-if="index < items.length - 1" class="breadcrumb-separator">/</span>
       </li>
     </ol>

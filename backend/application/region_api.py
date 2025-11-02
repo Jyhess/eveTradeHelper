@@ -7,7 +7,7 @@ import os
 import logging
 from cachetools import TTLCache
 from fastapi import APIRouter, HTTPException, Depends
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from domain.region_service import RegionService
 from application.utils import cached_async
 

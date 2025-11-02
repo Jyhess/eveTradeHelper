@@ -11,8 +11,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from eve import SimpleCache, CacheManager, EveAPIClient
 from eve.repository import EveRepositoryImpl
 from domain.region_service import RegionService
+from domain.deals_service import DealsService
 from application.region_api import router as region_router, set_region_service
 from application.health_api import health_router
+from application.deals_api import router as deals_router, set_deals_service
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO)
@@ -42,9 +44,11 @@ async def lifespan(app: FastAPI):
 
     # Domain Layer : Services
     region_service = RegionService(eve_repository)
+    deals_service = DealsService(eve_repository)
 
-    # Initialiser le service dans le module region_api
+    # Initialiser les services dans les modules API
     set_region_service(region_service)
+    set_deals_service(deals_service)
 
     # Stocker les instances dans l'état de l'application
     app.state.api_client = api_client
@@ -79,6 +83,7 @@ app.add_middleware(
 # Enregistrer les routers (les routes sont déjà définies avec les décorateurs)
 app.include_router(region_router)
 app.include_router(health_router)
+app.include_router(deals_router)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ import Regions from '../views/Regions.vue'
 import Constellations from '../views/Constellations.vue'
 import Systems from '../views/Systems.vue'
 import Market from '../views/Market.vue'
+import Deals from '../views/Deals.vue'
 
 const routes = [
   {
@@ -55,6 +56,17 @@ const routes = [
     name: 'MarketSystem',
     component: Market,
     props: route => ({ systemId: parseInt(route.params.systemId) })
+  },
+  {
+    path: '/deals',
+    name: 'Deals',
+    component: Deals
+  },
+  {
+    path: '/deals/region/:regionId',
+    name: 'DealsRegion',
+    component: Deals,
+    props: route => ({ regionId: parseInt(route.params.regionId) })
   }
 ]
 
