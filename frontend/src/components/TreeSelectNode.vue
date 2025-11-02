@@ -1,14 +1,9 @@
 <template>
   <div class="tree-select-node">
-    <div 
-      class="tree-select-option" 
-      :class="{ 
-        'is-selected': isSelected,
-        'has-children': hasChildren 
-      }"
-      :style="indentStyle"
-      @click.stop="handleClick"
-    >
+    <div class="tree-select-option" :class="{
+      'is-selected': isSelected,
+      'has-children': hasChildren
+    }" :style="indentStyle" @click.stop="handleClick">
       <span v-if="hasChildren" class="expand-icon" @click.stop="toggleExpand">
         {{ expanded ? '▼' : '▶' }}
       </span>
@@ -16,16 +11,10 @@
       <span class="option-name">{{ node.name }}</span>
       <span v-if="isSelected" class="check-icon">✓</span>
     </div>
-    
+
     <div v-if="expanded && hasChildren" class="tree-select-children">
-      <TreeSelectNode
-        v-for="child in filteredChildren"
-        :key="child.group_id || child.type_id"
-        :node="child"
-        :level="level + 1"
-        :selected-id="selectedId"
-        @node-selected="$emit('node-selected', $event)"
-      />
+      <TreeSelectNode v-for="child in filteredChildren" :key="child.group_id || child.type_id" :node="child"
+        :level="level + 1" :selected-id="selectedId" @node-selected="$emit('node-selected', $event)" />
     </div>
   </div>
 </template>
@@ -49,7 +38,7 @@ export default {
   },
   data() {
     return {
-      expanded: this.level < 2 // Expanded par défaut pour les 2 premiers niveaux
+      expanded: false
     }
   },
   computed: {

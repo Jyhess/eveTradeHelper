@@ -30,6 +30,38 @@
             <input id="max-volume-input" type="number" v-model.number="maxTransportVolume" min="0" step="0.01"
               placeholder="Illimité" :disabled="!selectedGroupId" />
           </div>
+          <div class="threshold-item">
+            <label for="max-buy-cost-input">Montant d'achat max (ISK):</label>
+            <input id="max-buy-cost-input" type="number" v-model.number="maxBuyCost" min="0" step="1000"
+              placeholder="Illimité" :disabled="!selectedGroupId" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <button type="button" class="btn-add-regions" @click="toggleAdjacentRegionsPanel"
+            :disabled="!selectedRegionId">
+            {{ showAdjacentRegionsPanel ? 'Masquer' : 'Ajouter des régions adjacentes' }}
+          </button>
+
+          <div v-if="showAdjacentRegionsPanel && adjacentRegions.length > 0" class="adjacent-regions-panel">
+            <label class="panel-label">Sélectionnez les régions adjacentes à inclure:</label>
+            <div class="regions-checkboxes">
+              <label v-for="region in adjacentRegions" :key="region.region_id" class="region-checkbox-label">
+                <input type="checkbox" :value="region.region_id" v-model="selectedAdjacentRegions"
+                  :disabled="loadingAdjacentRegions" />
+                <span>{{ region.name }}</span>
+              </label>
+            </div>
+            <small v-if="selectedAdjacentRegions.length > 0" class="hint">
+              {{ selectedAdjacentRegions.length }} région(s) supplémentaire(s) sélectionnée(s)
+            </small>
+          </div>
+          <div v-else-if="showAdjacentRegionsPanel && loadingAdjacentRegions" class="adjacent-regions-panel">
+            <div class="loading-small">Chargement des régions adjacentes...</div>
+          </div>
+          <div v-else-if="showAdjacentRegionsPanel && !loadingAdjacentRegions" class="adjacent-regions-panel">
+            <p class="no-adjacent-regions">Aucune région adjacente trouvée</p>
+          </div>
         </div>
 
         <button class="search-button" @click="searchDeals"
@@ -47,24 +79,30 @@
           <h2>Résultats</h2>
           <div class="results-stats">
             <p>
-              <strong>{{ filteredDealsCount }}</strong> bonne(s) affaire(s) affichée(s)
-              <span v-if="maxTransportVolume && filteredDealsCount < searchResults.deals.length">
-                ({{ searchResults.deals.length }} au total)
+              <strong>{{ filteredDealsCount }}</strong> bonne(s) affaire(s) trouvée(s)
+              <span v-if="selectedAdjacentRegions.length > 0">
+                sur <strong>{{ 1 + selectedAdjacentRegions.length }}</strong> région(s)
               </span>
-              <span v-else-if="!maxTransportVolume">
-                sur <strong>{{ searchResults.total_types }}</strong> type(s) analysé(s)
-              </span>
+              sur <strong>{{ searchResults.total_types }}</strong> type(s) analysé(s)
             </p>
             <p>
               Total bénéfice potentiel: <strong>{{ formatPrice(searchResults.total_profit_isk || 0) }} ISK</strong>
             </p>
             <p>
-              Seuil: <strong>{{ searchResults.profit_threshold }}%</strong> |
-              Région: <strong>{{ regionName }}</strong> |
-              Groupe: <strong>{{ groupName }}</strong>
-              <span v-if="maxTransportVolume">
-                | Volume max: <strong>{{ formatVolume(maxTransportVolume) }} m³</strong>
+              Seuil bénéfice: <strong>{{ formatPrice(searchResults.min_profit_isk || 0) }} ISK</strong> |
+              <span v-if="searchResults.max_transport_volume">
+                Volume max: <strong>{{ formatVolume(searchResults.max_transport_volume) }} m³</strong> |
               </span>
+              <span v-if="searchResults.max_buy_cost">
+                Montant achat max: <strong>{{ formatPrice(searchResults.max_buy_cost) }} ISK</strong> |
+              </span>
+              <span v-if="selectedAdjacentRegions.length > 0">
+                Régions: <strong>{{ regionName }}</strong> + {{ selectedAdjacentRegions.length }} autre(s) |
+              </span>
+              <span v-else>
+                Région: <strong>{{ regionName }}</strong> |
+              </span>
+              Groupe: <strong>{{ groupName }}</strong>
             </p>
           </div>
         </div>
@@ -78,8 +116,12 @@
             <li v-if="searchResults.max_transport_volume">
               Volume max: {{ formatVolume(searchResults.max_transport_volume) }} m³
             </li>
+            <li v-if="searchResults.max_buy_cost">
+              Montant achat max: {{ formatPrice(searchResults.max_buy_cost) }} ISK
+            </li>
           </ul>
-          <p>Essayez de réduire le seuil de bénéfice, d'augmenter le volume max ou de sélectionner un autre groupe.</p>
+          <p>Essayez de réduire le seuil de bénéfice, d'augmenter le volume max ou le montant d'achat max, ou de
+            sélectionner un autre groupe.</p>
         </div>
 
         <div v-else class="deals-list">
@@ -91,11 +133,16 @@
               <option value="profit_isk">Bénéfice (ISK)</option>
             </select>
           </div>
-          <div v-for="deal in sortedDeals" :key="deal.type_id" class="deal-item">
+          <div v-for="deal in sortedDeals" :key="`${deal.type_id}-${getDealRegionId(deal)}`" class="deal-item">
             <div class="deal-header">
               <h3>{{ deal.type_name }}</h3>
-              <div class="profit-badge" :class="getProfitBadgeClass(deal.profit_percent)">
-                {{ deal.profit_percent }}% de bénéfice
+              <div class="deal-header-right">
+                <span v-if="getDealRegionName(deal) && getDealRegionName(deal) !== regionName" class="region-badge">
+                  {{ getDealRegionName(deal) }}
+                </span>
+                <div class="profit-badge" :class="getProfitBadgeClass(deal.profit_percent)">
+                  {{ deal.profit_percent }}% de bénéfice
+                </div>
               </div>
             </div>
             <div class="deal-details">
@@ -173,7 +220,7 @@
                   <span class="orders-separator">-</span>
                   <span class="orders-sell">{{ deal.sell_order_count }} vente</span>
                   <span class="separator">•</span>
-                  <router-link :to="`/markets/region/${selectedRegionId}?type_id=${deal.type_id}`"
+                  <router-link :to="`/markets/region/${getDealRegionId(deal)}?type_id=${deal.type_id}`"
                     class="market-link-inline">
                     📊 Détails marché
                   </router-link>
@@ -209,6 +256,11 @@ export default {
       loadingGroups: false,
       minProfitIsk: 100000, // Seuil de bénéfice minimum en ISK
       maxTransportVolume: null, // null = illimité
+      maxBuyCost: null, // null = illimité - Montant d'achat maximum en ISK
+      showAdjacentRegionsPanel: false, // Afficher le panneau de sélection des régions adjacentes
+      adjacentRegions: [], // Liste des régions adjacentes
+      selectedAdjacentRegions: [], // IDs des régions adjacentes sélectionnées
+      loadingAdjacentRegions: false, // Chargement des régions adjacentes en cours
       searching: false,
       searchResults: null,
       error: '',
@@ -288,6 +340,9 @@ export default {
         this.marketGroups = []
         this.selectedGroupId = null
         this.regionName = ''
+        this.adjacentRegions = []
+        this.selectedAdjacentRegions = []
+        this.showAdjacentRegionsPanel = false
         return
       }
 
@@ -301,7 +356,39 @@ export default {
         })
       }
 
+      // Réinitialiser les régions adjacentes
+      this.adjacentRegions = []
+      this.selectedAdjacentRegions = []
+      if (this.showAdjacentRegionsPanel) {
+        await this.fetchAdjacentRegions()
+      }
+
       await this.fetchMarketGroups()
+    },
+    async toggleAdjacentRegionsPanel() {
+      this.showAdjacentRegionsPanel = !this.showAdjacentRegionsPanel
+      if (this.showAdjacentRegionsPanel && this.adjacentRegions.length === 0 && this.selectedRegionId) {
+        await this.fetchAdjacentRegions()
+      }
+    },
+    async fetchAdjacentRegions() {
+      if (!this.selectedRegionId) return
+
+      this.loadingAdjacentRegions = true
+      try {
+        const response = await axios.get(
+          `http://localhost:5000/api/v1/regions/${this.selectedRegionId}/adjacent`
+        )
+        this.adjacentRegions = response.data.adjacent_regions || []
+        // Réinitialiser la sélection
+        this.selectedAdjacentRegions = []
+      } catch (error) {
+        console.error('Erreur lors du chargement des régions adjacentes:', error)
+        this.error = 'Erreur lors du chargement des régions adjacentes: ' + (error.response?.data?.detail || error.message)
+        this.adjacentRegions = []
+      } finally {
+        this.loadingAdjacentRegions = false
+      }
     },
     async fetchMarketGroups() {
       if (!this.selectedRegionId) return
@@ -434,6 +521,7 @@ export default {
       }
 
       try {
+        // Préparer les paramètres
         const params = {
           region_id: this.selectedRegionId,
           group_id: this.selectedGroupId,
@@ -442,6 +530,14 @@ export default {
         if (this.maxTransportVolume !== null && this.maxTransportVolume > 0) {
           params.max_transport_volume = this.maxTransportVolume
         }
+        if (this.maxBuyCost !== null && this.maxBuyCost > 0) {
+          params.max_buy_cost = this.maxBuyCost
+        }
+        // Ajouter les régions adjacentes sélectionnées si elles existent
+        if (this.selectedAdjacentRegions.length > 0) {
+          params.additional_regions = this.selectedAdjacentRegions.join(',')
+        }
+
         const response = await axios.get('http://localhost:5000/api/v1/markets/deals', { params })
         this.searchResults = response.data
       } catch (error) {
@@ -483,6 +579,28 @@ export default {
       if (profitPercent >= 10) return 'profit-good'
       if (profitPercent >= 5) return 'profit-medium'
       return 'profit-low'
+    },
+    getDealRegionId(deal) {
+      // Retourne la région principale si pas de région spécifiée, sinon la meilleure région (buy ou sell)
+      return deal.buy_region_id || deal.sell_region_id || this.selectedRegionId
+    },
+    getDealRegionName(deal) {
+      // Récupère le nom de la région depuis la liste des régions
+      const regionId = deal.buy_region_id || deal.sell_region_id
+      if (!regionId || regionId === this.selectedRegionId) {
+        return null
+      }
+      // Chercher dans les régions chargées
+      const region = this.regions.find(r => r.region_id === regionId)
+      if (region) {
+        return region.name
+      }
+      // Chercher dans les régions adjacentes
+      const adjacentRegion = this.adjacentRegions.find(r => r.region_id === regionId)
+      if (adjacentRegion) {
+        return adjacentRegion.name
+      }
+      return `Région ${regionId}`
     },
     getDangerClass(securityStatus) {
       if (securityStatus < 0) return 'danger-negative'
@@ -563,6 +681,82 @@ export default {
   font-size: 0.85em;
   color: #666;
   font-style: italic;
+}
+
+.btn-add-regions {
+  padding: 10px 20px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 1em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.btn-add-regions:hover:not(:disabled) {
+  background: #5568d3;
+}
+
+.btn-add-regions:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.adjacent-regions-panel {
+  margin-top: 15px;
+  padding: 15px;
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+}
+
+.panel-label {
+  display: block;
+  margin-bottom: 10px;
+  font-weight: 500;
+  color: #333;
+}
+
+.regions-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 5px;
+}
+
+.region-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  padding: 5px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.region-checkbox-label:hover {
+  background: #e8e8e8;
+}
+
+.region-checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.region-checkbox-label span {
+  color: #333;
+}
+
+.no-adjacent-regions {
+  color: #999;
+  font-style: italic;
+  margin: 0;
 }
 
 .form-group select:disabled,
@@ -662,12 +856,30 @@ export default {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
 }
 
 .deal-header h3 {
   margin: 0;
   color: #333;
   font-size: 1.3em;
+}
+
+.deal-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.region-badge {
+  padding: 4px 10px;
+  background: #e7f3ff;
+  color: #0066cc;
+  border-radius: 12px;
+  font-size: 0.85em;
+  font-weight: 600;
+  border: 1px solid #b3d9ff;
 }
 
 .profit-badge {

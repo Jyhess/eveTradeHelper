@@ -104,6 +104,19 @@ class EveAPIClient:
         return await self._get(f"/universe/regions/{region_id}/")
 
     @cached()
+    async def get_systems_list(self) -> List[int]:
+        """
+        Récupère la liste des IDs de systèmes solaires
+
+        Returns:
+            Liste des IDs de systèmes
+
+        Raises:
+            Exception: Si l'appel API échoue
+        """
+        return await self._get("/universe/systems/")
+
+    @cached()
     async def get_constellation_details(self, constellation_id: int) -> Dict[str, Any]:
         """
         Récupère les détails d'une constellation
@@ -212,6 +225,7 @@ class EveAPIClient:
         """
         return await self._get(f"/markets/groups/{group_id}/")
 
+    @cached(expiry_hours=1)
     async def get_market_orders(
         self, region_id: int, type_id: int = None
     ) -> List[Dict[str, Any]]:
@@ -235,21 +249,25 @@ class EveAPIClient:
 
     @cached()
     async def get_route(
-        self, origin: int, destination: int, avoid: List[int] = None, connections: List[List[int]] = None
+        self,
+        origin: int,
+        destination: int,
+        avoid: List[int] = None,
+        connections: List[List[int]] = None,
     ) -> List[int]:
         """
         Calcule la route entre deux systèmes
-        
+
         Args:
             origin: ID du système d'origine
             destination: ID du système de destination
             avoid: Liste optionnelle d'IDs de systèmes à éviter
             connections: Liste optionnelle de paires de systèmes connectés
-            
+
         Returns:
             Liste des IDs de systèmes formant la route (incluant origin et destination)
             Si pas de route trouvée, retourne une liste vide
-            
+
         Raises:
             Exception: Si l'appel API échoue
         """
@@ -261,13 +279,17 @@ class EveAPIClient:
             # Pour connections, l'API attend un format spécial, mais généralement pas utilisé
             # On pourrait l'implémenter si nécessaire
             pass
-        
+
         try:
-            route = await self._get(f"/route/{origin}/{destination}/", params=params if params else None)
+            route = await self._get(
+                f"/route/{origin}/{destination}/", params=params if params else None
+            )
             # L'API retourne une liste d'IDs de systèmes
             return route if isinstance(route, list) else []
         except Exception as e:
-            logger.warning(f"Erreur lors du calcul de la route entre {origin} et {destination}: {e}")
+            logger.warning(
+                f"Erreur lors du calcul de la route entre {origin} et {destination}: {e}"
+            )
             return []
 
     async def search(

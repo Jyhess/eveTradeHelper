@@ -86,35 +86,68 @@ class DealsService:
         type_id: int,
         min_profit_isk: float,
         max_transport_volume: Optional[float] = None,
+        max_buy_cost: Optional[float] = None,
+        additional_regions: Optional[List[int]] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         Analyse un type d'item pour trouver les opportunités de profit
+        Cherche dans la région principale et les régions supplémentaires pour trouver le meilleur bénéfice
 
         Args:
-            region_id: ID de la région
+            region_id: ID de la région principale
             type_id: ID du type d'item
             min_profit_isk: Seuil de bénéfice minimum en ISK
             max_transport_volume: Volume de transport maximum autorisé en m³ (None = illimité)
+            max_buy_cost: Montant d'achat maximum en ISK (None = illimité)
+            additional_regions: Liste d'IDs de régions supplémentaires à rechercher (None = aucune)
 
         Returns:
-            Dictionnaire avec les détails de l'opportunité si le bénéfice >= seuil et volume <= limite,
+            Dictionnaire avec les détails de l'opportunité si le bénéfice >= seuil, volume <= limite et coût <= limite,
             None sinon
         """
         try:
-            orders = await self.repository.get_market_orders(region_id, type_id)
+            # Construire la liste complète des régions à rechercher
+            all_regions = [region_id]
+            if additional_regions:
+                all_regions.extend(additional_regions)
 
-            buy_orders = [o for o in orders if o.get("is_buy_order", False)]
-            sell_orders = [o for o in orders if not o.get("is_buy_order", False)]
+            # Récupérer les ordres de toutes les régions en parallèle
+            all_orders_promises = [
+                self.repository.get_market_orders(reg_id, type_id)
+                for reg_id in all_regions
+            ]
+            all_orders_results = await asyncio.gather(
+                *all_orders_promises, return_exceptions=True
+            )
 
-            if not buy_orders or not sell_orders:
+            # Collecter tous les ordres valides de toutes les régions
+            # Stocker la région avec chaque ordre pour pouvoir la retrouver
+            all_buy_orders = []  # Liste de tuples (order, region_id)
+            all_sell_orders = []  # Liste de tuples (order, region_id)
+
+            for i, orders_result in enumerate(all_orders_results):
+                if isinstance(orders_result, list):
+                    reg_id = all_regions[i]
+                    for order in orders_result:
+                        # Stocker l'ordre avec sa région d'origine
+                        order_with_region = (order, reg_id)
+                        if order.get("is_buy_order", False):
+                            all_buy_orders.append(order_with_region)
+                        else:
+                            all_sell_orders.append(order_with_region)
+
+            if not all_buy_orders or not all_sell_orders:
                 return None
 
             # Dans Eve Online :
             # - buy_order (is_buy_order=True) = quelqu'un veut ACHETER → on peut VENDRE à ce prix
             # - sell_order (is_buy_order=False) = quelqu'un veut VENDRE → on peut ACHETER à ce prix
 
-            # Meilleur prix pour VENDRE (le plus élevé parmi les buy_orders)
-            best_sell_order = max(buy_orders, key=lambda x: x.get("price", 0))
+            # Meilleur prix pour VENDRE (le plus élevé parmi tous les buy_orders de toutes les régions)
+            best_sell_order_tuple = max(
+                all_buy_orders, key=lambda x: x[0].get("price", 0)
+            )
+            best_sell_order, sell_region_id = best_sell_order_tuple
             sell_price = best_sell_order.get("price", 0)  # Prix auquel on VEND
             sell_location_id = best_sell_order.get("location_id")
             sell_volume = min(
@@ -122,10 +155,11 @@ class DealsService:
                 best_sell_order.get("volume_total", 0),
             )
 
-            # Meilleur prix pour ACHETER (le plus bas parmi les sell_orders)
-            best_buy_order = min(
-                sell_orders, key=lambda x: x.get("price", float("inf"))
+            # Meilleur prix pour ACHETER (le plus bas parmi tous les sell_orders de toutes les régions)
+            best_buy_order_tuple = min(
+                all_sell_orders, key=lambda x: x[0].get("price", float("inf"))
             )
+            best_buy_order, buy_region_id = best_buy_order_tuple
             buy_price = best_buy_order.get(
                 "price", float("inf")
             )  # Prix auquel on ACHÈTE
@@ -163,17 +197,35 @@ class DealsService:
             # Calculer le bénéfice en ISK (prix de vente - prix d'achat) * volume échangeable
             profit_isk = (sell_price - buy_price) * tradable_volume
 
+            # Calculer les totaux
+            total_buy_cost = buy_price * tradable_volume  # Coût total d'achat
+            total_sell_revenue = sell_price * tradable_volume  # Revenu total de vente
+            total_transport_volume = item_volume * tradable_volume  # Volume total en m³
+
+            # Vérifier la limite de montant d'achat si spécifiée
+            if max_buy_cost is not None and max_buy_cost > 0:
+                if total_buy_cost > max_buy_cost:
+                    # Réduire le volume échangeable pour respecter la limite de montant d'achat
+                    max_tradable_volume_by_cost = (
+                        int(max_buy_cost / buy_price)
+                        if buy_price > 0
+                        else tradable_volume
+                    )
+                    if max_tradable_volume_by_cost <= 0:
+                        return None
+                    tradable_volume = min(tradable_volume, max_tradable_volume_by_cost)
+                    # Recalculer les valeurs avec le nouveau volume
+                    profit_isk = (sell_price - buy_price) * tradable_volume
+                    total_buy_cost = buy_price * tradable_volume
+                    total_sell_revenue = sell_price * tradable_volume
+                    total_transport_volume = item_volume * tradable_volume
+
             # Filtrer selon le seuil de bénéfice minimum en ISK
             if profit_isk < min_profit_isk:
                 return None
 
             # Calculer le bénéfice en % (pour l'affichage)
             profit_percent = ((sell_price - buy_price) / buy_price) * 100
-
-            # Calculer les totaux
-            total_buy_cost = buy_price * tradable_volume  # Coût total d'achat
-            total_sell_revenue = sell_price * tradable_volume  # Revenu total de vente
-            total_transport_volume = item_volume * tradable_volume  # Volume total en m³
 
             # Calculer le nombre de sauts si on a des location_id valides
             jumps = None
@@ -248,6 +300,10 @@ class DealsService:
             # Calculer le temps de transport estimé (1 minute par saut)
             estimated_time_minutes = jumps if jumps is not None else None
 
+            # Compter les ordres dans toutes les régions
+            total_buy_order_count = len(all_buy_orders)
+            total_sell_order_count = len(all_sell_orders)
+
             return {
                 "type_id": type_id,
                 "type_name": type_details.get("name", f"Type {type_id}"),
@@ -260,8 +316,8 @@ class DealsService:
                 "total_buy_cost": round(total_buy_cost, 2),
                 "total_sell_revenue": round(total_sell_revenue, 2),
                 "total_transport_volume": round(total_transport_volume, 2),
-                "buy_order_count": len(buy_orders),
-                "sell_order_count": len(sell_orders),
+                "buy_order_count": total_buy_order_count,
+                "sell_order_count": total_sell_order_count,
                 "jumps": jumps,
                 "estimated_time_minutes": estimated_time_minutes,
                 "route_details": route_details,
@@ -278,27 +334,36 @@ class DealsService:
         group_id: int,
         min_profit_isk: float = 100000.0,
         max_transport_volume: Optional[float] = None,
+        max_buy_cost: Optional[float] = None,
+        additional_regions: Optional[List[int]] = None,
         max_concurrent: int = 20,
     ) -> Dict[str, Any]:
         """
         Trouve les bonnes affaires dans un groupe de marché pour une région
         Parcourt tous les types d'items du groupe (y compris les sous-groupes) et calcule
-        le bénéfice potentiel entre les meilleurs ordres d'achat et de vente
+        le bénéfice potentiel entre les meilleurs ordres d'achat et de vente dans toutes les régions spécifiées
 
         Args:
-            region_id: ID de la région
+            region_id: ID de la région principale
             group_id: ID du groupe de marché
             min_profit_isk: Seuil de bénéfice minimum en ISK (défaut: 100000.0)
             max_transport_volume: Volume de transport maximum autorisé en m³ (None = illimité)
+            max_buy_cost: Montant d'achat maximum en ISK (None = illimité)
+            additional_regions: Liste d'IDs de régions supplémentaires à rechercher (None = aucune)
             max_concurrent: Nombre maximum d'analyses simultanées (défaut: 20)
 
         Returns:
             Dictionnaire contenant les résultats de la recherche
         """
+        regions_str = str(region_id)
+        if additional_regions:
+            regions_str += f" + {len(additional_regions)} autre(s)"
+
         logger.info(
             f"Recherche de bonnes affaires pour le groupe {group_id} "
-            f"dans la région {region_id} (seuil: {min_profit_isk} ISK"
-            f"{f', volume max: {max_transport_volume} m³' if max_transport_volume else ''})"
+            f"dans les régions: {regions_str} (seuil: {min_profit_isk} ISK"
+            f"{f', volume max: {max_transport_volume} m³' if max_transport_volume else ''}"
+            f"{f', montant achat max: {max_buy_cost} ISK' if max_buy_cost else ''})"
         )
 
         # Collecter tous les types du groupe (et sous-groupes)
@@ -310,6 +375,7 @@ class DealsService:
                 "group_id": group_id,
                 "min_profit_isk": min_profit_isk,
                 "max_transport_volume": max_transport_volume,
+                "max_buy_cost": max_buy_cost,
                 "total_types": 0,
                 "deals": [],
             }
@@ -322,7 +388,12 @@ class DealsService:
         async def analyze_with_limit(type_id: int):
             async with semaphore:
                 return await self.analyze_type_profitability(
-                    region_id, type_id, min_profit_isk, max_transport_volume
+                    region_id,
+                    type_id,
+                    min_profit_isk,
+                    max_transport_volume,
+                    max_buy_cost,
+                    additional_regions,
                 )
 
         results = await asyncio.gather(
@@ -344,7 +415,8 @@ class DealsService:
 
         logger.info(
             f"Trouvé {len(deals)} bonnes affaires avec bénéfice >= {min_profit_isk} ISK"
-            f"{f' et volume <= {max_transport_volume} m³' if max_transport_volume else ''}"
+            f"{f', volume <= {max_transport_volume} m³' if max_transport_volume else ''}"
+            f"{f', montant achat <= {max_buy_cost} ISK' if max_buy_cost else ''}"
         )
 
         return {
@@ -352,6 +424,7 @@ class DealsService:
             "group_id": group_id,
             "min_profit_isk": min_profit_isk,
             "max_transport_volume": max_transport_volume,
+            "max_buy_cost": max_buy_cost,
             "total_types": len(all_types),
             "total_profit_isk": round(total_profit_isk, 2),
             "deals": deals,
