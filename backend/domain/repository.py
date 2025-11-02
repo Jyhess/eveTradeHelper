@@ -107,3 +107,19 @@ class EveRepository(ABC):
             Dictionnaire contenant les détails du groupe de marché
         """
         pass
+
+    @abstractmethod
+    async def get_market_orders(
+        self, region_id: int, type_id: int = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Récupère les ordres de marché pour une région, optionnellement filtrés par type
+
+        Args:
+            region_id: ID de la région
+            type_id: Optionnel, ID du type d'item pour filtrer les ordres
+
+        Returns:
+            Liste des ordres de marché
+        """
+        pass

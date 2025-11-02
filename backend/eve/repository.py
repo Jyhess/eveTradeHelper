@@ -50,3 +50,9 @@ class EveRepositoryImpl(EveRepository):
     async def get_market_group_details(self, group_id: int) -> Dict[str, Any]:
         """Récupère les détails d'un groupe de marché"""
         return await self.api_client.get_market_group_details(group_id)
+
+    async def get_market_orders(
+        self, region_id: int, type_id: int = None
+    ) -> List[Dict[str, Any]]:
+        """Récupère les ordres de marché pour une région, optionnellement filtrés par type"""
+        return await self.api_client.get_market_orders(region_id, type_id)

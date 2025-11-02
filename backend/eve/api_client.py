@@ -193,20 +193,26 @@ class EveAPIClient:
         """
         return await self._get(f"/markets/groups/{group_id}/")
 
-    async def get_market_prices(self, region_id: int) -> List[Dict[str, Any]]:
+    async def get_market_orders(
+        self, region_id: int, type_id: int = None
+    ) -> List[Dict[str, Any]]:
         """
-        Récupère les prix de marché pour une région
+        Récupère les ordres de marché pour une région, optionnellement filtrés par type
 
         Args:
             region_id: ID de la région
+            type_id: Optionnel, ID du type d'item pour filtrer les ordres
 
         Returns:
-            Liste des prix de marché
+            Liste des ordres de marché
 
         Raises:
             Exception: Si l'appel API échoue
         """
-        return await self._get(f"/markets/{region_id}/orders/")
+        params = {}
+        if type_id:
+            params["type_id"] = type_id
+        return await self._get(f"/markets/{region_id}/orders/", params=params)
 
     async def search(
         self, categories: List[str], search: str, strict: bool = False

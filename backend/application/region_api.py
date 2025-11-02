@@ -5,12 +5,18 @@ Endpoints FastAPI pour les régions (asynchrone)
 
 import os
 import logging
+from cachetools import TTLCache
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Optional
 from domain.region_service import RegionService
+from application.utils import cached_async
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Cache LRU avec TTL pour les catégories de marché (en mémoire)
+# Taille max: 1 entrée, TTL: 1 heure (3600 secondes)
+_market_categories_cache = TTLCache(maxsize=1, ttl=3600)
 
 
 # Variable globale pour stocker le service (sera initialisé dans app.py)
@@ -274,13 +280,19 @@ async def get_market_categories(
 ):
     """
     Récupère la liste des catégories du marché
-    Le cache est géré automatiquement par la couche infrastructure (EveAPIClient)
+    Utilise un cache LRU avec TTL (1 heure) en mémoire pour améliorer les performances
 
     Returns:
         Réponse JSON avec les catégories du marché
     """
+    # Vérifier le cache LRU (clé fixe car pas de paramètres variables)
+    cache_key = "market_categories"
+    if cache_key in _market_categories_cache:
+        logger.info("Récupération des catégories depuis le cache LRU")
+        return _market_categories_cache[cache_key]
+
     try:
-        logger.info("Récupération des catégories du marché")
+        logger.info("Récupération des catégories du marché (non caché)")
 
         # Récupérer la liste des groupes de marché
         group_ids = await region_service.repository.get_market_groups_list()
@@ -313,13 +325,96 @@ async def get_market_categories(
             [c for c in results if c is not None], key=lambda x: x.get("name", "")
         )
 
-        return {
+        result = {
             "total": len(categories),
             "categories": categories,
         }
 
+        # Mettre en cache LRU
+        _market_categories_cache[cache_key] = result
+
+        return result
+
     except Exception as e:
         logger.error(f"Erreur lors de la récupération des catégories: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur de connexion à l'API ESI: {str(e)}",
+        )
+
+
+@router.get("/api/v1/universe/types/{type_id}")
+async def get_item_type(
+    type_id: int,
+    region_service: RegionService = Depends(get_region_service),
+):
+    """
+    Récupère les détails d'un type d'item
+    Le cache est géré automatiquement par la couche infrastructure (EveAPIClient)
+
+    Args:
+        type_id: ID du type d'item
+
+    Returns:
+        Réponse JSON avec les détails du type d'item
+    """
+    try:
+        logger.info(f"Récupération des détails du type {type_id}")
+        type_data = await region_service.repository.get_item_type(type_id)
+
+        return type_data
+
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération du type: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur de connexion à l'API ESI: {str(e)}",
+        )
+
+
+@router.get("/api/v1/markets/regions/{region_id}/orders")
+async def get_market_orders(
+    region_id: int,
+    type_id: int = None,
+    region_service: RegionService = Depends(get_region_service),
+):
+    """
+    Récupère les ordres de marché pour une région, optionnellement filtrés par type
+    Le cache est géré automatiquement par la couche infrastructure (EveAPIClient)
+
+    Args:
+        region_id: ID de la région
+        type_id: Optionnel, ID du type d'item pour filtrer les ordres
+
+    Returns:
+        Réponse JSON avec les ordres de marché
+    """
+    try:
+        logger.info(
+            f"Récupération des ordres de marché pour la région {region_id}"
+            + (f" et le type {type_id}" if type_id else "")
+        )
+
+        orders = await region_service.repository.get_market_orders(region_id, type_id)
+
+        # Séparer les ordres d'achat et de vente
+        buy_orders = [o for o in orders if o.get("is_buy_order", False)]
+        sell_orders = [o for o in orders if not o.get("is_buy_order", False)]
+
+        # Trier par prix (meilleur prix en premier)
+        buy_orders.sort(key=lambda x: x.get("price", 0), reverse=True)
+        sell_orders.sort(key=lambda x: x.get("price", 0))
+
+        return {
+            "region_id": region_id,
+            "type_id": type_id,
+            "total": len(orders),
+            "buy_orders": buy_orders[:50],  # Limiter à 50 meilleurs ordres
+            "sell_orders": sell_orders[:50],
+        }
+
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des ordres: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur de connexion à l'API ESI: {str(e)}",

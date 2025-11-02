@@ -1,16 +1,19 @@
 <template>
   <div class="tree-node-item">
-    <div class="tree-node-header" :style="indentStyle" :class="{ 'has-children': hasChildren, 'expanded': expanded }"
-      @click="toggleExpand">
-      <span v-if="hasChildren" class="expand-icon">
+    <div class="tree-node-header" :style="indentStyle" :class="{ 'has-children': hasChildren, 'expanded': expanded }">
+      <span v-if="hasChildren" class="expand-icon" @click.stop="toggleExpand">
         {{ expanded ? '▼' : '▶' }}
       </span>
       <span v-else class="expand-icon-spacer"></span>
-      <span class="node-name">{{ node.name }}</span>
+      <span class="node-name" :class="{ 'type-node': isType }" @click="selectNode">
+        <span v-if="isType && typeDetailsForNode && typeDetailsForNode.name">{{ typeDetailsForNode.name }}</span>
+        <span v-else>{{ node.name }}</span>
+      </span>
       <span class="node-badge">{{ badgeValue }}</span>
     </div>
     <div v-if="expanded && hasChildren" class="tree-children">
-      <TreeNode v-for="child in node.children" :key="child.group_id" :node="child" :level="level + 1" />
+      <TreeNode v-for="child in node.children" :key="child.is_type ? `type_${child.type_id}` : child.group_id"
+        :node="child" :level="level + 1" :type-details="typeDetails" @node-selected="$emit('node-selected', $event)" />
     </div>
   </div>
 </template>
@@ -26,6 +29,10 @@ export default {
     level: {
       type: Number,
       default: 0
+    },
+    typeDetails: {
+      type: Object,
+      default: () => ({})
     }
   },
   data() {
@@ -37,24 +44,54 @@ export default {
     hasChildren() {
       return this.node.children && this.node.children.length > 0
     },
+    isType() {
+      return this.node.is_type === true
+    },
     indentStyle() {
       return {
         paddingLeft: `${this.level * 30 + 10}px`
       }
     },
     badgeValue() {
+      // Les types n'ont pas de badge
+      if (this.isType) {
+        return ''
+      }
       // Si la catégorie a des enfants, afficher le nombre d'enfants
       // Sinon, afficher le nombre de types d'items
       if (this.hasChildren) {
         return this.node.children.length
       }
       return this.node.types?.length || 0
+    },
+    typeDetailsForNode() {
+      if (this.isType && this.node.type_id && this.typeDetails) {
+        return this.typeDetails[this.node.type_id] || null
+      }
+      return null
     }
   },
   methods: {
     toggleExpand() {
       if (this.hasChildren) {
         this.expanded = !this.expanded
+      }
+    },
+    selectNode() {
+      // Émettre l'événement pour sélectionner ce nœud (catégorie ou type d'item)
+      if (this.isType) {
+        this.$emit('node-selected', {
+          type_id: this.node.type_id,
+          name: this.node.name,
+          is_type: true
+        })
+      } else {
+        this.$emit('node-selected', {
+          group_id: this.node.group_id,
+          name: this.node.name,
+          description: this.node.description,
+          types: this.node.types || []
+        })
       }
     }
   }
@@ -111,6 +148,11 @@ export default {
   flex: 1;
   color: #333;
   font-size: 1em;
+}
+
+.node-name.type-node {
+  color: #4299e1;
+  font-style: italic;
 }
 
 .node-badge {
