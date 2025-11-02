@@ -266,3 +266,61 @@ async def get_constellation_info(
             status_code=500,
             detail=f"Erreur de connexion à l'API ESI: {str(e)}",
         )
+
+
+@router.get("/api/v1/markets/categories")
+async def get_market_categories(
+    region_service: RegionService = Depends(get_region_service),
+):
+    """
+    Récupère la liste des catégories du marché
+    Le cache est géré automatiquement par la couche infrastructure (EveAPIClient)
+
+    Returns:
+        Réponse JSON avec les catégories du marché
+    """
+    try:
+        logger.info("Récupération des catégories du marché")
+
+        # Récupérer la liste des groupes de marché
+        group_ids = await region_service.repository.get_market_groups_list()
+
+        # Récupérer les détails de chaque groupe en parallèle
+        async def fetch_group(group_id: int):
+            try:
+                group_data = await region_service.repository.get_market_group_details(
+                    group_id
+                )
+                return {
+                    "group_id": group_id,
+                    "name": group_data.get("name", "Unknown"),
+                    "description": group_data.get("description", ""),
+                    "parent_group_id": group_data.get("parent_group_id"),
+                    "types": group_data.get("types", []),
+                }
+            except Exception as e:
+                logger.warning(
+                    f"Erreur lors de la récupération du groupe {group_id}: {e}"
+                )
+                return None
+
+        import asyncio
+
+        results = await asyncio.gather(*[fetch_group(gid) for gid in group_ids])
+
+        # Filtrer les résultats None et trier par nom
+        categories = sorted(
+            [c for c in results if c is not None], key=lambda x: x.get("name", "")
+        )
+
+        return {
+            "total": len(categories),
+            "categories": categories,
+        }
+
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des catégories: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur de connexion à l'API ESI: {str(e)}",
+        )

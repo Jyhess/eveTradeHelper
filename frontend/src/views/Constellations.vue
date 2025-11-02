@@ -15,6 +15,11 @@
       <div v-else-if="constellations.length > 0" class="constellations-container">
         <div class="stats">
           <p><strong>{{ total }} constellations</strong> dans la région <strong>{{ regionName }}</strong></p>
+          <p class="market-link">
+            <router-link :to="`/markets/region/${regionId}`" class="market-button">
+              📊 Voir le marché de cette région
+            </router-link>
+          </p>
         </div>
         
         <div class="constellations-grid">
@@ -195,6 +200,26 @@ h1 {
   margin: 0;
   font-size: 1.1em;
   color: #667eea;
+}
+
+.market-link {
+  margin-top: 10px;
+}
+
+.market-button {
+  display: inline-block;
+  padding: 10px 20px;
+  background: #48bb78;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.market-button:hover {
+  background: #38a169;
+  transform: translateY(-1px);
 }
 
 .no-data {

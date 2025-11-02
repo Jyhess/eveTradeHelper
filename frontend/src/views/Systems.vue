@@ -15,6 +15,11 @@
       <div v-else-if="systems.length > 0" class="systems-container">
         <div class="stats">
           <p><strong>{{ total }} systèmes</strong> dans la constellation <strong>{{ constellationName }}</strong></p>
+          <p class="market-link">
+            <router-link :to="`/markets/constellation/${constellationId}`" class="market-button">
+              📊 Voir le marché de cette constellation
+            </router-link>
+          </p>
         </div>
         
         <div class="systems-grid">
@@ -228,6 +233,26 @@ h1 {
   margin: 0;
   font-size: 1.1em;
   color: #667eea;
+}
+
+.market-link {
+  margin-top: 10px;
+}
+
+.market-button {
+  display: inline-block;
+  padding: 10px 20px;
+  background: #48bb78;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.market-button:hover {
+  background: #38a169;
+  transform: translateY(-1px);
 }
 
 .no-data {

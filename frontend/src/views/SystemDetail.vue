@@ -16,6 +16,11 @@
         <!-- Informations du système -->
         <div class="system-header">
           <h2>{{ system.name }}</h2>
+          <div class="market-link">
+            <router-link :to="`/markets/system/${systemId}`" class="market-button">
+              📊 Voir le marché de ce système
+            </router-link>
+          </div>
           <div class="system-meta">
             <p class="system-id">ID: {{ system.system_id }}</p>
             <p class="security-status" :class="getSecurityClass(system.security_status)">
@@ -287,6 +292,26 @@ h1 {
   margin: 0 0 15px 0;
   color: #4299e1;
   font-size: 2em;
+}
+
+.market-link {
+  margin-bottom: 15px;
+}
+
+.market-button {
+  display: inline-block;
+  padding: 10px 20px;
+  background: #48bb78;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.market-button:hover {
+  background: #38a169;
+  transform: translateY(-1px);
 }
 
 .system-meta {

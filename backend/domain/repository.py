@@ -84,3 +84,26 @@ class EveRepository(ABC):
             Dictionnaire contenant les détails de la stargate
         """
         pass
+
+    @abstractmethod
+    async def get_market_groups_list(self) -> List[int]:
+        """
+        Récupère la liste des IDs de groupes de marché
+
+        Returns:
+            Liste des IDs de groupes de marché
+        """
+        pass
+
+    @abstractmethod
+    async def get_market_group_details(self, group_id: int) -> Dict[str, Any]:
+        """
+        Récupère les détails d'un groupe de marché
+
+        Args:
+            group_id: ID du groupe de marché
+
+        Returns:
+            Dictionnaire contenant les détails du groupe de marché
+        """
+        pass
