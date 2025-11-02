@@ -115,3 +115,53 @@ class RegionService:
                 continue
 
         return constellations
+
+    def get_constellation_systems_with_details(
+        self, constellation_id: int
+    ) -> List[Dict[str, Any]]:
+        """
+        Récupère les détails de tous les systèmes d'une constellation
+        Logique métier : orchestration des appels au repository
+
+        Args:
+            constellation_id: ID de la constellation
+
+        Returns:
+            Liste des systèmes avec leurs détails formatés
+
+        Raises:
+            Exception: Si une erreur survient lors de la récupération
+        """
+        # Récupérer les détails de la constellation pour obtenir les IDs des systèmes
+        constellation_data = self.repository.get_constellation_details(constellation_id)
+        system_ids = constellation_data.get("systems", [])
+
+        # Récupérer les détails de chaque système
+        systems = []
+        for system_id in system_ids:
+            try:
+                system_data = self.repository.get_system_details(system_id)
+                # Transformation des données selon le besoin métier
+                systems.append(
+                    {
+                        "system_id": system_id,
+                        "name": system_data.get("name", "Unknown"),
+                        "security_status": system_data.get("security_status", 0.0),
+                        "security_class": system_data.get("security_class", ""),
+                        "position": system_data.get("position", {}),
+                        "constellation_id": system_data.get("constellation_id"),
+                        "planets": system_data.get("planets", []),
+                        "star_id": system_data.get("star_id"),
+                    }
+                )
+            except Exception as e:
+                # Logger l'erreur mais continuer avec les autres systèmes
+                # C'est une décision métier : on ne fait pas échouer toute la requête
+                import logging
+
+                logging.warning(
+                    f"Erreur lors de la récupération du système {system_id}: {e}"
+                )
+                continue
+
+        return systems

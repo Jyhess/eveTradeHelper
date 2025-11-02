@@ -38,6 +38,9 @@ class RegionAPI:
         self.blueprint.route(
             "/api/v1/regions/<int:region_id>/constellations", methods=["GET"]
         )(self.get_region_constellations)
+        self.blueprint.route(
+            "/api/v1/constellations/<int:constellation_id>/systems", methods=["GET"]
+        )(self.get_constellation_systems)
 
     def get_regions(self):
         """
@@ -189,5 +192,87 @@ class RegionAPI:
                 {
                     "error": f"Erreur de connexion à l'API ESI: {str(e)}",
                     "region_id": region_id,
+                }
+            ), 500
+
+    def get_constellation_systems(self, constellation_id: int):
+        """
+        Récupère les détails de tous les systèmes d'une constellation
+        Utilise un cache JSON local pour éviter les appels répétés à l'API ESI
+
+        Args:
+            constellation_id: ID de la constellation
+
+        Returns:
+            Réponse JSON avec les systèmes
+        """
+        cache_key = f"constellation_{constellation_id}_systems"
+
+        try:
+            # Vérifier si le cache est valide
+            if self.cache.is_valid(cache_key):
+                # Utiliser le cache
+                current_app.logger.info(
+                    f"Utilisation du cache pour les systèmes de la constellation {constellation_id}"
+                )
+                systems = self.cache.get(cache_key)
+                if systems:
+                    # Trier par nom pour un affichage cohérent
+                    systems_sorted = sorted(systems, key=lambda x: x.get("name", ""))
+                    return jsonify(
+                        {
+                            "constellation_id": constellation_id,
+                            "total": len(systems_sorted),
+                            "systems": systems_sorted,
+                            "cached": True,
+                        }
+                    )
+
+            # Le cache est expiré ou n'existe pas, récupérer depuis le service
+            current_app.logger.info(
+                f"Récupération des systèmes de la constellation {constellation_id} depuis l'API ESI"
+            )
+            systems = (
+                self.region_service.get_constellation_systems_with_details(
+                    constellation_id
+                )
+            )
+
+            # Sauvegarder dans le cache
+            self.cache.set(cache_key, systems)
+
+            # Trier par nom
+            systems_sorted = sorted(systems, key=lambda x: x.get("name", ""))
+
+            return jsonify(
+                {
+                    "constellation_id": constellation_id,
+                    "total": len(systems_sorted),
+                    "systems": systems_sorted,
+                    "cached": False,
+                }
+            )
+
+        except Exception as e:
+            # En cas d'erreur API, essayer de retourner le cache même expiré
+            current_app.logger.warning(
+                f"Erreur API, tentative d'utilisation du cache expiré: {e}"
+            )
+            systems = self.cache.get(cache_key)
+            if systems:
+                systems_sorted = sorted(systems, key=lambda x: x.get("name", ""))
+                return jsonify(
+                    {
+                        "constellation_id": constellation_id,
+                        "total": len(systems_sorted),
+                        "systems": systems_sorted,
+                        "cached": True,
+                        "warning": "Cache expiré mais API indisponible",
+                    }
+                )
+            return jsonify(
+                {
+                    "error": f"Erreur de connexion à l'API ESI: {str(e)}",
+                    "constellation_id": constellation_id,
                 }
             ), 500

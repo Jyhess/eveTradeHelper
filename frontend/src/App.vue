@@ -75,11 +75,63 @@
                       Position: ({{ constellation.position.x }}, {{ constellation.position.y }}, {{ constellation.position.z }})
                     </small>
                   </div>
+                  <button 
+                    @click="showSystems(constellation.constellation_id, constellation.name)" 
+                    class="btn-systems"
+                    :disabled="loadingSystems === constellation.constellation_id"
+                  >
+                    {{ loadingSystems === constellation.constellation_id ? 'Chargement...' : 'Voir les systèmes' }}
+                  </button>
                 </div>
               </div>
             </div>
             <div v-else class="no-data">
               Aucune constellation trouvée pour cette région.
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Modal pour afficher les systèmes -->
+      <div v-if="showSystemsModal" class="modal-overlay" @click="closeSystemsModal">
+        <div class="modal-content" @click.stop>
+          <div class="modal-header">
+            <h2>Systèmes de {{ selectedConstellationName }}</h2>
+            <button class="btn-close" @click="closeSystemsModal">×</button>
+          </div>
+          <div class="modal-body">
+            <div v-if="systemsLoading" class="loading">
+              Chargement des systèmes...
+            </div>
+            <div v-else-if="systemsError" class="error">
+              {{ systemsError }}
+            </div>
+            <div v-else-if="systems.length > 0" class="systems-grid">
+              <div 
+                v-for="system in systems" 
+                :key="system.system_id" 
+                class="system-card"
+              >
+                <h4>{{ system.name }}</h4>
+                <div class="system-info">
+                  <p class="system-id">ID: {{ system.system_id }}</p>
+                  <p class="security-status" :class="getSecurityClass(system.security_status)">
+                    <strong>Sécurité: {{ system.security_status.toFixed(1) }}</strong>
+                    <span v-if="system.security_class">{{ system.security_class }}</span>
+                  </p>
+                  <p class="planets-count">
+                    <strong>{{ system.planets?.length || 0 }}</strong> planète(s)
+                  </p>
+                  <div v-if="system.position" class="position">
+                    <small>
+                      Position: ({{ Math.round(system.position.x) }}, {{ Math.round(system.position.y) }}, {{ Math.round(system.position.z) }})
+                    </small>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else class="no-data">
+              Aucun système trouvé pour cette constellation.
             </div>
           </div>
         </div>
@@ -105,7 +157,14 @@ export default {
       constellations: [],
       constellationsLoading: false,
       constellationsError: '',
-      loadingConstellations: null
+      loadingConstellations: null,
+      showSystemsModal: false,
+      selectedConstellationId: null,
+      selectedConstellationName: '',
+      systems: [],
+      systemsLoading: false,
+      systemsError: '',
+      loadingSystems: null
     }
   },
   methods: {
@@ -153,6 +212,40 @@ export default {
       this.selectedRegionName = ''
       this.constellations = []
       this.constellationsError = ''
+    },
+    async showSystems(constellationId, constellationName) {
+      this.selectedConstellationId = constellationId
+      this.selectedConstellationName = constellationName
+      this.showSystemsModal = true
+      this.systems = []
+      this.systemsError = ''
+      this.systemsLoading = true
+      this.loadingSystems = constellationId
+      
+      try {
+        const response = await axios.get(
+          `http://localhost:5000/api/v1/constellations/${constellationId}/systems`
+        )
+        this.systems = response.data.systems || []
+      } catch (error) {
+        this.systemsError = 'Erreur: ' + (error.response?.data?.error || error.message)
+        console.error('Erreur lors du chargement des systèmes:', error)
+      } finally {
+        this.systemsLoading = false
+        this.loadingSystems = null
+      }
+    },
+    closeSystemsModal() {
+      this.showSystemsModal = false
+      this.selectedConstellationId = null
+      this.selectedConstellationName = ''
+      this.systems = []
+      this.systemsError = ''
+    },
+    getSecurityClass(securityStatus) {
+      if (securityStatus >= 0.5) return 'high-sec'
+      if (securityStatus > 0.0) return 'low-sec'
+      return 'null-sec'
     }
   }
 }
@@ -474,6 +567,105 @@ h1 {
   border-top: 1px solid #ddd;
   color: #888;
   font-size: 0.85em;
+}
+
+.btn-systems {
+  background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+  color: white;
+  border: none;
+  padding: 8px 20px;
+  font-size: 0.9em;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  margin-top: 15px;
+  width: 100%;
+}
+
+.btn-systems:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(66, 153, 225, 0.4);
+}
+
+.btn-systems:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.systems-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.system-card {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 15px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.system-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.system-card h4 {
+  margin: 0 0 10px 0;
+  color: #4299e1;
+  font-size: 1.2em;
+  border-bottom: 2px solid #4299e1;
+  padding-bottom: 8px;
+}
+
+.system-info {
+  text-align: left;
+}
+
+.system-id {
+  font-size: 0.85em;
+  color: #666;
+  margin: 5px 0;
+}
+
+.security-status {
+  margin: 10px 0;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 0.95em;
+}
+
+.security-status.high-sec {
+  background: #c6f6d5;
+  color: #22543d;
+}
+
+.security-status.low-sec {
+  background: #feebc8;
+  color: #7c2d12;
+}
+
+.security-status.null-sec {
+  background: #fed7d7;
+  color: #742a2a;
+}
+
+.security-status strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.planets-count {
+  margin: 10px 0;
+  color: #333;
+  font-size: 0.95em;
+}
+
+.planets-count strong {
+  color: #4299e1;
+  font-size: 1.1em;
 }
 </style>
 
