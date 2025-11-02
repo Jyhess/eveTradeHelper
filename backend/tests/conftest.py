@@ -11,9 +11,7 @@ from pathlib import Path
 # Ajouter le répertoire parent au path pour les imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from simple_cache import SimpleCache
-from cache_manager import CacheManager
-from eve_api_client import EveAPIClient
+from eve import SimpleCache, CacheManager, EveAPIClient
 
 # Chemin vers le dossier de tests
 TESTS_DIR = Path(__file__).parent

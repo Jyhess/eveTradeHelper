@@ -3,7 +3,7 @@ Gestionnaire de cache statique pour l'application
 """
 
 from typing import Optional
-from simple_cache import SimpleCache
+from eve.simple_cache import SimpleCache
 
 
 class CacheManager:
@@ -40,3 +40,4 @@ class CacheManager:
             True si le cache est initialisé, False sinon
         """
         return cls._instance is not None
+

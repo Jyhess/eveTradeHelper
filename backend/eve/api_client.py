@@ -6,7 +6,7 @@ import os
 import requests
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from cache_decorator import cached
+from eve.cache_decorator import cached
 
 
 class EveAPIClient:

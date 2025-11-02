@@ -173,3 +173,4 @@ class SimpleCache:
             if os.path.exists(self.cache_dir):
                 shutil.rmtree(self.cache_dir)
                 os.makedirs(self.cache_dir, exist_ok=True)
+

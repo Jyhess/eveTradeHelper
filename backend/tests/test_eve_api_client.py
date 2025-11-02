@@ -147,7 +147,7 @@ class TestEveAPIClientCache:
 
     def test_cache_is_used(self, eve_client):
         """Vérifie que le cache est utilisé lors du second appel"""
-        from cache_manager import CacheManager
+        from eve import CacheManager
         
         assert CacheManager.is_initialized(), "Le cache doit être initialisé"
         
@@ -167,8 +167,7 @@ class TestEveAPIClientCache:
 
     def test_cache_expiry(self, eve_client):
         """Vérifie que le cache expire correctement"""
-        from cache_manager import CacheManager
-        from simple_cache import SimpleCache
+        from eve import CacheManager, SimpleCache
         
         # Créer un cache avec expiration très courte (1 milliseconde)
         short_cache = SimpleCache(cache_dir=str(CacheManager.get_instance().cache_dir), expiry_hours=0.000000278)  # 1 ms

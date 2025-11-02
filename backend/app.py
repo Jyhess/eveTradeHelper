@@ -7,9 +7,7 @@ import os
 import requests
 from flask import Flask, jsonify
 from flask_cors import CORS
-from simple_cache import SimpleCache
-from cache_manager import CacheManager
-from eve_api_client import EveAPIClient
+from eve import SimpleCache, CacheManager, EveAPIClient
 
 app = Flask(__name__)
 CORS(app)

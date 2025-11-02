@@ -6,7 +6,7 @@ import functools
 import hashlib
 import json
 from typing import Callable, Any, Optional
-from cache_manager import CacheManager
+from eve.cache_manager import CacheManager
 
 
 def cached(cache_key_prefix: Optional[str] = None, expiry_hours: Optional[int] = None):
@@ -57,7 +57,7 @@ def cached(cache_key_prefix: Optional[str] = None, expiry_hours: Optional[int] =
 
             # Créer une instance temporaire si expiry_hours est différent
             if expiry_hours and expiry_hours != cache_instance.expiry_hours:
-                from simple_cache import SimpleCache
+                from eve.simple_cache import SimpleCache
 
                 cache_instance = SimpleCache(
                     cache_dir=cache_instance.cache_dir, expiry_hours=expiry_hours
@@ -104,3 +104,4 @@ def cached(cache_key_prefix: Optional[str] = None, expiry_hours: Optional[int] =
         return wrapper
 
     return decorator
+
