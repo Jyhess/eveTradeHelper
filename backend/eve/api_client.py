@@ -4,8 +4,11 @@ Version asynchrone avec httpx
 """
 
 import httpx
+import logging
 from typing import List, Dict, Any, Optional
 from eve.cache_decorator import cached
+
+logger = logging.getLogger(__name__)
 
 
 class EveAPIClient:
@@ -229,6 +232,43 @@ class EveAPIClient:
         if type_id:
             params["type_id"] = type_id
         return await self._get(f"/markets/{region_id}/orders/", params=params)
+
+    @cached()
+    async def get_route(
+        self, origin: int, destination: int, avoid: List[int] = None, connections: List[List[int]] = None
+    ) -> List[int]:
+        """
+        Calcule la route entre deux systèmes
+        
+        Args:
+            origin: ID du système d'origine
+            destination: ID du système de destination
+            avoid: Liste optionnelle d'IDs de systèmes à éviter
+            connections: Liste optionnelle de paires de systèmes connectés
+            
+        Returns:
+            Liste des IDs de systèmes formant la route (incluant origin et destination)
+            Si pas de route trouvée, retourne une liste vide
+            
+        Raises:
+            Exception: Si l'appel API échoue
+        """
+        params = {}
+        if avoid:
+            # L'API attend une liste d'IDs séparés par des virgules pour avoid
+            params["avoid"] = ",".join(map(str, avoid))
+        if connections:
+            # Pour connections, l'API attend un format spécial, mais généralement pas utilisé
+            # On pourrait l'implémenter si nécessaire
+            pass
+        
+        try:
+            route = await self._get(f"/route/{origin}/{destination}/", params=params if params else None)
+            # L'API retourne une liste d'IDs de systèmes
+            return route if isinstance(route, list) else []
+        except Exception as e:
+            logger.warning(f"Erreur lors du calcul de la route entre {origin} et {destination}: {e}")
+            return []
 
     async def search(
         self, categories: List[str], search: str, strict: bool = False

@@ -105,16 +105,36 @@ class DealsService:
                 return None
 
             # Meilleur prix d'achat (le plus élevé)
-            best_buy_price = max(buy_orders, key=lambda x: x.get("price", 0)).get(
-                "price", 0
+            best_buy_order = max(buy_orders, key=lambda x: x.get("price", 0))
+            best_buy_price = best_buy_order.get("price", 0)
+            best_buy_location_id = best_buy_order.get("location_id")
+            best_buy_volume = min(
+                best_buy_order.get("volume_remain", 0),
+                best_buy_order.get("volume_total", 0),
             )
+
             # Meilleur prix de vente (le plus bas)
-            best_sell_price = min(
+            best_sell_order = min(
                 sell_orders, key=lambda x: x.get("price", float("inf"))
-            ).get("price", float("inf"))
+            )
+            best_sell_price = best_sell_order.get("price", float("inf"))
+            best_sell_location_id = best_sell_order.get("location_id")
+            best_sell_volume = min(
+                best_sell_order.get("volume_remain", 0),
+                best_sell_order.get("volume_total", 0),
+            )
 
             if best_buy_price <= 0 or best_sell_price <= 0:
                 return None
+
+            # Calculer le volume échangeable (minimum entre les deux)
+            tradable_volume = min(best_buy_volume, best_sell_volume)
+
+            if tradable_volume <= 0:
+                return None
+
+            # Calculer le bénéfice en ISK (différence de prix * volume échangeable)
+            profit_isk = (best_buy_price - best_sell_price) * tradable_volume
 
             # Calculer le bénéfice en %
             profit_percent = (
@@ -128,15 +148,84 @@ class DealsService:
             # Récupérer les détails du type
             type_details = await self.repository.get_item_type(type_id)
 
+            # Calculer le nombre de sauts si on a des location_id valides
+            jumps = None
+            if best_buy_location_id and best_sell_location_id:
+                try:
+                    # Les location_id >= 60000000 sont des stations, sinon ce sont des systèmes
+                    buy_system_id = best_buy_location_id
+                    sell_system_id = best_sell_location_id
+
+                    # Si c'est une station, récupérer le système parent
+                    if best_buy_location_id >= 60000000:
+                        station_data = await self.repository.get_station_details(
+                            best_buy_location_id
+                        )
+                        buy_system_id = station_data.get("system_id")
+
+                    if best_sell_location_id >= 60000000:
+                        station_data = await self.repository.get_station_details(
+                            best_sell_location_id
+                        )
+                        sell_system_id = station_data.get("system_id")
+
+                    # Calculer la route seulement si ce sont des systèmes valides
+                    if (
+                        buy_system_id
+                        and sell_system_id
+                        and buy_system_id != sell_system_id
+                    ):
+                        route_with_details = (
+                            await self.repository.get_route_with_details(
+                                buy_system_id, sell_system_id
+                            )
+                        )
+                        # Le nombre de sauts = longueur de la route - 1 (car la route inclut origine et destination)
+                        jumps = (
+                            len(route_with_details) - 1 if route_with_details else None
+                        )
+                        route_details = route_with_details if route_with_details else []
+                    elif buy_system_id == sell_system_id:
+                        jumps = 0  # Même système
+                        # Récupérer quand même les détails du système
+                        system_data = await self.repository.get_system_details(
+                            buy_system_id
+                        )
+                        route_details = [
+                            {
+                                "system_id": buy_system_id,
+                                "name": system_data.get(
+                                    "name", f"Système {buy_system_id}"
+                                ),
+                                "security_status": system_data.get(
+                                    "security_status", 0.0
+                                ),
+                            }
+                        ]
+                    else:
+                        route_details = []
+                except Exception as e:
+                    logger.warning(
+                        f"Erreur lors du calcul de la route pour {type_id}: {e}"
+                    )
+                    jumps = None
+                    route_details = []
+            else:
+                route_details = []
+                jumps = None
+
             return {
                 "type_id": type_id,
                 "type_name": type_details.get("name", f"Type {type_id}"),
                 "best_buy_price": best_buy_price,
                 "best_sell_price": best_sell_price,
                 "profit_percent": round(profit_percent, 2),
-                "profit_isk": round(best_buy_price - best_sell_price, 2),
+                "profit_isk": round(profit_isk, 2),
+                "tradable_volume": tradable_volume,
                 "buy_order_count": len(buy_orders),
                 "sell_order_count": len(sell_orders),
+                "jumps": jumps,
+                "route_details": route_details,
             }
         except Exception as e:
             logger.warning(f"Erreur lors de l'analyse du type {type_id}: {e}")
@@ -199,8 +288,14 @@ class DealsService:
         # Filtrer les résultats valides et None
         deals = [r for r in results if isinstance(r, dict) and r is not None]
 
-        # Trier par bénéfice décroissant
-        deals.sort(key=lambda x: x.get("profit_percent", 0), reverse=True)
+        # Trier par bénéfice ISK décroissant (puis par bénéfice %)
+        deals.sort(
+            key=lambda x: (x.get("profit_isk", 0), x.get("profit_percent", 0)),
+            reverse=True,
+        )
+
+        # Calculer le total du bénéfice ISK
+        total_profit_isk = sum(deal.get("profit_isk", 0) for deal in deals)
 
         logger.info(
             f"Trouvé {len(deals)} bonnes affaires avec bénéfice >= {profit_threshold}%"
@@ -211,5 +306,6 @@ class DealsService:
             "group_id": group_id,
             "profit_threshold": profit_threshold,
             "total_types": len(all_types),
+            "total_profit_isk": round(total_profit_isk, 2),
             "deals": deals,
         }

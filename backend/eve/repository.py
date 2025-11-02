@@ -60,3 +60,45 @@ class EveRepositoryImpl(EveRepository):
     ) -> List[Dict[str, Any]]:
         """Récupère les ordres de marché pour une région, optionnellement filtrés par type"""
         return await self.api_client.get_market_orders(region_id, type_id)
+
+    async def get_route(self, origin: int, destination: int) -> List[int]:
+        """Calcule la route entre deux systèmes"""
+        return await self.api_client.get_route(origin, destination)
+
+    async def get_route_with_details(
+        self, origin: int, destination: int
+    ) -> List[Dict[str, Any]]:
+        """Calcule la route entre deux systèmes avec les détails de sécurité"""
+        import asyncio
+
+        # Obtenir la liste des IDs de systèmes de la route
+        route_ids = await self.api_client.get_route(origin, destination)
+        
+        if not route_ids:
+            return []
+
+        # Récupérer les détails de chaque système en parallèle
+        async def fetch_system_details(system_id: int) -> Dict[str, Any]:
+            try:
+                system_data = await self.api_client.get_system_details(system_id)
+                return {
+                    "system_id": system_id,
+                    "name": system_data.get("name", f"Système {system_id}"),
+                    "security_status": system_data.get("security_status", 0.0),
+                }
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Erreur lors de la récupération du système {system_id}: {e}")
+                return {
+                    "system_id": system_id,
+                    "name": f"Système {system_id}",
+                    "security_status": 0.0,
+                }
+
+        # Récupérer tous les détails en parallèle
+        results = await asyncio.gather(
+            *[fetch_system_details(sid) for sid in route_ids]
+        )
+        
+        return results

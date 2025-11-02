@@ -136,3 +136,36 @@ class EveRepository(ABC):
             Liste des ordres de marché
         """
         pass
+
+    @abstractmethod
+    async def get_route(self, origin: int, destination: int) -> List[int]:
+        """
+        Calcule la route entre deux systèmes
+
+        Args:
+            origin: ID du système d'origine
+            destination: ID du système de destination
+
+        Returns:
+            Liste des IDs de systèmes formant la route (incluant origin et destination)
+            Si pas de route trouvée, retourne une liste vide
+        """
+        pass
+
+    @abstractmethod
+    async def get_route_with_details(
+        self, origin: int, destination: int
+    ) -> List[Dict[str, Any]]:
+        """
+        Calcule la route entre deux systèmes avec les détails de sécurité
+
+        Args:
+            origin: ID du système d'origine
+            destination: ID du système de destination
+
+        Returns:
+            Liste de dictionnaires contenant les détails de chaque système de la route
+            Chaque dictionnaire contient: system_id, name, security_status
+            Si pas de route trouvée, retourne une liste vide
+        """
+        pass

@@ -66,6 +66,9 @@
               sur <strong>{{ searchResults.total_types }}</strong> type(s) analysé(s)
             </p>
             <p>
+              Total bénéfice potentiel: <strong>{{ formatPrice(searchResults.total_profit_isk || 0) }} ISK</strong>
+            </p>
+            <p>
               Seuil: <strong>{{ searchResults.profit_threshold }}%</strong> | 
               Région: <strong>{{ regionName }}</strong> |
               Groupe: <strong>{{ groupName }}</strong>
@@ -79,7 +82,15 @@
         </div>
 
         <div v-else class="deals-list">
-          <div v-for="deal in searchResults.deals" :key="deal.type_id" class="deal-item">
+          <div class="sort-controls">
+            <label>Trier par:</label>
+            <select v-model="sortBy" class="sort-select">
+              <option value="profit">Bénéfice (%)</option>
+              <option value="jumps">Nombre de sauts</option>
+              <option value="profit_isk">Bénéfice (ISK)</option>
+            </select>
+          </div>
+          <div v-for="deal in sortedDeals" :key="deal.type_id" class="deal-item">
             <div class="deal-header">
               <h3>{{ deal.type_name }}</h3>
               <div class="profit-badge" :class="getProfitBadgeClass(deal.profit_percent)">
@@ -105,6 +116,36 @@
                 <span>{{ deal.buy_order_count }} ordre(s) d'achat</span>
                 <span>•</span>
                 <span>{{ deal.sell_order_count }} ordre(s) de vente</span>
+                <span v-if="deal.tradable_volume">
+                  • <span class="volume-info">Vol: {{ deal.tradable_volume.toLocaleString('fr-FR') }}</span>
+                </span>
+                <span v-if="deal.jumps !== null && deal.jumps !== undefined">
+                  • <span class="jumps-info">{{ deal.jumps }} saut(s)</span>
+                </span>
+                <span v-else-if="deal.jumps === null || deal.jumps === undefined">
+                  • <span class="jumps-info unknown">Sauts inconnus</span>
+                </span>
+              </div>
+              
+              <!-- Affichage de la route avec niveaux de danger -->
+              <div v-if="deal.route_details && deal.route_details.length > 0" class="route-display">
+                <span class="route-label">Route:</span>
+                <div class="route-jumps">
+                  <div 
+                    v-for="(system, index) in deal.route_details" 
+                    :key="system.system_id"
+                    class="route-jump"
+                  >
+                    <div 
+                      class="danger-indicator"
+                      :class="getDangerClass(system.security_status)"
+                      :title="`${system.name}\nSécurité: ${system.security_status.toFixed(1)}`"
+                    >
+                      <span class="tooltip-text">{{ system.name }}<br>Sécurité: {{ system.security_status.toFixed(1) }}</span>
+                    </div>
+                    <span v-if="index < deal.route_details.length - 1" class="route-arrow">→</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -138,7 +179,8 @@ export default {
       profitThreshold: 5.0,
       searching: false,
       searchResults: null,
-      error: ''
+      error: '',
+      sortBy: 'profit'
     }
   },
   computed: {
@@ -152,6 +194,26 @@ export default {
       }
       return items
     },
+    sortedDeals() {
+      if (!this.searchResults || !this.searchResults.deals) {
+        return []
+      }
+      const deals = [...this.searchResults.deals]
+      
+      switch (this.sortBy) {
+        case 'jumps':
+          return deals.sort((a, b) => {
+            const aJumps = a.jumps !== null && a.jumps !== undefined ? a.jumps : Infinity
+            const bJumps = b.jumps !== null && b.jumps !== undefined ? b.jumps : Infinity
+            return aJumps - bJumps
+          })
+        case 'profit_isk':
+          return deals.sort((a, b) => (b.profit_isk || 0) - (a.profit_isk || 0))
+        case 'profit':
+        default:
+          return deals.sort((a, b) => (b.profit_percent || 0) - (a.profit_percent || 0))
+      }
+    }
   },
   async mounted() {
     await this.fetchRegions()
@@ -362,6 +424,11 @@ export default {
       if (profitPercent >= 10) return 'profit-good'
       if (profitPercent >= 5) return 'profit-medium'
       return 'profit-low'
+    },
+    getDangerClass(securityStatus) {
+      if (securityStatus >= 0.5) return 'danger-high-sec'
+      if (securityStatus > 0.0) return 'danger-low-sec'
+      return 'danger-null-sec'
     }
   }
 }
@@ -613,6 +680,142 @@ h1 {
   font-size: 0.9em;
   color: #666;
   font-style: italic;
+}
+
+.jumps-info {
+  color: #667eea;
+  font-weight: 600;
+}
+
+.jumps-info.unknown {
+  color: #999;
+  font-weight: normal;
+}
+
+.volume-info {
+  color: #667eea;
+  font-weight: 500;
+}
+
+.route-display {
+  margin-top: 10px;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.route-label {
+  font-weight: 600;
+  color: #667eea;
+  font-size: 0.9em;
+}
+
+.route-jumps {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.route-jump {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.danger-indicator {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  border: 2px solid rgba(0, 0, 0, 0.2);
+  cursor: help;
+  transition: transform 0.2s;
+}
+
+.danger-indicator:hover {
+  transform: scale(1.2);
+}
+
+.danger-indicator .tooltip-text {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #333;
+  color: white;
+  text-align: center;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.85em;
+  white-space: normal;
+  z-index: 1000;
+  pointer-events: none;
+  transition: opacity 0.3s, visibility 0.3s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  min-width: 120px;
+  line-height: 1.4;
+}
+
+.danger-indicator:hover .tooltip-text {
+  visibility: visible;
+  opacity: 1;
+}
+
+.danger-indicator .tooltip-text::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #333;
+}
+
+.danger-high-sec {
+  background: #48bb78; /* Vert pour high-sec */
+}
+
+.danger-low-sec {
+  background: #ed8936; /* Orange pour low-sec */
+}
+
+.danger-null-sec {
+  background: #f56565; /* Rouge pour null-sec */
+}
+
+.route-arrow {
+  color: #999;
+  font-size: 0.9em;
+  margin: 0 3px;
+}
+
+.sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.sort-controls label {
+  font-weight: 600;
+  color: #667eea;
+}
+
+.sort-select {
+  padding: 6px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  font-size: 0.95em;
+  background: white;
 }
 
 </style>
