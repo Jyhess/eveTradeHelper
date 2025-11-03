@@ -328,6 +328,8 @@ class DealsService:
                 "route_details": route_details,
                 "buy_system_id": buy_system_id if buy_location_id else None,
                 "sell_system_id": sell_system_id if sell_location_id else None,
+                "buy_region_id": buy_region_id,
+                "sell_region_id": sell_region_id,
             }
         except Exception as e:
             logger.warning(f"Erreur lors de l'analyse du type {type_id}: {e}")

@@ -194,7 +194,20 @@
               <div v-if="deal.route_details && deal.route_details.length > 0" class="detail-line route-line">
                 <span class="detail-label">Route:</span>
                 <span class="detail-content route-content">
-                  <span class="route-start">{{ deal.route_details[0].name }}</span>
+                  <span class="route-start-container">
+                    <router-link v-if="deal.buy_system_id" :to="`/markets/system/${deal.buy_system_id}?type_id=${deal.type_id}`" class="route-system-link">
+                      {{ deal.route_details[0].name }}
+                    </router-link>
+                    <span v-else class="route-start">{{ deal.route_details[0].name }}</span>
+                    <span v-if="isSystemNotInCurrentRegion(deal.buy_system_id, deal.buy_region_id)" class="region-indicator">
+                      (
+                      <router-link v-if="deal.buy_region_id" :to="`/markets/region/${deal.buy_region_id}?type_id=${deal.type_id}`" class="region-link">
+                        {{ getRegionName(deal.buy_region_id) }}
+                      </router-link>
+                      <span v-else>{{ getRegionName(deal.buy_region_id) }}</span>
+                      )
+                    </span>
+                  </span>
                   <span class="route-separator">[</span>
                   <div class="route-systems-inline">
                     <div v-for="(system, index) in deal.route_details" :key="system.system_id"
@@ -208,7 +221,20 @@
                     </div>
                   </div>
                   <span class="route-separator">]</span>
-                  <span class="route-end">{{ deal.route_details[deal.route_details.length - 1].name }}</span>
+                  <span class="route-end-container">
+                    <router-link v-if="deal.sell_system_id" :to="`/markets/system/${deal.sell_system_id}?type_id=${deal.type_id}`" class="route-system-link">
+                      {{ deal.route_details[deal.route_details.length - 1].name }}
+                    </router-link>
+                    <span v-else class="route-end">{{ deal.route_details[deal.route_details.length - 1].name }}</span>
+                    <span v-if="isSystemNotInCurrentRegion(deal.sell_system_id, deal.sell_region_id)" class="region-indicator">
+                      (
+                      <router-link v-if="deal.sell_region_id" :to="`/markets/region/${deal.sell_region_id}?type_id=${deal.type_id}`" class="region-link">
+                        {{ getRegionName(deal.sell_region_id) }}
+                      </router-link>
+                      <span v-else>{{ getRegionName(deal.sell_region_id) }}</span>
+                      )
+                    </span>
+                  </span>
                 </span>
               </div>
 
@@ -835,6 +861,40 @@ export default {
       if (securityStatus <= 0.6) return 'danger-green'
       if (securityStatus <= 0.8) return 'danger-green' // Vert aussi jusqu'à 0.8
       return 'danger-blue' // > 0.8
+    },
+    isSystemNotInCurrentRegion(systemId, regionId) {
+      // Retourne true si le système n'est pas dans la région courante
+      // Si on n'a pas de région courante sélectionnée, on ne peut pas déterminer
+      if (!this.selectedRegionId) {
+        return false
+      }
+      // Si on n'a pas de regionId dans les données, on ne peut pas déterminer
+      if (!regionId) {
+        return false
+      }
+      // Si on a un systemId mais pas de regionId, on ne peut pas déterminer
+      if (systemId && !regionId) {
+        return false
+      }
+      // Comparer la région du système avec la région courante
+      return regionId !== this.selectedRegionId
+    },
+    getRegionName(regionId) {
+      // Récupère le nom d'une région par son ID
+      if (!regionId) {
+        return 'Région inconnue'
+      }
+      // Chercher dans les régions chargées
+      const region = this.regions.find(r => r.region_id === regionId)
+      if (region) {
+        return region.name
+      }
+      // Chercher dans les régions adjacentes
+      const adjacentRegion = this.adjacentRegions.find(r => r.region_id === regionId)
+      if (adjacentRegion) {
+        return adjacentRegion.name
+      }
+      return `Région ${regionId}`
     }
   }
 }
@@ -1318,6 +1378,44 @@ export default {
 .route-end {
   font-weight: 700;
   color: #856404;
+}
+
+.route-start-container,
+.route-end-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.route-system-link {
+  font-weight: 700;
+  color: #667eea;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.route-system-link:hover {
+  color: #5568d3;
+  text-decoration: underline;
+}
+
+.region-indicator {
+  font-size: 0.85em;
+  color: #dc3545;
+  font-weight: 600;
+  font-style: italic;
+}
+
+.region-link {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.region-link:hover {
+  color: #5568d3;
+  text-decoration: underline;
 }
 
 .route-separator {
