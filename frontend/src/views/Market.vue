@@ -29,6 +29,11 @@
             <div class="panel-content">
               <!-- Affichage si c'est une catégorie -->
               <template v-if="selectedCategory">
+                <div class="category-info">
+                  <h4>Informations</h4>
+                  <p><strong>ID de la catégorie:</strong> {{ selectedCategory.group_id }}</p>
+                </div>
+
                 <div v-if="selectedCategory.description" class="description">
                   <h4>Description</h4>
                   <p>{{ selectedCategory.description }}</p>
@@ -658,6 +663,25 @@ export default {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
+}
+
+.category-info {
+  margin-bottom: 20px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.category-info h4 {
+  margin: 0 0 10px 0;
+  color: #667eea;
+  font-size: 1.1em;
+}
+
+.category-info p {
+  margin: 0;
+  color: #555;
+  line-height: 1.6;
 }
 
 .description {

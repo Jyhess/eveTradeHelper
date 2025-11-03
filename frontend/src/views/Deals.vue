@@ -22,18 +22,18 @@
         <div class="form-group thresholds-row">
           <div class="threshold-item">
             <label for="min-profit-input">Seuil de bénéfice (ISK):</label>
-            <input id="min-profit-input" type="number" v-model.number="minProfitIsk" min="0" step="1000"
-              placeholder="100000" :disabled="!selectedGroupId" />
+            <input id="min-profit-input" type="text" v-model="minProfitIskDisplay" placeholder="100 000"
+              :disabled="!selectedGroupId" @input="handleMinProfitInput" @blur="handleMinProfitBlur" />
           </div>
           <div class="threshold-item">
             <label for="max-volume-input">Volume max de transport (m³):</label>
-            <input id="max-volume-input" type="number" v-model.number="maxTransportVolume" min="0" step="0.01"
-              placeholder="Illimité" :disabled="!selectedGroupId" />
+            <input id="max-volume-input" type="text" v-model="maxTransportVolumeDisplay" placeholder="Illimité"
+              :disabled="!selectedGroupId" @input="handleMaxVolumeInput" @blur="handleMaxVolumeBlur" />
           </div>
           <div class="threshold-item">
             <label for="max-buy-cost-input">Montant d'achat max (ISK):</label>
-            <input id="max-buy-cost-input" type="number" v-model.number="maxBuyCost" min="0" step="1000"
-              placeholder="Illimité" :disabled="!selectedGroupId" />
+            <input id="max-buy-cost-input" type="text" v-model="maxBuyCostDisplay" placeholder="Illimité"
+              :disabled="!selectedGroupId" @input="handleMaxBuyCostInput" @blur="handleMaxBuyCostBlur" />
           </div>
         </div>
 
@@ -48,7 +48,7 @@
             <div class="regions-checkboxes">
               <label v-for="region in adjacentRegions" :key="region.region_id" class="region-checkbox-label">
                 <input type="checkbox" :value="region.region_id" v-model="selectedAdjacentRegions"
-                  :disabled="loadingAdjacentRegions" />
+                  :disabled="loadingAdjacentRegions" @change="saveSettings" />
                 <span>{{ region.name }}</span>
               </label>
             </div>
@@ -264,7 +264,12 @@ export default {
       searching: false,
       searchResults: null,
       error: '',
-      sortBy: 'profit_isk' // Tri par défaut sur les bénéfices totaux (ISK)
+      sortBy: 'profit_isk', // Tri par défaut sur les bénéfices totaux (ISK)
+      isLoadingSettings: false, // Flag pour éviter de sauvegarder pendant le chargement initial
+      // Valeurs formatées pour l'affichage dans les inputs
+      minProfitIskDisplay: '',
+      maxTransportVolumeDisplay: '',
+      maxBuyCostDisplay: ''
     }
   },
   computed: {
@@ -300,13 +305,18 @@ export default {
   },
   async mounted() {
     await this.fetchRegions()
-    // Si on a un regionId dans les props (depuis une route), le charger
+
+    // Charger les valeurs sauvegardées depuis localStorage
+    await this.loadSettings()
+
+    // Si on a un regionId dans les props (depuis une route), le charger (priorité sur localStorage)
     const routeRegionId = this.$route.params.regionId || this.$route.query.region_id
     if (routeRegionId) {
       this.selectedRegionId = parseInt(routeRegionId)
+      this.isLoadingSettings = false // Désactiver le flag car on charge depuis la route
       await this.onRegionChange()
 
-      // Si on a un group_id dans les query params, le sélectionner
+      // Si on a un group_id dans les query params, le sélectionner (priorité sur localStorage)
       const groupId = this.$route.query.group_id
       if (groupId) {
         await this.$nextTick() // Attendre que les groupes soient chargés
@@ -316,9 +326,97 @@ export default {
           this.groupName = group.name
         }
       }
+    } else if (this.selectedRegionId) {
+      // Si on a chargé une région depuis localStorage, charger les groupes
+      // Désactiver le flag avant d'appeler onRegionChange pour permettre la sauvegarde
+      this.isLoadingSettings = false
+      await this.$nextTick()
+      await this.onRegionChange()
+    } else {
+      // Aucune région chargée, désactiver le flag
+      this.isLoadingSettings = false
     }
+
+    // Initialiser les valeurs d'affichage si elles ne l'ont pas été
+    if (!this.minProfitIskDisplay || this.minProfitIskDisplay === '') {
+      this.minProfitIskDisplay = this.formatNumberInput(this.minProfitIsk)
+    }
+
+    // S'assurer que le flag est toujours désactivé à la fin du montage
+    this.isLoadingSettings = false
   },
   methods: {
+    saveSettings() {
+      // Ne pas sauvegarder pendant le chargement initial
+      if (this.isLoadingSettings) {
+        return
+      }
+      // Sauvegarder les valeurs dans localStorage
+      const settings = {
+        selectedRegionId: this.selectedRegionId,
+        selectedGroupId: this.selectedGroupId,
+        minProfitIsk: this.minProfitIsk,
+        maxTransportVolume: this.maxTransportVolume,
+        maxBuyCost: this.maxBuyCost,
+        selectedAdjacentRegions: this.selectedAdjacentRegions,
+        showAdjacentRegionsPanel: this.showAdjacentRegionsPanel
+      }
+      try {
+        localStorage.setItem('deals_settings', JSON.stringify(settings))
+        console.log('Paramètres sauvegardés:', settings) // Debug
+      } catch (error) {
+        console.warn('Impossible de sauvegarder les paramètres dans localStorage:', error)
+      }
+    },
+    async loadSettings() {
+      // Charger les valeurs depuis localStorage
+      this.isLoadingSettings = true
+      try {
+        const saved = localStorage.getItem('deals_settings')
+        if (saved) {
+          const settings = JSON.parse(saved)
+
+          // Restaurer les valeurs si elles existent
+          if (settings.selectedRegionId !== undefined && settings.selectedRegionId !== null) {
+            this.selectedRegionId = settings.selectedRegionId
+          }
+          if (settings.selectedGroupId !== undefined && settings.selectedGroupId !== null) {
+            this.selectedGroupId = settings.selectedGroupId
+          }
+          if (settings.minProfitIsk !== undefined && settings.minProfitIsk !== null) {
+            this.minProfitIsk = settings.minProfitIsk
+            this.minProfitIskDisplay = this.formatNumberInput(this.minProfitIsk)
+          }
+          if (settings.maxTransportVolume !== undefined) {
+            this.maxTransportVolume = settings.maxTransportVolume
+            this.maxTransportVolumeDisplay = this.formatNumberInput(this.maxTransportVolume)
+          }
+          if (settings.maxBuyCost !== undefined) {
+            this.maxBuyCost = settings.maxBuyCost
+            this.maxBuyCostDisplay = this.formatNumberInput(this.maxBuyCost)
+          }
+          if (settings.selectedAdjacentRegions !== undefined && Array.isArray(settings.selectedAdjacentRegions)) {
+            this.selectedAdjacentRegions = settings.selectedAdjacentRegions
+          }
+          if (settings.showAdjacentRegionsPanel !== undefined) {
+            this.showAdjacentRegionsPanel = settings.showAdjacentRegionsPanel
+          }
+        }
+      } catch (error) {
+        console.warn('Impossible de charger les paramètres depuis localStorage:', error)
+      }
+      // Initialiser les valeurs d'affichage si elles n'ont pas été chargées
+      if (!this.minProfitIskDisplay || this.minProfitIskDisplay === '') {
+        this.minProfitIskDisplay = this.formatNumberInput(this.minProfitIsk)
+      }
+      if ((!this.maxTransportVolumeDisplay || this.maxTransportVolumeDisplay === '') && this.maxTransportVolume !== null) {
+        this.maxTransportVolumeDisplay = this.formatNumberInput(this.maxTransportVolume)
+      }
+      if ((!this.maxBuyCostDisplay || this.maxBuyCostDisplay === '') && this.maxBuyCost !== null) {
+        this.maxBuyCostDisplay = this.formatNumberInput(this.maxBuyCost)
+      }
+      // Le flag sera désactivé après que mounted() ait terminé
+    },
     async fetchRegions() {
       try {
         const response = await axios.get('http://localhost:5000/api/v1/regions')
@@ -343,6 +441,7 @@ export default {
         this.adjacentRegions = []
         this.selectedAdjacentRegions = []
         this.showAdjacentRegionsPanel = false
+        this.saveSettings() // Sauvegarder les changements
         return
       }
 
@@ -356,20 +455,41 @@ export default {
         })
       }
 
-      // Réinitialiser les régions adjacentes
+      // Réinitialiser les régions adjacentes (elles changent selon la région)
       this.adjacentRegions = []
-      this.selectedAdjacentRegions = []
+      // Si on change de région manuellement (pas pendant le chargement initial), réinitialiser les sélections
+      if (!this.isLoadingSettings) {
+        // C'est un changement manuel de région, réinitialiser les sélections
+        this.selectedAdjacentRegions = []
+      }
       if (this.showAdjacentRegionsPanel) {
         await this.fetchAdjacentRegions()
       }
 
       await this.fetchMarketGroups()
+
+      // Restaurer le groupe sélectionné après avoir chargé les groupes
+      if (this.selectedGroupId) {
+        await this.$nextTick()
+        const group = this.findGroupInTree(this.marketGroupsTree, this.selectedGroupId)
+        if (group) {
+          this.groupName = group.name
+        } else {
+          const flatGroup = this.marketGroups.find(g => g.group_id === this.selectedGroupId)
+          if (flatGroup) {
+            this.groupName = flatGroup.name
+          }
+        }
+      }
+
+      this.saveSettings() // Sauvegarder les changements
     },
     async toggleAdjacentRegionsPanel() {
       this.showAdjacentRegionsPanel = !this.showAdjacentRegionsPanel
       if (this.showAdjacentRegionsPanel && this.adjacentRegions.length === 0 && this.selectedRegionId) {
         await this.fetchAdjacentRegions()
       }
+      this.saveSettings() // Sauvegarder l'état du panneau
     },
     async fetchAdjacentRegions() {
       if (!this.selectedRegionId) return
@@ -380,8 +500,12 @@ export default {
           `http://localhost:5000/api/v1/regions/${this.selectedRegionId}/adjacent`
         )
         this.adjacentRegions = response.data.adjacent_regions || []
-        // Réinitialiser la sélection
-        this.selectedAdjacentRegions = []
+        // Filtrer les régions adjacentes sélectionnées pour ne garder que celles qui existent toujours
+        // (au cas où certaines régions adjacentes ne sont plus disponibles)
+        this.selectedAdjacentRegions = this.selectedAdjacentRegions.filter(regionId =>
+          this.adjacentRegions.some(r => r.region_id === regionId)
+        )
+        this.saveSettings() // Sauvegarder après filtrage
       } catch (error) {
         console.error('Erreur lors du chargement des régions adjacentes:', error)
         this.error = 'Erreur lors du chargement des régions adjacentes: ' + (error.response?.data?.detail || error.message)
@@ -477,6 +601,7 @@ export default {
     },
     handleGroupSelect(groupId) {
       this.selectedGroupId = groupId
+      this.saveSettings() // Sauvegarder le changement de groupe
     },
     handleGroupChange(group) {
       if (group) {
@@ -540,12 +665,112 @@ export default {
 
         const response = await axios.get('http://localhost:5000/api/v1/markets/deals', { params })
         this.searchResults = response.data
+
+        // Sauvegarder les paramètres après une recherche réussie
+        this.saveSettings()
       } catch (error) {
         this.error = 'Erreur lors de la recherche: ' + (error.response?.data?.detail || error.message)
         console.error('Erreur lors de la recherche de bonnes affaires:', error)
       } finally {
         this.searching = false
       }
+    },
+    formatNumberInput(value) {
+      // Formate une valeur numérique pour l'affichage dans un input avec séparateur de milliers
+      if (value === null || value === undefined || value === '') {
+        return ''
+      }
+      // Convertir en nombre si nécessaire
+      let numValue = value
+      if (typeof value === 'string') {
+        numValue = parseFloat(value.replace(/\s/g, '').replace(',', '.'))
+      }
+      if (isNaN(numValue) || numValue < 0) {
+        return ''
+      }
+      // Formater avec séparateur d'espace pour les milliers
+      // Utiliser toLocaleString puis remplacer les espaces insécables par des espaces normaux
+      const formatted = numValue.toLocaleString('fr-FR', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: numValue % 1 === 0 ? 0 : 2, // Pas de décimales si entier
+        useGrouping: true
+      })
+      return formatted.replace(/\u00A0/g, ' ') // Remplacer les espaces insécables par des espaces normaux
+    },
+    parseNumberInput(inputValue) {
+      // Parse une valeur d'input en nombre (enlève les espaces)
+      if (!inputValue || inputValue === '') {
+        return null
+      }
+      // Enlever les espaces et convertir en nombre
+      const cleaned = inputValue.toString().replace(/\s/g, '').replace(',', '.')
+      const parsed = parseFloat(cleaned)
+      return isNaN(parsed) ? null : parsed
+    },
+    handleMinProfitInput(event) {
+      const inputValue = event.target.value
+      // Garder la valeur telle quelle pendant la saisie (permet de taper librement)
+      this.minProfitIskDisplay = inputValue
+
+      const value = this.parseNumberInput(inputValue)
+      if (value !== null && value >= 0) {
+        this.minProfitIsk = value
+      } else if (inputValue === '' || inputValue.trim() === '') {
+        this.minProfitIsk = 0
+      }
+      this.saveSettings()
+    },
+    handleMinProfitBlur(event) {
+      // Formater la valeur à la perte de focus
+      const value = this.parseNumberInput(event.target.value)
+      if (value !== null && value >= 0) {
+        this.minProfitIsk = value
+        this.minProfitIskDisplay = this.formatNumberInput(value)
+      } else {
+        this.minProfitIsk = 100000 // Valeur par défaut
+        this.minProfitIskDisplay = this.formatNumberInput(100000)
+      }
+      this.saveSettings()
+    },
+    handleMaxVolumeInput(event) {
+      const inputValue = event.target.value
+      // Garder la valeur telle quelle pendant la saisie
+      this.maxTransportVolumeDisplay = inputValue
+
+      const value = this.parseNumberInput(inputValue)
+      this.maxTransportVolume = value
+      this.saveSettings()
+    },
+    handleMaxVolumeBlur(event) {
+      // Formater la valeur à la perte de focus
+      const value = this.parseNumberInput(event.target.value)
+      this.maxTransportVolume = value
+      if (value !== null && value >= 0) {
+        this.maxTransportVolumeDisplay = this.formatNumberInput(value)
+      } else {
+        this.maxTransportVolumeDisplay = ''
+      }
+      this.saveSettings()
+    },
+    handleMaxBuyCostInput(event) {
+      const inputValue = event.target.value
+      // Garder la valeur telle quelle pendant la saisie
+      this.maxBuyCostDisplay = inputValue
+
+      const value = this.parseNumberInput(inputValue)
+      this.maxBuyCost = value
+      this.saveSettings()
+    },
+    handleMaxBuyCostBlur(event) {
+      // Formater la valeur à la perte de focus
+      const value = this.parseNumberInput(event.target.value)
+      this.maxBuyCost = value
+      if (value !== null && value >= 0) {
+        this.maxBuyCostDisplay = this.formatNumberInput(value)
+      } else {
+        this.maxBuyCostDisplay = ''
+      }
+      this.saveSettings()
     },
     formatPrice(price) {
       if (!price && price !== 0) return 'N/A'
