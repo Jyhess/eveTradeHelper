@@ -31,11 +31,12 @@ def region_service(cache):
 class TestRegionConstellations:
     """Tests pour les constellations d'une région"""
 
-    def test_get_region_constellations_with_details(self, region_service):
+    @pytest.mark.asyncio
+    async def test_get_region_constellations_with_details(self, region_service):
         """Test de récupération des constellations d'une région"""
         # Utiliser une région connue (The Forge - région ID 10000002)
         region_id = 10000002
-        result = region_service.get_region_constellations_with_details(region_id)
+        result = await region_service.get_region_constellations_with_details(region_id)
 
         # Vérifications de base
         assert isinstance(result, list), "Le résultat doit être une liste"
@@ -56,10 +57,11 @@ class TestRegionConstellations:
                 constellation["systems"], list
             ), "systems doit être une liste"
 
-    def test_get_region_constellations_structure(self, region_service):
+    @pytest.mark.asyncio
+    async def test_get_region_constellations_structure(self, region_service):
         """Vérifie que les constellations ont la structure attendue"""
         region_id = 10000002
-        result = region_service.get_region_constellations_with_details(region_id)
+        result = await region_service.get_region_constellations_with_details(region_id)
 
         if result:
             # Vérifier la structure du premier élément
