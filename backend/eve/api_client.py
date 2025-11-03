@@ -3,9 +3,12 @@ Client pour l'API ESI (Eve Swagger Interface) d'Eve Online
 Version asynchrone avec httpx
 """
 
+import asyncio
 import httpx
 import logging
+import time
 from typing import List, Dict, Any, Optional
+from collections import deque
 from utils.cache import cached
 
 logger = logging.getLogger(__name__)
@@ -18,6 +21,7 @@ class EveAPIClient:
         self,
         base_url: str = "https://esi.evetech.net/latest",
         timeout: int = 10,
+        rate_limit_per_second: int = 60,
     ):
         """
         Initialise le client API
@@ -25,10 +29,16 @@ class EveAPIClient:
         Args:
             base_url: URL de base de l'API ESI
             timeout: Timeout pour les requêtes en secondes
+            rate_limit_per_second: Nombre maximum de requêtes par seconde (défaut: 20)
         """
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.rate_limit_per_second = rate_limit_per_second
         self._client: Optional[httpx.AsyncClient] = None
+
+        # Rate limiting: garder les timestamps des dernières requêtes
+        self._request_timestamps: deque = deque()
+        self._rate_limit_lock: Optional[asyncio.Lock] = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Obtient ou crée un client HTTP asynchrone"""
@@ -42,11 +52,45 @@ class EveAPIClient:
             await self._client.aclose()
             self._client = None
 
+    async def _wait_for_rate_limit(self):
+        """
+        Attend si nécessaire pour respecter le rate limit
+        Utilise une fenêtre glissante de 1 seconde
+        """
+        # Initialiser le lock de manière lazy (nécessaire car asyncio.Lock() ne peut pas être créé en dehors d'une event loop)
+        if self._rate_limit_lock is None:
+            self._rate_limit_lock = asyncio.Lock()
+
+        async with self._rate_limit_lock:
+            now = time.time()
+
+            # Supprimer les timestamps de plus d'1 seconde
+            while self._request_timestamps and self._request_timestamps[0] < now - 1.0:
+                self._request_timestamps.popleft()
+
+            # Si on a atteint la limite, attendre jusqu'à ce qu'une requête sorte de la fenêtre
+            if len(self._request_timestamps) >= self.rate_limit_per_second:
+                oldest_timestamp = self._request_timestamps[0]
+                wait_time = 1.0 - (now - oldest_timestamp)
+                if wait_time > 0:
+                    await asyncio.sleep(wait_time)
+                    # Nettoyer à nouveau après l'attente
+                    now = time.time()
+                    while (
+                        self._request_timestamps
+                        and self._request_timestamps[0] < now - 1.0
+                    ):
+                        self._request_timestamps.popleft()
+
+            # Ajouter le timestamp de cette requête
+            self._request_timestamps.append(time.time())
+
     async def _get(
         self, endpoint: str, params: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """
         Effectue une requête GET vers l'API (asynchrone)
+        Respecte automatiquement le rate limit configuré
 
         Args:
             endpoint: Chemin de l'endpoint (ex: "/universe/regions/")
@@ -58,6 +102,9 @@ class EveAPIClient:
         Raises:
             Exception: Si la requête échoue
         """
+        # Respecter le rate limit avant de faire la requête
+        await self._wait_for_rate_limit()
+
         url = f"{self.base_url}{endpoint}"
         client = await self._get_client()
 
@@ -292,6 +339,7 @@ class EveAPIClient:
             )
             return []
 
+    @cached()
     async def search(
         self, categories: List[str], search: str, strict: bool = False
     ) -> Dict[str, Any]:
