@@ -93,8 +93,46 @@ def _get_cached_result(cache_instance: SimpleCache, cache_key: str) -> Optional[
 
     # Le cache stocke une liste, récupérer le premier élément si nécessaire
     if isinstance(cached_result, list):
-        # Si c'est une liste d'un seul élément, retourner le premier élément
-        return cached_result if len(cached_result) > 1 else cached_result[0]
+        # Si la liste a plusieurs éléments ou est vide, c'est une liste originale
+        if len(cached_result) != 1:
+            return cached_result
+        # Si la liste a un seul élément, vérifier si c'est un wrapper normalisé
+        single_item = cached_result[0]
+        if isinstance(single_item, dict) and "_type" in single_item:
+            # C'est un wrapper normalisé avec métadonnée de type
+            original_type = single_item["_type"]
+            value = single_item["value"]
+
+            # Vérifier si c'est une valeur originale (list ou dict) à préserver
+            if single_item.get("_original", False):
+                if original_type == "list":
+                    # Liste originale avec un seul élément
+                    return value
+                elif original_type == "dict":
+                    # Dict original (même s'il contient "value")
+                    return value
+
+            # Restaurer le type original pour les wrappers normalisés
+            if original_type == "tuple":
+                return tuple(value)
+            elif original_type == "set":
+                return set(value)
+            elif original_type == "int":
+                return int(value)
+            elif original_type == "float":
+                return float(value)
+            elif original_type == "str":
+                return str(value)
+            elif original_type == "bool":
+                return bool(value)
+            elif original_type == "NoneType" or value is None:
+                return None
+            else:
+                # Type non géré, retourner la valeur telle quelle
+                return value
+        else:
+            # C'est un dict unique qui était le résultat original
+            return single_item
 
     return cached_result
 
@@ -107,15 +145,26 @@ def _normalize_result_for_cache(result: Any) -> list:
         result: Résultat à normaliser
 
     Returns:
-        Liste normalisée pour le cache
+        Liste normalisée pour le cache avec métadonnées de type
     """
     if isinstance(result, list):
+        # Liste : si un seul élément, marquer comme liste originale
+        if len(result) == 1:
+            return [{"_type": "list", "_original": True, "value": result}]
+        # Liste avec plusieurs éléments ou vide : retourner telle quelle
         return result
+    elif isinstance(result, tuple):
+        # Tuple : stocker avec métadonnée de type pour le restaurer
+        return [{"_type": "tuple", "value": list(result)}]
     elif isinstance(result, dict):
-        return [result]
+        # Dict : retourner dans une liste avec marqueur pour distinguer des wrappers
+        return [{"_type": "dict", "_original": True, "value": result}]
+    elif isinstance(result, set):
+        # Set : stocker comme liste avec métadonnée de type
+        return [{"_type": "set", "value": list(result)}]
     else:
-        # Pour les types simples (int, str, etc.), les envelopper
-        return [{"value": result}]
+        # Types simples (int, str, float, bool, None) : envelopper avec métadonnée de type
+        return [{"_type": type(result).__name__, "value": result}]
 
 
 def _save_to_cache(cache_instance: SimpleCache, cache_key: str, result: Any) -> None:

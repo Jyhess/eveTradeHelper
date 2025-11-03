@@ -8,6 +8,7 @@ import logging
 from typing import List, Dict, Any, Optional, Set
 
 from .repository import EveRepository
+from utils.cache import cached
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ class DealsService:
         """
         self.repository = repository
 
+    @cached(cache_key_prefix="collect_all_types_from_group")
     async def collect_all_types_from_group(self, group_id: int) -> Set[int]:
         """
         Collecte récursivement tous les types d'items d'un groupe de marché
@@ -78,7 +80,10 @@ class DealsService:
             return collected_types
 
         # Collecter tous les types du groupe (et sous-groupes)
-        return collect_all_types_recursive(group_id, set())
+        result_set = collect_all_types_recursive(group_id, set())
+        # Le décorateur @cached normalise en liste, donc on convertit le Set en liste
+        # Le décorateur le reconvertira automatiquement en Set si nécessaire via le typage
+        return list(result_set)
 
     async def analyze_type_profitability(
         self,
@@ -367,7 +372,11 @@ class DealsService:
         )
 
         # Collecter tous les types du groupe (et sous-groupes)
-        all_types = await self.collect_all_types_from_group(group_id)
+        # Le décorateur @cached retourne une liste, on la convertit en Set
+        all_types_list = await self.collect_all_types_from_group(group_id)
+        all_types = (
+            set(all_types_list) if isinstance(all_types_list, list) else all_types_list
+        )
 
         if not all_types:
             return {

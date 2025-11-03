@@ -20,13 +20,8 @@ from fastapi import FastAPI
 
 
 @pytest.fixture
-def market_service(cache):
-    """Fixture pour créer un service de marché avec cache de test"""
-    from utils.cache import CacheManager
-
-    # Utiliser le cache de test
-    CacheManager.initialize(cache)
-
+def market_service():
+    """Fixture pour créer un service de marché"""
     api_client = EveAPIClient()
     repository = EveRepositoryImpl(api_client)
     return MarketService(repository)

@@ -70,9 +70,6 @@ async def get_market_deals(
                 )
                 additional_region_ids = []
 
-        # Liste complète des régions à rechercher (région principale + régions supplémentaires)
-        all_regions = [region_id] + additional_region_ids
-
         result = await deals_service.find_market_deals(
             region_id=region_id,
             group_id=group_id,

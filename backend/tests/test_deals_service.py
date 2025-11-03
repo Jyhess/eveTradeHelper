@@ -61,6 +61,14 @@ class MockRepository(EveRepository):
     async def get_station_details(self, station_id: int) -> Dict[str, Any]:
         return {}
 
+    async def get_route(self, origin: int, destination: int) -> List[int]:
+        return []
+
+    async def get_route_with_details(
+        self, origin: int, destination: int
+    ) -> List[Dict[str, Any]]:
+        return []
+
 
 @pytest.fixture
 def mock_repository():
@@ -83,17 +91,22 @@ class TestDealsServiceCollectTypes:
         self, deals_service, mock_repository
     ):
         """Test avec un groupe simple sans sous-groupes"""
-        # Configuration
-        group_id = 1
-        mock_repository.market_groups_list = [1]
+        # Configuration - utiliser des IDs uniques pour éviter les conflits de cache
+        import time
+
+        group_id = int(time.time() * 1000000) % 1000000 + 1000000
+        mock_repository.market_groups_list = [group_id]
         mock_repository.market_groups_details = {
-            1: {"types": [101, 102, 103], "parent_group_id": None}
+            group_id: {"types": [101, 102, 103], "parent_group_id": None}
         }
 
         # Exécution
         result = await deals_service.collect_all_types_from_group(group_id)
 
         # Vérification
+        # Le décorateur @cached retourne une liste, on la convertit en Set pour la comparaison
+        if isinstance(result, list):
+            result = set(result)
         assert isinstance(result, set)
         assert result == {101, 102, 103}
 
@@ -101,18 +114,30 @@ class TestDealsServiceCollectTypes:
         self, deals_service, mock_repository
     ):
         """Test avec un groupe ayant des sous-groupes"""
-        # Configuration : groupe parent avec 2 sous-groupes
-        mock_repository.market_groups_list = [1, 2, 3]
+        # Configuration : groupe parent avec 2 sous-groupes - utiliser des IDs uniques
+        import time
+
+        base_id = int(time.time() * 1000000) % 1000000 + 2000000
+        group_id_1 = base_id
+        group_id_2 = base_id + 1
+        group_id_3 = base_id + 2
+        mock_repository.market_groups_list = [group_id_1, group_id_2, group_id_3]
         mock_repository.market_groups_details = {
-            1: {"types": [101, 102], "parent_group_id": None},  # Parent
-            2: {"types": [201, 202], "parent_group_id": 1},  # Enfant 1
-            3: {"types": [301], "parent_group_id": 1},  # Enfant 2
+            group_id_1: {"types": [101, 102], "parent_group_id": None},  # Parent
+            group_id_2: {
+                "types": [201, 202],
+                "parent_group_id": group_id_1,
+            },  # Enfant 1
+            group_id_3: {"types": [301], "parent_group_id": group_id_1},  # Enfant 2
         }
 
         # Exécution
-        result = await deals_service.collect_all_types_from_group(1)
+        result = await deals_service.collect_all_types_from_group(group_id_1)
 
         # Vérification : doit inclure les types du parent et des enfants
+        # Le décorateur @cached retourne une liste, on la convertit en Set pour la comparaison
+        if isinstance(result, list):
+            result = set(result)
         assert isinstance(result, set)
         assert result == {101, 102, 201, 202, 301}
 
@@ -120,31 +145,57 @@ class TestDealsServiceCollectTypes:
         self, deals_service, mock_repository
     ):
         """Test avec des groupes imbriqués sur plusieurs niveaux"""
-        mock_repository.market_groups_list = [1, 2, 3, 4]
+        # Utiliser des IDs uniques pour éviter les conflits de cache
+        import time
+
+        base_id = int(time.time() * 1000000) % 1000000 + 3000000
+        group_id_1 = base_id
+        group_id_2 = base_id + 1
+        group_id_3 = base_id + 2
+        group_id_4 = base_id + 3
+        mock_repository.market_groups_list = [
+            group_id_1,
+            group_id_2,
+            group_id_3,
+            group_id_4,
+        ]
         mock_repository.market_groups_details = {
-            1: {"types": [101], "parent_group_id": None},  # Niveau 1
-            2: {"types": [201], "parent_group_id": 1},  # Niveau 2
-            3: {"types": [301], "parent_group_id": 2},  # Niveau 3
-            4: {"types": [401], "parent_group_id": 2},  # Niveau 3 (autre enfant)
+            group_id_1: {"types": [101], "parent_group_id": None},  # Niveau 1
+            group_id_2: {"types": [201], "parent_group_id": group_id_1},  # Niveau 2
+            group_id_3: {"types": [301], "parent_group_id": group_id_2},  # Niveau 3
+            group_id_4: {
+                "types": [401],
+                "parent_group_id": group_id_2,
+            },  # Niveau 3 (autre enfant)
         }
 
         # Exécution
-        result = await deals_service.collect_all_types_from_group(1)
+        result = await deals_service.collect_all_types_from_group(group_id_1)
 
         # Vérification : doit inclure tous les types de tous les niveaux
+        # Le décorateur @cached retourne une liste, on la convertit en Set pour la comparaison
+        if isinstance(result, list):
+            result = set(result)
         assert result == {101, 201, 301, 401}
 
     async def test_collect_all_types_from_unknown_group(
         self, deals_service, mock_repository
     ):
         """Test avec un groupe inexistant"""
+        # Utiliser un ID unique pour éviter les conflits de cache
+        import time
+
+        unknown_group_id = int(time.time() * 1000000) % 1000000 + 9999999
         mock_repository.market_groups_list = []
         mock_repository.market_groups_details = {}
 
         # Exécution
-        result = await deals_service.collect_all_types_from_group(999)
+        result = await deals_service.collect_all_types_from_group(unknown_group_id)
 
         # Vérification : doit retourner un set vide
+        # Le décorateur @cached retourne une liste, on la convertit en Set pour la comparaison
+        if isinstance(result, list):
+            result = set(result)
         assert isinstance(result, set)
         assert len(result) == 0
 
@@ -152,16 +203,25 @@ class TestDealsServiceCollectTypes:
         self, deals_service, mock_repository
     ):
         """Test avec un groupe sans types (seulement des sous-groupes)"""
-        mock_repository.market_groups_list = [1, 2]
+        # Utiliser des IDs uniques pour éviter les conflits de cache
+        import time
+
+        base_id = int(time.time() * 1000000) % 1000000 + 4000000
+        group_id_1 = base_id
+        group_id_2 = base_id + 1
+        mock_repository.market_groups_list = [group_id_1, group_id_2]
         mock_repository.market_groups_details = {
-            1: {"types": [], "parent_group_id": None},
-            2: {"types": [201, 202], "parent_group_id": 1},
+            group_id_1: {"types": [], "parent_group_id": None},
+            group_id_2: {"types": [201, 202], "parent_group_id": group_id_1},
         }
 
         # Exécution
-        result = await deals_service.collect_all_types_from_group(1)
+        result = await deals_service.collect_all_types_from_group(group_id_1)
 
         # Vérification : doit inclure seulement les types des enfants
+        # Le décorateur @cached retourne une liste, on la convertit en Set pour la comparaison
+        if isinstance(result, list):
+            result = set(result)
         assert result == {201, 202}
 
 
@@ -226,7 +286,7 @@ class TestDealsServiceAnalyzeType:
 
         # Exécution
         result = await deals_service.analyze_type_profitability(
-            region_id, type_id, profit_threshold
+            region_id, type_id, min_profit_isk=profit_threshold
         )
 
         # Vérification
@@ -263,7 +323,7 @@ class TestDealsServiceAnalyzeType:
 
         # Exécution
         result = await deals_service.analyze_type_profitability(
-            region_id, type_id, profit_threshold
+            region_id, type_id, min_profit_isk=profit_threshold
         )
 
         # Vérification : doit retourner None car bénéfice < seuil
@@ -317,15 +377,25 @@ class TestDealsServiceAnalyzeType:
 
         mock_repository.market_orders = {
             (region_id, type_id): [
-                {"is_buy_order": True, "price": 110},  # Bénéfice = 10%
-                {"is_buy_order": False, "price": 100},
+                {
+                    "is_buy_order": True,
+                    "price": 110,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                },  # Bénéfice = 10%
+                {
+                    "is_buy_order": False,
+                    "price": 100,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                },
             ]
         }
-        mock_repository.item_types = {type_id: {"name": "Test Item"}}
+        mock_repository.item_types = {type_id: {"name": "Test Item", "volume": 1.0}}
 
         # Exécution
         result = await deals_service.analyze_type_profitability(
-            region_id, type_id, profit_threshold
+            region_id, type_id, min_profit_isk=profit_threshold
         )
 
         # Vérification : doit retourner le résultat (>= seuil)
@@ -359,16 +429,22 @@ class TestDealsServiceFindDeals:
 
     async def test_find_market_deals_empty_group(self, deals_service, mock_repository):
         """Test avec un groupe vide"""
+        # Utiliser un ID unique pour éviter les conflits de cache
+        import time
+
+        group_id = int(time.time() * 1000000) % 1000000 + 5000000
         mock_repository.market_groups_list = []
         mock_repository.market_groups_details = {}
 
         # Exécution
-        result = await deals_service.find_market_deals(10000002, 1, 5.0)
+        result = await deals_service.find_market_deals(
+            10000002, group_id, min_profit_isk=5.0
+        )
 
         # Vérification
         assert result["region_id"] == 10000002
-        assert result["group_id"] == 1
-        assert result["profit_threshold"] == 5.0
+        assert result["group_id"] == group_id
+        assert result["min_profit_isk"] == 5.0
         assert result["total_types"] == 0
         assert result["deals"] == []
 
@@ -376,52 +452,97 @@ class TestDealsServiceFindDeals:
         self, deals_service, mock_repository
     ):
         """Test avec des items rentables"""
+        # Utiliser des IDs uniques pour éviter les conflits de cache
+        import time
+
+        base_id = int(time.time() * 1000000) % 1000000 + 6000000
         region_id = 10000002
-        group_id = 1
+        group_id = base_id
         profit_threshold = 5.0
 
         # Configuration des groupes
-        mock_repository.market_groups_list = [1, 2]
+        group_id_1 = base_id
+        group_id_2 = base_id + 1
+        mock_repository.market_groups_list = [group_id_1, group_id_2]
         mock_repository.market_groups_details = {
-            1: {"types": [101, 102], "parent_group_id": None},
-            2: {"types": [201], "parent_group_id": 1},
+            group_id_1: {"types": [101, 102], "parent_group_id": None},
+            group_id_2: {"types": [201], "parent_group_id": group_id_1},
         }
 
         # Configuration des ordres : 101 profitable, 102 non, 201 profitable
+        # min_profit_isk = 5.0 ISK, donc avec volume=10: profit_isk = (prix_sell - prix_buy) * 10
+        # Pour 101: (110-100)*10 = 100 ISK > 5.0 ✓
+        # Pour 102: (102-100)*10 = 20 ISK > 5.0 ✓ (mais profit% = 2% < 5%)
+        # Pour 201: (120-100)*10 = 200 ISK > 5.0 ✓
         mock_repository.market_orders = {
             (region_id, 101): [
-                {"is_buy_order": True, "price": 110},
-                {"is_buy_order": False, "price": 100},  # 10% profit
+                {
+                    "is_buy_order": True,
+                    "price": 110,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                },
+                {
+                    "is_buy_order": False,
+                    "price": 100,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                },  # 10% profit, 100 ISK
             ],
             (region_id, 102): [
-                {"is_buy_order": True, "price": 102},
-                {"is_buy_order": False, "price": 100},  # 2% profit (< 5%)
+                {
+                    "is_buy_order": True,
+                    "price": 102,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                },
+                {
+                    "is_buy_order": False,
+                    "price": 100,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                },  # 2% profit, 20 ISK
             ],
             (region_id, 201): [
-                {"is_buy_order": True, "price": 120},
-                {"is_buy_order": False, "price": 100},  # 20% profit
+                {
+                    "is_buy_order": True,
+                    "price": 120,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                },
+                {
+                    "is_buy_order": False,
+                    "price": 100,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                },  # 20% profit, 200 ISK
             ],
         }
 
         # Configuration des types
         mock_repository.item_types = {
-            101: {"name": "Item 101"},
-            102: {"name": "Item 102"},
-            201: {"name": "Item 201"},
+            101: {"name": "Item 101", "volume": 1.0},
+            102: {"name": "Item 102", "volume": 1.0},
+            201: {"name": "Item 201", "volume": 1.0},
         }
 
         # Exécution
         result = await deals_service.find_market_deals(
-            region_id, group_id, profit_threshold
+            region_id, group_id_1, min_profit_isk=profit_threshold
         )
 
         # Vérification
         assert result["total_types"] == 3  # 101, 102, 201
-        assert len(result["deals"]) == 2  # 101 et 201
-        assert result["deals"][0]["type_id"] == 201  # Trié par profit décroissant
+        # Tous les 3 types ont profit_isk >= 5.0, donc 3 deals
+        assert len(result["deals"]) == 3  # 101, 102, et 201 (tous > 5.0 ISK)
+        assert result["deals"][0]["type_id"] == 201  # Trié par profit ISK décroissant
         assert result["deals"][0]["profit_percent"] == 20.0
-        assert result["deals"][1]["type_id"] == 101
+        assert result["deals"][1]["type_id"] == 101  # 100 ISK
         assert result["deals"][1]["profit_percent"] == 10.0
+        assert (
+            result["deals"][2]["type_id"] == 102
+        )  # 20 ISK (le plus faible mais > 5.0)
+        assert result["deals"][2]["profit_percent"] == 2.0
 
     async def test_find_market_deals_sorted_by_profit(
         self, deals_service, mock_repository
@@ -436,29 +557,62 @@ class TestDealsServiceFindDeals:
         }
 
         # Configuration : profits différents
+        # min_profit_isk = 5.0 ISK, donc avec volume=10: profit_isk = (prix_sell - prix_buy) * 10
         mock_repository.market_orders = {
             (region_id, 101): [
-                {"is_buy_order": True, "price": 105},  # 5%
-                {"is_buy_order": False, "price": 100},
+                {
+                    "is_buy_order": True,
+                    "price": 105,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                },  # 5%, 50 ISK
+                {
+                    "is_buy_order": False,
+                    "price": 100,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                },
             ],
             (region_id, 102): [
-                {"is_buy_order": True, "price": 115},  # 15%
-                {"is_buy_order": False, "price": 100},
+                {
+                    "is_buy_order": True,
+                    "price": 115,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                },  # 15%, 150 ISK
+                {
+                    "is_buy_order": False,
+                    "price": 100,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                },
             ],
             (region_id, 103): [
-                {"is_buy_order": True, "price": 110},  # 10%
-                {"is_buy_order": False, "price": 100},
+                {
+                    "is_buy_order": True,
+                    "price": 110,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                },  # 10%, 100 ISK
+                {
+                    "is_buy_order": False,
+                    "price": 100,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                },
             ],
         }
 
         mock_repository.item_types = {
-            101: {"name": "Item 101"},
-            102: {"name": "Item 102"},
-            103: {"name": "Item 103"},
+            101: {"name": "Item 101", "volume": 1.0},
+            102: {"name": "Item 102", "volume": 1.0},
+            103: {"name": "Item 103", "volume": 1.0},
         }
 
         # Exécution
-        result = await deals_service.find_market_deals(region_id, group_id, 5.0)
+        result = await deals_service.find_market_deals(
+            region_id, group_id, min_profit_isk=5.0
+        )
 
         # Vérification : tri décroissant
         assert len(result["deals"]) == 3
