@@ -13,9 +13,11 @@ from eve.repository import EveRepositoryImpl
 from utils.cache import create_cache, CacheManager
 from domain.region_service import RegionService
 from domain.deals_service import DealsService
+from domain.market_service import MarketService
 from application.region_api import router as region_router, set_region_service
 from application.health_api import health_router
 from application.deals_api import router as deals_router, set_deals_service
+from application.market_api import router as market_router, set_market_service
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO)
@@ -44,10 +46,12 @@ async def lifespan(app: FastAPI):
     # Domain Layer : Services
     region_service = RegionService(eve_repository)
     deals_service = DealsService(eve_repository)
+    market_service = MarketService(eve_repository)
 
     # Initialiser les services dans les modules API
     set_region_service(region_service)
     set_deals_service(deals_service)
+    set_market_service(market_service)
 
     # Stocker les instances dans l'état de l'application
     app.state.api_client = api_client
@@ -83,6 +87,7 @@ app.add_middleware(
 app.include_router(region_router)
 app.include_router(health_router)
 app.include_router(deals_router)
+app.include_router(market_router)
 
 
 if __name__ == "__main__":
