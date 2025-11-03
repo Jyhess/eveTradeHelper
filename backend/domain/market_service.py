@@ -8,6 +8,8 @@ import logging
 from typing import List, Dict, Any, Optional
 
 from .repository import EveRepository
+from .constants import STATION_ID_THRESHOLD, DEFAULT_MARKET_ORDERS_LIMIT
+from .helpers import is_station
 
 logger = logging.getLogger(__name__)
 
@@ -61,8 +63,11 @@ class MarketService:
 
         return categories
 
+    async def get_item_type(self, type_id: int) -> Dict[str, Any]:
+        return await self.repository.get_item_type(type_id)
+
     async def get_enriched_market_orders(
-        self, region_id: int, type_id: Optional[int] = None, limit: int = 50
+        self, region_id: int, type_id: Optional[int] = None, limit: int = DEFAULT_MARKET_ORDERS_LIMIT
     ) -> Dict[str, Any]:
         """
         Récupère les ordres de marché enrichis pour une région
@@ -100,8 +105,8 @@ class MarketService:
 
             enriched_order = order.copy()
 
-            # Les IDs >= 60000000 sont des stations, sinon ce sont des systèmes
-            if location_id >= 60000000:
+            # Les IDs >= STATION_ID_THRESHOLD sont des stations, sinon ce sont des systèmes
+            if is_station(location_id):
                 # C'est une station
                 try:
                     station_data = await self.repository.get_station_details(

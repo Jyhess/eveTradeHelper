@@ -9,15 +9,15 @@ from cachetools import TTLCache
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Optional, Dict, Any
 from domain.region_service import RegionService
+from domain.constants import ADJACENT_REGIONS_CACHE_TTL
 from application.utils import cached_async
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Cache LRU avec TTL pour les régions adjacentes (en mémoire)
-# Taille max: 100 régions, TTL: 24 heures (86400 secondes)
 # Les régions adjacentes changent rarement, donc un TTL long est approprié
-_adjacent_regions_cache = TTLCache(maxsize=100, ttl=86400)
+_adjacent_regions_cache = TTLCache(maxsize=100, ttl=ADJACENT_REGIONS_CACHE_TTL)
 
 
 # Variable globale pour stocker le service (sera initialisé dans app.py)
@@ -157,7 +157,7 @@ async def get_system_details(
     """
     try:
         logger.info(f"Récupération des détails du système {system_id}")
-        system_data = await region_service.repository.get_system_details(system_id)
+        system_data = await region_service.get_system_details(system_id)
 
         # Formater les données selon le besoin
         system = {
@@ -238,7 +238,7 @@ async def get_constellation_info(
         logger.info(f"Récupération des infos de la constellation {constellation_id}")
 
         # Récupérer les détails de la constellation
-        constellation_data = await region_service.repository.get_constellation_details(
+        constellation_data = await region_service.get_constellation_details(
             constellation_id
         )
         region_id = constellation_data.get("region_id")
@@ -246,7 +246,7 @@ async def get_constellation_info(
         # Récupérer les détails de la région
         region_data = None
         if region_id:
-            region_data = await region_service.repository.get_region_details(region_id)
+            region_data = await region_service.get_region_details(region_id)
 
         # Formater les données
         info = {
@@ -300,7 +300,7 @@ async def get_adjacent_regions(
         logger.info(f"Récupération des régions adjacentes à la région {region_id}")
 
         # Récupérer les détails de la région pour obtenir les constellations
-        region_details = await region_service.repository.get_region_details(region_id)
+        region_details = await region_service.get_region_details(region_id)
         constellation_ids = region_details.get("constellations", [])
 
         if not constellation_ids:
@@ -313,7 +313,7 @@ async def get_adjacent_regions(
         # Récupérer les détails des constellations pour obtenir les systèmes
         constellation_details_list = await asyncio.gather(
             *[
-                region_service.repository.get_constellation_details(cid)
+                region_service.get_constellation_details(cid)
                 for cid in constellation_ids
             ],
             return_exceptions=True,
@@ -336,15 +336,14 @@ async def get_adjacent_regions(
         async def get_system_adjacent_regions(system_id: int) -> set:
             """Retourne les IDs des régions adjacentes via ce système"""
             try:
-                system_details = await region_service.repository.get_system_details(
-                    system_id
-                )
+                system_details = await region_service.get_system_details(system_id)
                 stargate_ids = system_details.get("stargates", [])
 
                 if not stargate_ids:
                     return set()
 
                 # Récupérer les détails de chaque stargate pour trouver le système de destination
+                # Note: get_stargate_details n'est pas encore dans RegionService, utilisation directe temporaire
                 stargate_details_list = await asyncio.gather(
                     *[
                         region_service.repository.get_stargate_details(sgid)
@@ -362,17 +361,15 @@ async def get_adjacent_regions(
                         if destination_system_id:
                             # Récupérer les détails du système de destination pour obtenir sa constellation
                             try:
-                                dest_system_details = (
-                                    await region_service.repository.get_system_details(
-                                        destination_system_id
-                                    )
+                                dest_system_details = await region_service.get_system_details(
+                                    destination_system_id
                                 )
                                 dest_constellation_id = dest_system_details.get(
                                     "constellation_id"
                                 )
                                 if dest_constellation_id:
                                     # Récupérer la constellation pour obtenir la région
-                                    dest_constellation = await region_service.repository.get_constellation_details(
+                                    dest_constellation = await region_service.get_constellation_details(
                                         dest_constellation_id
                                     )
                                     dest_region_id = dest_constellation.get("region_id")
@@ -413,9 +410,7 @@ async def get_adjacent_regions(
         # Récupérer les détails de chaque région adjacente en parallèle
         async def fetch_adjacent_region(adj_region_id: int) -> Optional[Dict[str, Any]]:
             try:
-                region_data = await region_service.repository.get_region_details(
-                    adj_region_id
-                )
+                region_data = await region_service.get_region_details(adj_region_id)
                 return {
                     "region_id": adj_region_id,
                     "name": region_data.get("name", f"Région {adj_region_id}"),

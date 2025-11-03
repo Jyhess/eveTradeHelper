@@ -8,13 +8,13 @@ from cachetools import TTLCache
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Optional
 from domain.market_service import MarketService
+from domain.constants import MARKET_CATEGORIES_CACHE_TTL
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Cache LRU avec TTL pour les catégories de marché (en mémoire)
-# Taille max: 1 entrée, TTL: 1 heure (3600 secondes)
-_market_categories_cache = TTLCache(maxsize=1, ttl=3600)
+_market_categories_cache = TTLCache(maxsize=1, ttl=MARKET_CATEGORIES_CACHE_TTL)
 
 
 # Variable globale pour stocker le service (sera initialisé dans app.py)
@@ -91,7 +91,7 @@ async def get_item_type(
     """
     try:
         logger.info(f"Récupération des détails du type {type_id}")
-        type_data = await market_service.repository.get_item_type(type_id)
+        type_data = await market_service.get_item_type(type_id)
 
         return type_data
 

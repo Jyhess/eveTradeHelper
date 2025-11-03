@@ -4,8 +4,11 @@ Contient la logique métier pure, indépendante de l'infrastructure (version asy
 """
 
 import asyncio
+import logging
 from typing import List, Dict, Any, Optional
 from .repository import EveRepository
+
+logger = logging.getLogger(__name__)
 
 
 class RegionService:
@@ -55,9 +58,7 @@ class RegionService:
                 }
             except Exception as e:
                 # Logger l'erreur mais continuer avec les autres régions
-                import logging
-
-                logging.warning(
+                logger.warning(
                     f"Erreur lors de la récupération de la région {region_id}: {e}"
                 )
                 return None
@@ -104,9 +105,7 @@ class RegionService:
                     "position": constellation_data.get("position", {}),
                 }
             except Exception as e:
-                import logging
-
-                logging.warning(
+                logger.warning(
                     f"Erreur lors de la récupération de la constellation {constellation_id}: {e}"
                 )
                 return None
@@ -157,9 +156,7 @@ class RegionService:
                     "star_id": system_data.get("star_id"),
                 }
             except Exception as e:
-                import logging
-
-                logging.warning(
+                logger.warning(
                     f"Erreur lors de la récupération du système {system_id}: {e}"
                 )
                 return None
@@ -264,9 +261,7 @@ class RegionService:
                         "same_region": same_region,
                     }
             except Exception as e:
-                import logging
-
-                logging.warning(
+                logger.warning(
                     f"Erreur lors de la récupération de la stargate {stargate_id}: {e}"
                 )
                 return None
@@ -279,3 +274,12 @@ class RegionService:
         # Filtrer les résultats None
         connected_systems = [c for c in results if c is not None]
         return connected_systems
+
+    async def get_system_details(self, system_id: int) -> Dict[str, Any]:
+        return await self.repository.get_system_details(system_id)
+
+    async def get_constellation_details(self, constellation_id: int) -> Dict[str, Any]:
+        return await self.repository.get_constellation_details(constellation_id)
+
+    async def get_region_details(self, region_id: int) -> Dict[str, Any]:
+        return await self.repository.get_region_details(region_id)

@@ -2,9 +2,12 @@
 Implémentation du repository Eve utilisant EveAPIClient (version asynchrone)
 """
 
+import logging
 from typing import List, Dict, Any
 from domain.repository import EveRepository
 from eve.api_client import EveAPIClient
+
+logger = logging.getLogger(__name__)
 
 
 class EveRepositoryImpl(EveRepository):
@@ -87,9 +90,9 @@ class EveRepositoryImpl(EveRepository):
                     "security_status": system_data.get("security_status", 0.0),
                 }
             except Exception as e:
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.warning(f"Erreur lors de la récupération du système {system_id}: {e}")
+                logger.warning(
+                    f"Erreur lors de la récupération du système {system_id}: {e}"
+                )
                 return {
                     "system_id": system_id,
                     "name": f"Système {system_id}",

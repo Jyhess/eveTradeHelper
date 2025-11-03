@@ -4,11 +4,12 @@ Application web pour analyser les opportunités de trading dans EVE Online, avec
 
 ## 🧪 Test-Driven Development (TDD)
 
-Ce projet suit strictement la méthodologie **TDD** pour toutes les modifications de code. 
+Ce projet suit strictement la méthodologie **TDD** pour toutes les modifications de code.
 
 📖 **Consultez [TDD.md](TDD.md) pour le guide complet du processus TDD.**
 
 **Cycle TDD** : 🔴 RED → 🟢 GREEN → 🔵 REFACTOR
+
 1. Écrire le test qui échoue
 2. Implémenter le minimum pour faire passer le test
 3. Refactoriser le code
@@ -203,6 +204,7 @@ pytest backend/tests/ --cov=backend --cov-report=html
 - `GET /api/v1/systems/<system_id>/connections` : Liste tous les systèmes connectés à un système donné via les stargates
 
 Exemple :
+
 ```bash
 # Récupérer toutes les régions
 curl http://localhost:5000/api/v1/regions

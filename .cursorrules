@@ -41,3 +41,115 @@ Toutes les modifications de code sur le abckend doivent suivre le cycle TDD Red-
 - Respecter les types Python (typing)
 - Documenter les fonctions complexes
 - Utiliser des noms de variables et fonctions explicites
+
+## Règles du Clean Code
+
+Toutes les modifications de code doivent respecter les principes du clean code suivants :
+
+### 1. Élimination des nombres magiques (Magic Numbers)
+
+- **JAMAIS** utiliser de nombres magiques directement dans le code
+- Créer des constantes nommées dans `backend/domain/constants.py`
+- Exemples : `STATION_ID_THRESHOLD = 60000000`, `DEFAULT_MIN_PROFIT_ISK = 100000.0`
+- Les constantes doivent être explicites et documentées
+
+### 2. Fonctions courtes (Small Functions)
+
+- Une fonction doit faire **une seule chose** (Single Responsibility Principle)
+- Si une fonction dépasse 50 lignes, la diviser en sous-fonctions
+- Les fonctions doivent être testables individuellement
+- Préférer plusieurs petites fonctions qu'une grande fonction
+
+### 3. Nommage explicite (Meaningful Names)
+
+- Les noms de variables, fonctions et classes doivent être **auto-explicatifs**
+- Éviter les abréviations sauf si elles sont universelles (ex: `id`, `api`)
+- Utiliser des verbes pour les fonctions : `calculate_volume()`, `get_item_type()`
+- Utiliser des noms de domaine métier quand approprié
+
+### 4. DRY (Don't Repeat Yourself)
+
+- **JAMAIS** dupliquer du code
+- Extraire la logique commune dans des fonctions utilitaires
+- Créer des helpers dans `backend/domain/helpers.py` si nécessaire
+- Réutiliser les fonctions existantes plutôt que de réécrire la logique
+
+### 4.1. Préférer les fonctions nommées aux commentaires
+
+- **JAMAIS** utiliser un commentaire pour expliquer ce que fait une ligne de code complexe
+- Extraire la logique dans une fonction nommée explicite
+- Exemple : remplacer `# Filtrer les résultats valides et None` + `deals = [r for r in results if isinstance(r, dict) and r is not None]` par `deals = filter_valid_deals(results)`
+- Les fonctions nommées sont auto-documentées et réutilisables
+- Si une ligne de code nécessite un commentaire, c'est un signe qu'elle devrait être extraite dans une fonction
+
+### 5. Principe de responsabilité unique (SRP)
+
+- Chaque classe/fonction doit avoir **une seule raison de changer**
+- Séparer les préoccupations : collecte, calcul, formatage, etc.
+- Extraire la logique complexe dans des méthodes privées (`_method_name`)
+
+### 6. Encapsulation et abstraction
+
+- **Cacher les détails d'implémentation** des couches inférieures
+- Les APIs ne doivent **JAMAIS** accéder directement aux repositories
+- Créer des méthodes dans les services pour encapsuler l'accès au repository
+- Respecter l'architecture en couches (API → Service → Repository)
+
+### 7. Documentation et expressivité
+
+- Ajouter des **docstrings** uniquement quand nécessaire :
+  - **TOUJOURS** dans les APIs (endpoints FastAPI) pour générer la documentation OpenAPI
+  - **ÉVITER** les docstrings redondantes dans le code métier si le nom et les paramètres sont clairs
+- Si une fonction nécessite une docstring, c'est peut-être un signe que le nommage peut être amélioré
+- Utiliser des commentaires pour expliquer le **pourquoi**, pas le **comment**
+- Le code doit être auto-documenté grâce à un bon nommage
+- Une docstring est inutile si elle répète simplement le nom de la fonction et ses paramètres
+
+### 8. Séparation des préoccupations
+
+- Séparer les constantes dans `constants.py`
+- Séparer les utilitaires dans `helpers.py`
+- La logique métier doit être dans les services, pas dans les APIs
+- Chaque module doit avoir une responsabilité claire
+
+### 9. Abstraction appropriée
+
+- Utiliser le **bon niveau d'abstraction** pour chaque fonction
+- Créer des fonctions utilitaires réutilisables au lieu de logique inline
+- Éviter les niveaux d'abstraction mélangés dans une même fonction
+
+### 10. Maintenabilité
+
+- Le code doit être **facile à modifier** sans casser d'autres parties
+- Centraliser les constantes pour faciliter les changements
+- Structurer le code de manière modulaire
+- Préférer la composition à la duplication
+
+### 11. Gestion des imports
+
+- **JAMAIS** importer dans les fonctions (ex: `import logging` dans une fonction)
+- Tous les imports doivent être en haut du fichier
+- Grouper les imports : standard library, tiers, locaux
+- Utiliser des imports absolus pour les modules du projet
+
+### 12. Gestion des erreurs
+
+- Éviter les `except Exception` génériques quand possible
+- Logger les erreurs avec un contexte approprié
+- Utiliser des exceptions spécifiques quand c'est possible
+- Ne pas masquer les erreurs sans les logger
+
+### Checklist de refactoring
+
+Avant de commiter du code, vérifier :
+
+- [ ] Pas de nombres magiques (utiliser des constantes)
+- [ ] Fonctions courtes et focalisées (< 50 lignes)
+- [ ] Noms explicites et significatifs
+- [ ] Pas de duplication de code
+- [ ] Fonctions nommées plutôt que commentaires explicatifs
+- [ ] Respect du SRP (une responsabilité par fonction/classe)
+- [ ] Encapsulation respectée (pas d'accès direct aux repositories depuis les APIs)
+- [ ] Docstrings uniquement dans les APIs et quand vraiment nécessaire (pas de redondance)
+- [ ] Imports en haut du fichier uniquement
+- [ ] Logique métier dans les services, pas dans les APIs

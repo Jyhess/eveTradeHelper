@@ -5,9 +5,19 @@ Contient la logique métier pure, indépendante de l'infrastructure (version asy
 
 import asyncio
 import logging
-from typing import List, Dict, Any, Optional, Set
+from typing import List, Dict, Any, Optional, Set, Tuple
 
 from .repository import EveRepository
+from .constants import (
+    STATION_ID_THRESHOLD,
+    DEFAULT_MIN_PROFIT_ISK,
+    DEFAULT_MAX_CONCURRENT_ANALYSES,
+)
+from .helpers import (
+    get_system_id_from_location,
+    calculate_tradable_volume,
+    apply_buy_cost_limit,
+)
 from utils.cache import cached
 
 logger = logging.getLogger(__name__)
@@ -24,6 +34,88 @@ class DealsService:
             repository: Implémentation du repository Eve
         """
         self.repository = repository
+
+    async def _collect_orders_from_regions(
+        self, region_ids: List[int], type_id: int
+    ) -> Tuple[List[Tuple[Dict[str, Any], int]], List[Tuple[Dict[str, Any], int]]]:
+        # Récupérer les ordres de toutes les régions en parallèle
+        all_orders_promises = [
+            self.repository.get_market_orders(reg_id, type_id) for reg_id in region_ids
+        ]
+        all_orders_results = await asyncio.gather(
+            *all_orders_promises, return_exceptions=True
+        )
+
+        # Collecter tous les ordres valides de toutes les régions
+        all_buy_orders = []
+        all_sell_orders = []
+
+        for i, orders_result in enumerate(all_orders_results):
+            if isinstance(orders_result, list):
+                reg_id = region_ids[i]
+                for order in orders_result:
+                    order_with_region = (order, reg_id)
+                    if order.get("is_buy_order", False):
+                        all_buy_orders.append(order_with_region)
+                    else:
+                        all_sell_orders.append(order_with_region)
+
+        return all_buy_orders, all_sell_orders
+
+    async def _calculate_route_details(
+        self, buy_location_id: int, sell_location_id: int, type_id: int
+    ) -> Tuple[Optional[int], Optional[int], Optional[int], List[Dict[str, Any]]]:
+        if not buy_location_id or not sell_location_id:
+            return None, None, None, []
+
+        try:
+            buy_system_id = await get_system_id_from_location(
+                self.repository, buy_location_id
+            )
+            sell_system_id = await get_system_id_from_location(
+                self.repository, sell_location_id
+            )
+
+            if not buy_system_id or not sell_system_id:
+                return buy_system_id, sell_system_id, None, []
+
+            # Même système
+            if buy_system_id == sell_system_id:
+                system_data = await self.repository.get_system_details(buy_system_id)
+                route_details = [
+                    {
+                        "system_id": buy_system_id,
+                        "name": system_data.get("name", f"Système {buy_system_id}"),
+                        "security_status": system_data.get("security_status", 0.0),
+                    }
+                ]
+                return buy_system_id, sell_system_id, 0, route_details
+
+            # Systèmes différents, calculer la route
+            route_with_details = await self.repository.get_route_with_details(
+                buy_system_id, sell_system_id
+            )
+            jumps = len(route_with_details) - 1 if route_with_details else None
+            return buy_system_id, sell_system_id, jumps, route_with_details or []
+
+        except Exception as e:
+            logger.warning(f"Erreur lors du calcul de la route pour {type_id}: {e}")
+            return None, None, None, []
+
+    def _filter_valid_deals(self, results: List[Any]) -> List[Dict[str, Any]]:
+        return [r for r in results if isinstance(r, dict) and r is not None]
+
+    def _sort_deals_by_profit(
+        self, deals: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        deals.sort(
+            key=lambda x: (x.get("profit_isk", 0), x.get("profit_percent", 0)),
+            reverse=True,
+        )
+        return deals
+
+    def _calculate_total_profit(self, deals: List[Dict[str, Any]]) -> float:
+        return sum(deal.get("profit_isk", 0) for deal in deals)
 
     @cached(cache_key_prefix="collect_all_types_from_group2")
     async def collect_all_types_from_group(self, group_id: int) -> Set[int]:
@@ -116,30 +208,10 @@ class DealsService:
             if additional_regions:
                 all_regions.extend(additional_regions)
 
-            # Récupérer les ordres de toutes les régions en parallèle
-            all_orders_promises = [
-                self.repository.get_market_orders(reg_id, type_id)
-                for reg_id in all_regions
-            ]
-            all_orders_results = await asyncio.gather(
-                *all_orders_promises, return_exceptions=True
+            # Collecter les ordres de toutes les régions
+            all_buy_orders, all_sell_orders = await self._collect_orders_from_regions(
+                all_regions, type_id
             )
-
-            # Collecter tous les ordres valides de toutes les régions
-            # Stocker la région avec chaque ordre pour pouvoir la retrouver
-            all_buy_orders = []  # Liste de tuples (order, region_id)
-            all_sell_orders = []  # Liste de tuples (order, region_id)
-
-            for i, orders_result in enumerate(all_orders_results):
-                if isinstance(orders_result, list):
-                    reg_id = all_regions[i]
-                    for order in orders_result:
-                        # Stocker l'ordre avec sa région d'origine
-                        order_with_region = (order, reg_id)
-                        if order.get("is_buy_order", False):
-                            all_buy_orders.append(order_with_region)
-                        else:
-                            all_sell_orders.append(order_with_region)
 
             if not all_buy_orders or not all_sell_orders:
                 return None
@@ -148,26 +220,24 @@ class DealsService:
             # - buy_order (is_buy_order=True) = quelqu'un veut ACHETER → on peut VENDRE à ce prix
             # - sell_order (is_buy_order=False) = quelqu'un veut VENDRE → on peut ACHETER à ce prix
 
-            # Meilleur prix pour VENDRE (le plus élevé parmi tous les buy_orders de toutes les régions)
+            # Meilleur prix pour VENDRE (le plus élevé parmi tous les buy_orders)
             best_sell_order_tuple = max(
                 all_buy_orders, key=lambda x: x[0].get("price", 0)
             )
             best_sell_order, sell_region_id = best_sell_order_tuple
-            sell_price = best_sell_order.get("price", 0)  # Prix auquel on VEND
+            sell_price = best_sell_order.get("price", 0)
             sell_location_id = best_sell_order.get("location_id")
             sell_volume = min(
                 best_sell_order.get("volume_remain", 0),
                 best_sell_order.get("volume_total", 0),
             )
 
-            # Meilleur prix pour ACHETER (le plus bas parmi tous les sell_orders de toutes les régions)
+            # Meilleur prix pour ACHETER (le plus bas parmi tous les sell_orders)
             best_buy_order_tuple = min(
                 all_sell_orders, key=lambda x: x[0].get("price", float("inf"))
             )
             best_buy_order, buy_region_id = best_buy_order_tuple
-            buy_price = best_buy_order.get(
-                "price", float("inf")
-            )  # Prix auquel on ACHÈTE
+            buy_price = best_buy_order.get("price", float("inf"))
             buy_location_id = best_buy_order.get("location_id")
             buy_volume = min(
                 best_buy_order.get("volume_remain", 0),
@@ -177,132 +247,43 @@ class DealsService:
             if sell_price <= 0 or buy_price <= 0:
                 return None
 
-            # Calculer le volume échangeable (minimum entre les deux)
-            tradable_volume = min(sell_volume, buy_volume)
-
-            if tradable_volume <= 0:
-                return None
-
             # Récupérer les détails du type pour le volume unitaire
             type_details = await self.repository.get_item_type(type_id)
-            item_volume = type_details.get("volume", 0.0)  # Volume unitaire en m³
+            item_volume = type_details.get("volume", 0.0)
 
-            # Vérifier la limite de volume de transport si spécifiée
-            if max_transport_volume is not None and max_transport_volume > 0:
-                # Limiter le volume échangeable pour respecter la limite de transport
-                max_tradable_volume = (
-                    int(max_transport_volume / item_volume)
-                    if item_volume > 0
-                    else tradable_volume
-                )
-                if max_tradable_volume <= 0:
-                    return None
-                tradable_volume = min(tradable_volume, max_tradable_volume)
+            # Calculer le volume échangeable en tenant compte des limites
+            tradable_volume = calculate_tradable_volume(
+                buy_volume, sell_volume, item_volume, max_transport_volume
+            )
+            if tradable_volume is None:
+                return None
 
-            # Calculer le bénéfice en ISK (prix de vente - prix d'achat) * volume échangeable
+            # Appliquer la limite de coût d'achat si nécessaire
+            tradable_volume = apply_buy_cost_limit(
+                tradable_volume, buy_price, max_buy_cost
+            )
+            if tradable_volume is None:
+                return None
+
+            # Calculer les valeurs financières
             profit_isk = (sell_price - buy_price) * tradable_volume
+            total_buy_cost = buy_price * tradable_volume
+            total_sell_revenue = sell_price * tradable_volume
+            total_transport_volume = item_volume * tradable_volume
 
-            # Calculer les totaux
-            total_buy_cost = buy_price * tradable_volume  # Coût total d'achat
-            total_sell_revenue = sell_price * tradable_volume  # Revenu total de vente
-            total_transport_volume = item_volume * tradable_volume  # Volume total en m³
-
-            # Vérifier la limite de montant d'achat si spécifiée
-            if max_buy_cost is not None and max_buy_cost > 0:
-                if total_buy_cost > max_buy_cost:
-                    # Réduire le volume échangeable pour respecter la limite de montant d'achat
-                    max_tradable_volume_by_cost = (
-                        int(max_buy_cost / buy_price)
-                        if buy_price > 0
-                        else tradable_volume
-                    )
-                    if max_tradable_volume_by_cost <= 0:
-                        return None
-                    tradable_volume = min(tradable_volume, max_tradable_volume_by_cost)
-                    # Recalculer les valeurs avec le nouveau volume
-                    profit_isk = (sell_price - buy_price) * tradable_volume
-                    total_buy_cost = buy_price * tradable_volume
-                    total_sell_revenue = sell_price * tradable_volume
-                    total_transport_volume = item_volume * tradable_volume
-
-            # Filtrer selon le seuil de bénéfice minimum en ISK
+            # Filtrer selon le seuil de bénéfice minimum
             if profit_isk < min_profit_isk:
                 return None
 
-            # Calculer le bénéfice en % (pour l'affichage)
+            # Calculer le bénéfice en pourcentage
             profit_percent = ((sell_price - buy_price) / buy_price) * 100
 
-            # Calculer le nombre de sauts si on a des location_id valides
-            jumps = None
-            buy_system_id = None
-            sell_system_id = None
-            route_details = []
-
-            if buy_location_id and sell_location_id:
-                try:
-                    # Les location_id >= 60000000 sont des stations, sinon ce sont des systèmes
-                    buy_system_id = buy_location_id
-                    sell_system_id = sell_location_id
-
-                    # Si c'est une station, récupérer le système parent
-                    if buy_location_id >= 60000000:
-                        station_data = await self.repository.get_station_details(
-                            buy_location_id
-                        )
-                        buy_system_id = station_data.get("system_id")
-
-                    if sell_location_id >= 60000000:
-                        station_data = await self.repository.get_station_details(
-                            sell_location_id
-                        )
-                        sell_system_id = station_data.get("system_id")
-
-                    # Calculer la route seulement si ce sont des systèmes valides
-                    if (
-                        buy_system_id
-                        and sell_system_id
-                        and buy_system_id != sell_system_id
-                    ):
-                        route_with_details = (
-                            await self.repository.get_route_with_details(
-                                buy_system_id, sell_system_id
-                            )
-                        )
-                        # Le nombre de sauts = longueur de la route - 1 (car la route inclut origine et destination)
-                        jumps = (
-                            len(route_with_details) - 1 if route_with_details else None
-                        )
-                        route_details = route_with_details if route_with_details else []
-                    elif buy_system_id == sell_system_id:
-                        jumps = 0  # Même système
-                        # Récupérer quand même les détails du système
-                        system_data = await self.repository.get_system_details(
-                            buy_system_id
-                        )
-                        route_details = [
-                            {
-                                "system_id": buy_system_id,
-                                "name": system_data.get(
-                                    "name", f"Système {buy_system_id}"
-                                ),
-                                "security_status": system_data.get(
-                                    "security_status", 0.0
-                                ),
-                            }
-                        ]
-                    else:
-                        route_details = []
-                except Exception as e:
-                    logger.warning(
-                        f"Erreur lors du calcul de la route pour {type_id}: {e}"
-                    )
-                    jumps = None
-                    route_details = []
-            else:
-                route_details = []
-                jumps = None
-
-            # Calculer le temps de transport estimé (1 minute par saut)
+            # Calculer les détails de la route
+            buy_system_id, sell_system_id, jumps, route_details = (
+                await self._calculate_route_details(
+                    buy_location_id, sell_location_id, type_id
+                )
+            )
             estimated_time_minutes = jumps if jumps is not None else None
 
             # Compter les ordres dans toutes les régions
@@ -339,11 +320,11 @@ class DealsService:
         self,
         region_id: int,
         group_id: int,
-        min_profit_isk: float = 100000.0,
+        min_profit_isk: float = DEFAULT_MIN_PROFIT_ISK,
         max_transport_volume: Optional[float] = None,
         max_buy_cost: Optional[float] = None,
         additional_regions: Optional[List[int]] = None,
-        max_concurrent: int = 20,
+        max_concurrent: int = DEFAULT_MAX_CONCURRENT_ANALYSES,
     ) -> Dict[str, Any]:
         """
         Trouve les bonnes affaires dans un groupe de marché pour une région
@@ -412,17 +393,9 @@ class DealsService:
             return_exceptions=True,
         )
 
-        # Filtrer les résultats valides et None
-        deals = [r for r in results if isinstance(r, dict) and r is not None]
-
-        # Trier par bénéfice ISK décroissant (puis par bénéfice %)
-        deals.sort(
-            key=lambda x: (x.get("profit_isk", 0), x.get("profit_percent", 0)),
-            reverse=True,
-        )
-
-        # Calculer le total du bénéfice ISK
-        total_profit_isk = sum(deal.get("profit_isk", 0) for deal in deals)
+        deals = self._filter_valid_deals(results)
+        deals = self._sort_deals_by_profit(deals)
+        total_profit_isk = self._calculate_total_profit(deals)
 
         logger.info(
             f"Trouvé {len(deals)} bonnes affaires avec bénéfice >= {min_profit_isk} ISK"

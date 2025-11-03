@@ -13,6 +13,7 @@ Ce projet suit strictement la méthodologie **Test-Driven Development (TDD)** po
 3. Le test doit être **spécifique** et tester **une seule chose**
 
 **Exemple** :
+
 ```python
 def test_add_numbers():
     """Test que l'addition fonctionne correctement"""
@@ -21,6 +22,7 @@ def test_add_numbers():
 ```
 
 **Commande** :
+
 ```bash
 python -m pytest tests/test_example.py::test_add_numbers -v
 # Le test doit échouer car la fonction add() n'existe pas encore
@@ -35,12 +37,14 @@ python -m pytest tests/test_example.py::test_add_numbers -v
 3. Le code peut être "sale" ou "pas optimal" à ce stade
 
 **Exemple** :
+
 ```python
 def add(a, b):
     return a + b  # Implémentation minimale
 ```
 
 **Commande** :
+
 ```bash
 python -m pytest tests/test_example.py::test_add_numbers -v
 # Le test doit maintenant passer ✅
@@ -58,15 +62,16 @@ python -m pytest tests/test_example.py::test_add_numbers -v
 2. **S'assurer** que tous les tests passent toujours après le refactoring
 
 **Exemple** :
+
 ```python
 def add(a: int, b: int) -> int:
     """
     Additionne deux nombres entiers.
-    
+
     Args:
         a: Premier nombre
         b: Deuxième nombre
-    
+
     Returns:
         La somme des deux nombres
     """
@@ -74,6 +79,7 @@ def add(a: int, b: int) -> int:
 ```
 
 **Commande** :
+
 ```bash
 python -m pytest tests/ -v
 # Tous les tests doivent toujours passer ✅
@@ -165,4 +171,3 @@ python -m pytest tests/ --cov=backend --cov-report=html
 
 - [TDD par Kent Beck](https://www.amazon.fr/Test-Driven-Development-Kent-Beck/dp/0321146530)
 - [Red-Green-Refactor](https://www.codecademy.com/article/tdd-red-green-refactor)
-

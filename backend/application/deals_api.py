@@ -32,7 +32,7 @@ def set_deals_service(service: DealsService):
 async def get_market_deals(
     region_id: int,
     group_id: int,
-    min_profit_isk: float = 100000.0,
+    min_profit_isk: float = 100000.0,  # Utilise DEFAULT_MIN_PROFIT_ISK du service
     max_transport_volume: Optional[float] = None,
     max_buy_cost: Optional[float] = None,
     additional_regions: Optional[str] = None,
