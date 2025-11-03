@@ -1,6 +1,17 @@
-# Hello World - Vue.js + Python
+# Eve Trade Helper
 
-Application web simple avec backend Python (Flask) et frontend Vue.js, orchestrée avec Docker Compose.
+Application web pour analyser les opportunités de trading dans EVE Online, avec backend Python (FastAPI) et frontend Vue.js, orchestrée avec Docker Compose.
+
+## 🧪 Test-Driven Development (TDD)
+
+Ce projet suit strictement la méthodologie **TDD** pour toutes les modifications de code. 
+
+📖 **Consultez [TDD.md](TDD.md) pour le guide complet du processus TDD.**
+
+**Cycle TDD** : 🔴 RED → 🟢 GREEN → 🔵 REFACTOR
+1. Écrire le test qui échoue
+2. Implémenter le minimum pour faire passer le test
+3. Refactoriser le code
 
 ## Structure du projet
 

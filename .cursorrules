@@ -1,0 +1,43 @@
+# Règles de développement pour ce projet
+
+## Test-Driven Development (TDD)
+
+Toutes les modifications de code sur le abckend doivent suivre le cycle TDD Red-Green-Refactor :
+
+### 1. 🔴 RED - Écrire le test qui échoue
+
+- Écrire le test avant d'implémenter la fonctionnalité
+- Le test doit échouer pour la bonne raison (pas d'imports manquants, etc.)
+- Le test doit être spécifique et tester une seule chose
+
+### 2. 🟢 GREEN - Implémenter le minimum pour faire passer le test
+
+- Implémenter uniquement ce qui est nécessaire pour que le test passe
+- Ne pas ajouter de fonctionnalités supplémentaires
+- Le code peut être "sale" tant que le test passe
+
+### 3. 🔵 REFACTOR - Améliorer le code
+
+- Une fois le test vert, refactoriser le code
+- Améliorer la lisibilité, la performance, la maintenabilité
+- S'assurer que tous les tests passent toujours après le refactoring
+
+## Règles spécifiques au projet
+
+### Tests
+
+- Les tests unitaires utilisent `@pytest.mark.unit` et n'utilisent PAS le cache Redis
+- Les tests d'intégration utilisent `@pytest.mark.integration` et utilisent le cache Redis partagé
+- Utiliser `pytest.mark.parametrize` pour éviter la duplication de code dans les tests
+
+### Cache
+
+- Le cache est désactivé pour les tests unitaires (via la fixture `cache` dans `conftest.py`)
+- Le cache est partagé entre les tests d'intégration et la production
+- Ne pas nettoyer le cache entre les tests (mutualisation avec la prod)
+
+### Code
+
+- Respecter les types Python (typing)
+- Documenter les fonctions complexes
+- Utiliser des noms de variables et fonctions explicites
