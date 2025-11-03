@@ -25,7 +25,7 @@ class DealsService:
         """
         self.repository = repository
 
-    @cached(cache_key_prefix="collect_all_types_from_group")
+    @cached(cache_key_prefix="collect_all_types_from_group2")
     async def collect_all_types_from_group(self, group_id: int) -> Set[int]:
         """
         Collecte récursivement tous les types d'items d'un groupe de marché
