@@ -11,31 +11,36 @@ from pathlib import Path
 # Ajouter le répertoire parent au path pour les imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from eve import SimpleCache, CacheManager, EveAPIClient
+from eve import EveAPIClient
+from utils.cache import SimpleCache, CacheManager
 
 # Chemin vers le dossier de tests
 TESTS_DIR = Path(__file__).parent
 REFERENCE_DIR = TESTS_DIR / "reference"
-CACHE_DIR = TESTS_DIR / "test_cache"
 
 
 @pytest.fixture(scope="function")
 def cache():
-    """Fixture pour créer un cache de test isolé"""
-    # Nettoyer le cache de test avant chaque test
-    if CACHE_DIR.exists():
-        import shutil
-        shutil.rmtree(CACHE_DIR)
-    
-    cache = SimpleCache(cache_dir=str(CACHE_DIR), expiry_hours=24)
-    CacheManager.initialize(cache)
-    yield cache
-    
-    # Nettoyer après le test
-    CacheManager._instance = None
-    if CACHE_DIR.exists():
-        import shutil
-        shutil.rmtree(CACHE_DIR)
+    """Fixture pour créer un cache de test isolé avec fakeredis"""
+    try:
+        import fakeredis
+        # Utiliser fakeredis pour les tests (Redis en mémoire, pas de persistance)
+        fake_redis = fakeredis.FakeStrictRedis(decode_responses=True)
+        
+        # Créer un SimpleCache en utilisant le fake Redis
+        # On doit passer par l'initialisation manuelle car SimpleCache attend redis_host ou redis_url
+        cache = SimpleCache.__new__(SimpleCache)
+        cache.expiry_hours = 24
+        cache.redis_client = fake_redis
+        
+        CacheManager.initialize(cache)
+        yield cache
+        
+        # Nettoyer après le test
+        CacheManager._instance = None
+        fake_redis.flushall()
+    except ImportError:
+        pytest.skip("fakeredis n'est pas installé. Installez-le avec: pip install fakeredis")
 
 
 @pytest.fixture(scope="function")

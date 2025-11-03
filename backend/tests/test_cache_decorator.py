@@ -10,7 +10,7 @@ import pytest
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
-from eve import cached, CacheManager
+from utils.cache import cached, CacheManager
 
 
 class TestCacheDecorator:

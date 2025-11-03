@@ -18,7 +18,7 @@ from domain.region_service import RegionService
 @pytest.fixture
 def region_service(cache):
     """Fixture pour créer un service de région avec cache de test"""
-    from eve import CacheManager
+    from utils.cache import CacheManager
 
     # Utiliser le cache de test
     CacheManager.initialize(cache)

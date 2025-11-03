@@ -22,7 +22,7 @@ from fastapi import FastAPI
 @pytest.fixture
 def deals_service(cache):
     """Fixture pour créer un service de deals avec cache de test"""
-    from eve import CacheManager
+    from utils.cache import CacheManager
 
     # Utiliser le cache de test
     CacheManager.initialize(cache)

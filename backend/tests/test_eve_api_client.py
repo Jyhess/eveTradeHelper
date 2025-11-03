@@ -154,7 +154,7 @@ class TestEveAPIClientCache:
 
     def test_cache_is_used(self, eve_client):
         """Vérifie que le cache est utilisé lors du second appel"""
-        from eve import CacheManager
+        from utils.cache import CacheManager
         
         assert CacheManager.is_initialized(), "Le cache doit être initialisé"
         
@@ -174,10 +174,14 @@ class TestEveAPIClientCache:
 
     def test_cache_expiry(self, eve_client):
         """Vérifie que le cache expire correctement"""
-        from eve import CacheManager, SimpleCache
+        from utils.cache import CacheManager, SimpleCache
         
         # Créer un cache avec expiration très courte (1 milliseconde)
-        short_cache = SimpleCache(cache_dir=str(CacheManager.get_instance().cache_dir), expiry_hours=0.000000278)  # 1 ms
+        # Utiliser le même client Redis mais avec un expiry différent
+        original_cache = CacheManager.get_instance()
+        short_cache = SimpleCache.__new__(SimpleCache)
+        short_cache.expiry_hours = 0.000000278  # 1 ms
+        short_cache.redis_client = original_cache.redis_client
         CacheManager.initialize(short_cache)
         
         # Premier appel

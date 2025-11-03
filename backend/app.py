@@ -8,8 +8,9 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from eve import SimpleCache, CacheManager, EveAPIClient
+from eve import EveAPIClient
 from eve.repository import EveRepositoryImpl
+from utils.cache import create_cache, CacheManager
 from domain.region_service import RegionService
 from domain.deals_service import DealsService
 from application.region_api import router as region_router, set_region_service
@@ -30,10 +31,8 @@ async def lifespan(app: FastAPI):
     # Démarrage
     logger.info("Initialisation de l'application...")
 
-    # Configuration du cache
-    CACHE_DIR = os.path.join(os.path.dirname(__file__), "cache")
-    CACHE_EXPIRY_HOURS = int(os.getenv("CACHE_EXPIRY_HOURS", "240"))
-    cache = SimpleCache(cache_dir=CACHE_DIR, expiry_hours=CACHE_EXPIRY_HOURS)
+    # Configuration du cache Redis via factory
+    cache = create_cache()
 
     # Initialiser le gestionnaire de cache statique
     CacheManager.initialize(cache)

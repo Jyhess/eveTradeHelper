@@ -12,10 +12,6 @@ venv/
 ENV/
 env/
 
-# Cache
-backend/cache/
-cache/
-backend/tests/test_cache/
 *.json
 !package.json
 !package-lock.json

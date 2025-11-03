@@ -6,7 +6,7 @@ Version asynchrone avec httpx
 import httpx
 import logging
 from typing import List, Dict, Any, Optional
-from eve.cache_decorator import cached
+from utils.cache import cached
 
 logger = logging.getLogger(__name__)
 
