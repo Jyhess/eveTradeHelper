@@ -7,9 +7,14 @@ import functools
 import hashlib
 import inspect
 import logging
-from typing import Callable, Any, Optional
+from typing import Callable, Any, Optional, Union, cast
 from .manager import CacheManager
 from .simple_cache import SimpleCache
+
+try:
+    from .fake_cache import FakeCache
+except ImportError:
+    FakeCache = None
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +53,7 @@ def _generate_cache_key(
     return f"{prefix}_{cache_key_hash}"
 
 
-def _get_cache_instance(expiry_hours: Optional[int]) -> Optional[SimpleCache]:
+def _get_cache_instance(expiry_hours: Optional[int]) -> Optional[Union[SimpleCache, Any]]:
     """
     Récupère l'instance de cache, avec gestion de l'expiry personnalisé
 
@@ -56,24 +61,39 @@ def _get_cache_instance(expiry_hours: Optional[int]) -> Optional[SimpleCache]:
         expiry_hours: Durée de vie personnalisée du cache en heures
 
     Returns:
-        Instance de SimpleCache ou None si le cache n'est pas initialisé
+        Instance de cache ou None si le cache n'est pas initialisé
     """
     if not CacheManager.is_initialized():
         return None
 
     cache_instance = CacheManager.get_instance()
+    if cache_instance is None:
+        return None
+
+    # À ce point, cache_instance ne peut pas être None (vérifié par is_initialized)
+    # Utiliser cast pour aider le type checker
+    cache_instance = cast(Union[SimpleCache, Any], cache_instance)
 
     # Créer une instance temporaire si expiry_hours est différent
     if expiry_hours and expiry_hours != cache_instance.expiry_hours:
-        temp_cache = SimpleCache.__new__(SimpleCache)
-        temp_cache.expiry_hours = expiry_hours
-        temp_cache.redis_client = cache_instance.redis_client
-        return temp_cache
+        # Détecter le type de cache et créer une instance temporaire appropriée
+        if isinstance(cache_instance, SimpleCache):
+            temp_cache = SimpleCache.__new__(SimpleCache)
+            temp_cache.expiry_hours = expiry_hours
+            temp_cache.redis_client = cache_instance.redis_client
+            return temp_cache
+        elif FakeCache and isinstance(cache_instance, FakeCache):
+            # Pour FakeCache, créer une nouvelle instance qui partage le même stockage
+            temp_cache = FakeCache.__new__(FakeCache)
+            temp_cache.expiry_hours = expiry_hours
+            temp_cache._cache_data = cache_instance._cache_data
+            temp_cache._metadata = cache_instance._metadata
+            return temp_cache
 
     return cache_instance
 
 
-def _get_cached_result(cache_instance: SimpleCache, cache_key: str) -> Optional[Any]:
+def _get_cached_result(cache_instance: Union[SimpleCache, Any], cache_key: str) -> Optional[Any]:
     """
     Récupère le résultat depuis le cache si disponible et valide
 
@@ -167,7 +187,7 @@ def _normalize_result_for_cache(result: Any) -> list:
         return [{"_type": type(result).__name__, "value": result}]
 
 
-def _save_to_cache(cache_instance: SimpleCache, cache_key: str, result: Any) -> None:
+def _save_to_cache(cache_instance: Union[SimpleCache, Any], cache_key: str, result: Any) -> None:
     """
     Sauvegarde le résultat dans le cache
 

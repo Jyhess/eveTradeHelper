@@ -1,53 +1,10 @@
-"""
-Tests d'intégration pour l'API region
-Teste les endpoints de l'API region, notamment l'endpoint adjacent
-"""
-
-import sys
-from pathlib import Path
 import pytest
-
-# Ajouter le répertoire parent au path pour les imports
-backend_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(backend_dir))
-
-from eve import EveAPIClient
-from eve.repository import EveRepositoryImpl
-from domain.region_service import RegionService
-from application.region_api import set_region_service, router
-from fastapi.testclient import TestClient
-from fastapi import FastAPI
-
-
-@pytest.fixture
-def region_service(cache):
-    """Fixture pour créer un service de région avec cache de test"""
-    api_client = EveAPIClient()
-    repository = EveRepositoryImpl(api_client)
-    return RegionService(repository)
-
-
-@pytest.fixture
-def test_app(region_service):
-    """Fixture pour créer une application FastAPI de test"""
-    app = FastAPI()
-    set_region_service(region_service)
-    app.include_router(router)
-    return app
-
-
-@pytest.fixture
-def client(test_app):
-    """Fixture pour créer un client de test"""
-    return TestClient(test_app)
 
 
 @pytest.mark.integration
 class TestRegionAPI:
-    """Tests d'intégration pour l'API region"""
 
     def test_get_adjacent_regions_endpoint_structure(self, client):
-        """Test que l'endpoint adjacent retourne la structure attendue"""
         region_id = 10000002
         response = client.get(f"/api/v1/regions/{region_id}/adjacent")
 
@@ -125,18 +82,3 @@ class TestRegionAPI:
                 names = [r["name"] for r in data["adjacent_regions"]]
                 assert names == sorted(names), "Les régions doivent être triées par nom"
 
-    def test_get_adjacent_regions_endpoint_imports(self, client):
-        """
-        Test spécifique pour vérifier que tous les imports sont corrects.
-        Ce test aurait détecté l'erreur 'Dict is not defined' en tentant d'appeler l'endpoint.
-        """
-        region_id = 10000002
-
-        # Tenter d'appeler l'endpoint - cela devrait lever une erreur si les imports sont manquants
-        try:
-            response = client.get(f"/api/v1/regions/{region_id}/adjacent")
-            # Si on arrive ici, les imports sont corrects
-            assert response.status_code == 200
-        except NameError as e:
-            # Si on a une NameError, c'est qu'un import manque
-            pytest.fail(f"Erreur d'import détectée: {e}")

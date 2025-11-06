@@ -1,53 +1,10 @@
-"""
-Tests d'intégration pour l'API market
-Teste l'endpoint complet avec un vrai repository
-"""
-
-import sys
-from pathlib import Path
 import pytest
-
-# Ajouter le répertoire parent au path pour les imports
-backend_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(backend_dir))
-
-from eve import EveAPIClient
-from eve.repository import EveRepositoryImpl
-from domain.market_service import MarketService
-from application.market_api import set_market_service, router
-from fastapi.testclient import TestClient
-from fastapi import FastAPI
-
-
-@pytest.fixture
-def market_service():
-    """Fixture pour créer un service de marché"""
-    api_client = EveAPIClient()
-    repository = EveRepositoryImpl(api_client)
-    return MarketService(repository)
-
-
-@pytest.fixture
-def test_app(market_service):
-    """Fixture pour créer une application FastAPI de test"""
-    app = FastAPI()
-    set_market_service(market_service)
-    app.include_router(router)
-    return app
-
-
-@pytest.fixture
-def client(test_app):
-    """Fixture pour créer un client de test"""
-    return TestClient(test_app)
 
 
 @pytest.mark.integration
 class TestMarketAPI:
-    """Tests d'intégration pour l'API market"""
 
     def test_get_market_categories_endpoint_structure(self, client):
-        """Test que l'endpoint retourne la structure attendue"""
         response = client.get("/api/v1/markets/categories")
 
         # Vérifier le statut HTTP
@@ -71,7 +28,6 @@ class TestMarketAPI:
             assert "types" in category
 
     def test_get_market_categories_cached(self, client):
-        """Test que le cache LRU fonctionne"""
         # Premier appel
         response1 = client.get("/api/v1/markets/categories")
         assert response1.status_code == 200
@@ -84,7 +40,6 @@ class TestMarketAPI:
         assert response1.json() == response2.json()
 
     def test_get_item_type_endpoint_structure(self, client):
-        """Test que l'endpoint retourne la structure attendue"""
         # Utiliser un type_id connu (ex: Tritanium)
         type_id = 34
         response = client.get(f"/api/v1/universe/types/{type_id}")
@@ -101,7 +56,6 @@ class TestMarketAPI:
             assert isinstance(data["name"], str)
 
     def test_get_item_type_invalid_id(self, client):
-        """Test avec un type_id invalide"""
         response = client.get("/api/v1/universe/types/999999999")
 
         # L'API peut retourner 200 avec des données vides ou 404/500
@@ -109,7 +63,6 @@ class TestMarketAPI:
         assert response.status_code in [200, 404, 500]
 
     def test_get_market_orders_endpoint_structure(self, client):
-        """Test que l'endpoint retourne la structure attendue"""
         region_id = 10000002
         response = client.get(f"/api/v1/markets/regions/{region_id}/orders")
 
@@ -132,7 +85,6 @@ class TestMarketAPI:
         assert isinstance(data["sell_orders"], list)
 
     def test_get_market_orders_with_type_filter(self, client):
-        """Test avec filtre par type_id"""
         region_id = 10000002
         type_id = 34  # Tritanium
         response = client.get(
@@ -144,7 +96,6 @@ class TestMarketAPI:
         assert data["type_id"] == type_id
 
     def test_get_market_orders_orders_structure(self, client):
-        """Test que les ordres ont la structure attendue"""
         region_id = 10000002
         type_id = 34  # Tritanium - généralement beaucoup d'ordres
         response = client.get(
@@ -169,7 +120,6 @@ class TestMarketAPI:
             assert "system_id" in order or "station_id" in order
 
     def test_get_market_orders_orders_sorted(self, client):
-        """Test que les ordres sont triés correctement"""
         region_id = 10000002
         type_id = 34  # Tritanium
         response = client.get(
@@ -190,7 +140,6 @@ class TestMarketAPI:
             assert sell_prices == sorted(sell_prices)
 
     def test_get_market_orders_orders_limited(self, client):
-        """Test que le nombre d'ordres est limité"""
         region_id = 10000002
         type_id = 34  # Tritanium - généralement beaucoup d'ordres
         response = client.get(

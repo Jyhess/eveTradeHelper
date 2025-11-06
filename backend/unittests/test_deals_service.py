@@ -1,17 +1,7 @@
-"""
-Tests unitaires pour DealsService
-Teste la logique métier avec des mocks du repository
-"""
-
-import sys
-from pathlib import Path
+import time
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from typing import Dict, Any, List
-
-# Ajouter le répertoire parent au path pour les imports
-backend_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(backend_dir))
+from typing import Dict, Any, List, Optional
 
 from domain.deals_service import DealsService
 from domain.repository import EveRepository
@@ -34,7 +24,7 @@ class MockRepository(EveRepository):
         return self.market_groups_details.get(group_id, {})
 
     async def get_market_orders(
-        self, region_id: int, type_id: int = None
+        self, region_id: int, type_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         key = (region_id, type_id)
         return self.market_orders.get(key, [])
@@ -92,8 +82,6 @@ class TestDealsServiceCollectTypes:
     ):
         """Test avec un groupe simple sans sous-groupes"""
         # Configuration - utiliser des IDs uniques pour éviter les conflits de cache
-        import time
-
         group_id = int(time.time() * 1000000) % 1000000 + 1000000
         mock_repository.market_groups_list = [group_id]
         mock_repository.market_groups_details = {
@@ -115,8 +103,6 @@ class TestDealsServiceCollectTypes:
     ):
         """Test avec un groupe ayant des sous-groupes"""
         # Configuration : groupe parent avec 2 sous-groupes - utiliser des IDs uniques
-        import time
-
         base_id = int(time.time() * 1000000) % 1000000 + 2000000
         group_id_1 = base_id
         group_id_2 = base_id + 1
@@ -146,8 +132,6 @@ class TestDealsServiceCollectTypes:
     ):
         """Test avec des groupes imbriqués sur plusieurs niveaux"""
         # Utiliser des IDs uniques pour éviter les conflits de cache
-        import time
-
         base_id = int(time.time() * 1000000) % 1000000 + 3000000
         group_id_1 = base_id
         group_id_2 = base_id + 1
@@ -183,8 +167,6 @@ class TestDealsServiceCollectTypes:
     ):
         """Test avec un groupe inexistant"""
         # Utiliser un ID unique pour éviter les conflits de cache
-        import time
-
         unknown_group_id = int(time.time() * 1000000) % 1000000 + 9999999
         mock_repository.market_groups_list = []
         mock_repository.market_groups_details = {}
@@ -204,8 +186,6 @@ class TestDealsServiceCollectTypes:
     ):
         """Test avec un groupe sans types (seulement des sous-groupes)"""
         # Utiliser des IDs uniques pour éviter les conflits de cache
-        import time
-
         base_id = int(time.time() * 1000000) % 1000000 + 4000000
         group_id_1 = base_id
         group_id_2 = base_id + 1
@@ -430,8 +410,6 @@ class TestDealsServiceFindDeals:
     async def test_find_market_deals_empty_group(self, deals_service, mock_repository):
         """Test avec un groupe vide"""
         # Utiliser un ID unique pour éviter les conflits de cache
-        import time
-
         group_id = int(time.time() * 1000000) % 1000000 + 5000000
         mock_repository.market_groups_list = []
         mock_repository.market_groups_details = {}
@@ -453,8 +431,6 @@ class TestDealsServiceFindDeals:
     ):
         """Test avec des items rentables"""
         # Utiliser des IDs uniques pour éviter les conflits de cache
-        import time
-
         base_id = int(time.time() * 1000000) % 1000000 + 6000000
         region_id = 10000002
         group_id = base_id

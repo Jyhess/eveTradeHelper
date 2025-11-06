@@ -1,10 +1,7 @@
-"""
-Factory pour créer et configurer le cache Redis
-"""
-
 import os
 import logging
 from .simple_cache import SimpleCache
+from .manager import CacheManager
 
 logger = logging.getLogger(__name__)
 
@@ -54,5 +51,7 @@ def create_cache() -> SimpleCache:
     except ValueError as e:
         logger.error(str(e))
         raise
+
+    CacheManager.initialize(cache)
 
     return cache
