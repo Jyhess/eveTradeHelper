@@ -3,14 +3,8 @@ Tests unitaires pour MarketService
 Teste la logique métier avec des mocks du repository
 """
 
-import sys
-from pathlib import Path
 import pytest
-from typing import Dict, Any, List
-
-# Ajouter le répertoire parent au path pour les imports
-backend_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(backend_dir))
+from typing import Dict, Any, List, Optional
 
 from domain.market_service import MarketService
 from domain.repository import EveRepository
@@ -33,7 +27,7 @@ class MockRepository(EveRepository):
         return self.market_groups_details.get(group_id, {})
 
     async def get_market_orders(
-        self, region_id: int, type_id: int = None
+        self, region_id: int, type_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         key = (region_id, type_id)
         return self.market_orders.get(key, [])

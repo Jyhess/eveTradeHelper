@@ -1,15 +1,5 @@
-"""
-Tests pour le décorateur de cache
-"""
-
-from optparse import TitledHelpFormatter
-import sys
-from pathlib import Path
+import time
 import pytest
-
-# Ajouter le répertoire parent au path pour les imports
-backend_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(backend_dir))
 
 from utils.cache import cached, CacheManager
 
@@ -22,12 +12,8 @@ def no_cache(cache):
 
 
 class TestCacheDecorator:
-    """Tests pour le décorateur @cached"""
 
     def test_cached_method_with_cache(self, cache):
-        """Test que le décorateur fonctionne avec un cache"""
-        import time
-
         # Utiliser un timestamp pour avoir une clé unique à chaque test
         unique_id = int(time.time() * 1000000)
 
@@ -65,7 +51,6 @@ class TestCacheDecorator:
         ), f"La méthode ne doit pas être appelée à nouveau. call_count={TestClass.call_count}"
 
     def test_cached_method_without_cache(self, no_cache):
-        """Test que le décorateur fonctionne sans cache"""
 
         class TestClass:
             call_count = 0
@@ -82,9 +67,6 @@ class TestCacheDecorator:
         assert TestClass.call_count == 1
 
     def test_cached_with_different_params(self, cache):
-        """Test que le cache différencie les paramètres"""
-        import time
-
         # Utiliser un timestamp pour avoir une clé unique à chaque test
         unique_id = int(time.time() * 1000000)
 
@@ -110,8 +92,6 @@ class TestCacheDecorator:
         assert result1 != result2
 
     def test_cached_list_result(self, cache):
-        """Test que le cache gère correctement les listes"""
-
         class TestClass:
             @cached()
             def test_method(self):
@@ -124,9 +104,6 @@ class TestCacheDecorator:
         assert isinstance(result, list)
 
     def test_cached_empty_list_result(self, cache):
-        """Test que le cache retourne correctement une liste vide (pas None)"""
-        import time
-
         # Utiliser un timestamp pour avoir une clé unique à chaque test
         unique_id = int(time.time() * 1000000)
 
@@ -161,9 +138,6 @@ class TestCacheDecorator:
         ), f"La méthode ne doit pas être appelée à nouveau. call_count={TestClass.call_count}"
 
     def test_cached_none_result(self, cache):
-        """Test que le cache gère correctement None"""
-        import time
-
         # Utiliser un timestamp pour avoir une clé unique à chaque test
         unique_id = int(time.time() * 1000000)
 
@@ -218,9 +192,6 @@ class TestCacheDecorator:
         ],
     )
     def test_cached_various_result_types(self, cache, test_value, test_name):
-        """Test que le cache gère correctement tous les types de résultats"""
-        import time
-
         # Utiliser un timestamp pour avoir une clé unique à chaque test
         unique_id = int(time.time() * 1000000) + hash(test_name)
 

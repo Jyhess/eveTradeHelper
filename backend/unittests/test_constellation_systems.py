@@ -1,34 +1,17 @@
-"""
-Tests pour les systèmes d'une constellation
-"""
-
-import sys
-from pathlib import Path
 import pytest
 
-# Ajouter le répertoire parent au path pour les imports
-backend_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(backend_dir))
-
-from eve import EveAPIClient
-from eve.repository import EveRepositoryImpl
 from domain.region_service import RegionService
 
 
 @pytest.fixture
-def region_service():
-    """Fixture pour créer un service de région"""
-    api_client = EveAPIClient()
-    repository = EveRepositoryImpl(api_client)
-    return RegionService(repository)
+def region_service(eve_repository):
+    return RegionService(eve_repository)
 
 
 class TestConstellationSystems:
-    """Tests pour les systèmes d'une constellation"""
 
     @pytest.mark.asyncio
     async def test_get_constellation_systems_with_details(self, region_service):
-        """Test de récupération des systèmes d'une constellation"""
         # Utiliser une constellation connue (première constellation de The Forge)
         # D'abord récupérer les constellations de la région
         region_id = 10000002
@@ -60,7 +43,6 @@ class TestConstellationSystems:
 
     @pytest.mark.asyncio
     async def test_get_constellation_systems_structure(self, region_service):
-        """Vérifie que les systèmes ont la structure attendue"""
         # Récupérer une constellation pour tester
         region_id = 10000002
         constellations = await region_service.get_region_constellations_with_details(

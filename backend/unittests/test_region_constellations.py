@@ -2,25 +2,15 @@
 Tests pour les constellations d'une région
 """
 
-import sys
-from pathlib import Path
 import pytest
 
-# Ajouter le répertoire parent au path pour les imports
-backend_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(backend_dir))
-
-from eve import EveAPIClient
-from eve.repository import EveRepositoryImpl
 from domain.region_service import RegionService
 
 
 @pytest.fixture
-def region_service():
+def region_service(eve_repository):
     """Fixture pour créer un service de région"""
-    api_client = EveAPIClient()
-    repository = EveRepositoryImpl(api_client)
-    return RegionService(repository)
+    return RegionService(eve_repository)
 
 
 class TestRegionConstellations:

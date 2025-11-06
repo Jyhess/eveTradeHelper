@@ -1,53 +1,10 @@
-"""
-Tests d'intégration pour l'API deals
-Teste l'endpoint complet avec un vrai repository
-"""
-
-import sys
-from pathlib import Path
 import pytest
-
-# Ajouter le répertoire parent au path pour les imports
-backend_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(backend_dir))
-
-from eve import EveAPIClient
-from eve.repository import EveRepositoryImpl
-from domain.deals_service import DealsService
-from application.deals_api import set_deals_service, router
-from fastapi.testclient import TestClient
-from fastapi import FastAPI
-
-
-@pytest.fixture
-def deals_service(cache):
-    """Fixture pour créer un service de deals avec cache de test"""
-    api_client = EveAPIClient()
-    repository = EveRepositoryImpl(api_client)
-    return DealsService(repository)
-
-
-@pytest.fixture
-def test_app(deals_service):
-    """Fixture pour créer une application FastAPI de test"""
-    app = FastAPI()
-    set_deals_service(deals_service)
-    app.include_router(router)
-    return app
-
-
-@pytest.fixture
-def client(test_app):
-    """Fixture pour créer un client de test"""
-    return TestClient(test_app)
 
 
 @pytest.mark.integration
 class TestDealsAPI:
-    """Tests d'intégration pour l'API deals"""
 
     def test_get_market_deals_endpoint_structure(self, client):
-        """Test que l'endpoint retourne la structure attendue"""
         response = client.get(
             "/api/v1/markets/deals",
             params={"region_id": 10000002, "group_id": 1822, "min_profit_isk": 50.0},
@@ -78,7 +35,6 @@ class TestDealsAPI:
             assert "profit_percent" in deal
 
     def test_get_market_deals_endpoint_params(self, client):
-        """Test que les paramètres sont correctement passés"""
         region_id = 10000002
         group_id = 1822
         min_profit_isk = 30.0
@@ -100,7 +56,6 @@ class TestDealsAPI:
         assert data["min_profit_isk"] == min_profit_isk
 
     def test_get_market_deals_endpoint_default_threshold(self, client):
-        """Test que le seuil par défaut est utilisé"""
         response = client.get(
             "/api/v1/markets/deals",
             params={"region_id": 10000002, "group_id": 1822},
@@ -113,7 +68,6 @@ class TestDealsAPI:
         assert data["min_profit_isk"] == 100000.0
 
     def test_get_market_deals_endpoint_deals_structure(self, client):
-        """Test que les deals ont la structure attendue"""
         response = client.get(
             "/api/v1/markets/deals",
             params={
@@ -148,7 +102,6 @@ class TestDealsAPI:
             assert isinstance(deal["sell_order_count"], int)
 
     def test_get_market_deals_endpoint_deals_sorted(self, client):
-        """Test que les deals sont triés par profit décroissant"""
         response = client.get(
             "/api/v1/markets/deals",
             params={
@@ -170,7 +123,6 @@ class TestDealsAPI:
                 )
 
     def test_get_market_deals_endpoint_missing_params(self, client):
-        """Test que les paramètres requis sont validés"""
         # Test sans region_id
         response = client.get(
             "/api/v1/markets/deals",
@@ -186,7 +138,6 @@ class TestDealsAPI:
         assert response.status_code == 422  # Validation error
 
     def test_get_market_deals_endpoint_invalid_group(self, client):
-        """Test avec un groupe inexistant"""
         response = client.get(
             "/api/v1/markets/deals",
             params={

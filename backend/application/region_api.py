@@ -11,34 +11,19 @@ from typing import Optional, Dict, Any
 from domain.region_service import RegionService
 from domain.constants import ADJACENT_REGIONS_CACHE_TTL
 from application.utils import cached_async
+from .services_provider import ServicesProvider
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+region_router = router
 
 # Cache LRU avec TTL pour les régions adjacentes (en mémoire)
 # Les régions adjacentes changent rarement, donc un TTL long est approprié
 _adjacent_regions_cache = TTLCache(maxsize=100, ttl=ADJACENT_REGIONS_CACHE_TTL)
 
 
-# Variable globale pour stocker le service (sera initialisé dans app.py)
-_region_service: Optional[RegionService] = None
-
-
-def get_region_service() -> RegionService:
-    """Dependency pour obtenir le service de région"""
-    if _region_service is None:
-        raise HTTPException(status_code=503, detail="Service non initialisé")
-    return _region_service
-
-
-def set_region_service(service: RegionService):
-    """Initialise le service de région"""
-    global _region_service
-    _region_service = service
-
-
 @router.get("/api/v1/regions")
-async def get_regions(region_service: RegionService = Depends(get_region_service)):
+async def get_regions(region_service: RegionService = Depends(ServicesProvider.get_region_service)):
     """
     Récupère la liste des régions d'Eve Online avec leurs détails
     Le cache est géré automatiquement par la couche infrastructure (EveAPIClient)
@@ -68,7 +53,7 @@ async def get_regions(region_service: RegionService = Depends(get_region_service
 
 @router.get("/api/v1/regions/{region_id}/constellations")
 async def get_region_constellations(
-    region_id: int, region_service: RegionService = Depends(get_region_service)
+    region_id: int, region_service: RegionService = Depends(ServicesProvider.get_region_service)
 ):
     """
     Récupère les détails de toutes les constellations d'une région
@@ -106,7 +91,7 @@ async def get_region_constellations(
 @router.get("/api/v1/constellations/{constellation_id}/systems")
 async def get_constellation_systems(
     constellation_id: int,
-    region_service: RegionService = Depends(get_region_service),
+    region_service: RegionService = Depends(ServicesProvider.get_region_service),
 ):
     """
     Récupère les détails de tous les systèmes d'une constellation
@@ -143,7 +128,7 @@ async def get_constellation_systems(
 
 @router.get("/api/v1/systems/{system_id}")
 async def get_system_details(
-    system_id: int, region_service: RegionService = Depends(get_region_service)
+    system_id: int, region_service: RegionService = Depends(ServicesProvider.get_region_service)
 ):
     """
     Récupère les détails d'un système solaire
@@ -186,7 +171,7 @@ async def get_system_details(
 
 @router.get("/api/v1/systems/{system_id}/connections")
 async def get_system_connections(
-    system_id: int, region_service: RegionService = Depends(get_region_service)
+    system_id: int, region_service: RegionService = Depends(ServicesProvider.get_region_service)
 ):
     """
     Récupère les systèmes connectés à un système donné via les stargates
@@ -222,7 +207,7 @@ async def get_system_connections(
 @router.get("/api/v1/constellations/{constellation_id}")
 async def get_constellation_info(
     constellation_id: int,
-    region_service: RegionService = Depends(get_region_service),
+    region_service: RegionService = Depends(ServicesProvider.get_region_service),
 ):
     """
     Récupère les informations d'une constellation et de sa région parente.
@@ -279,7 +264,7 @@ async def get_constellation_info(
 @cached_async(_adjacent_regions_cache, exclude_types=(RegionService,))
 async def get_adjacent_regions(
     region_id: int,
-    region_service: RegionService = Depends(get_region_service),
+    region_service: RegionService = Depends(ServicesProvider.get_region_service),
 ):
     """
     Récupère la liste des régions adjacentes à une région donnée

@@ -2,17 +2,16 @@
 Configuration des tests et fixtures partagées
 """
 
-import os
-import sys
 import json
 import pytest
 from pathlib import Path
 
-# Ajouter le répertoire parent au path pour les imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from eve import EveAPIClient
 from utils.cache import CacheManager, create_cache
+from domain import Services
+from application import AppFactory
+from eve.eve_repository_factory import make_eve_repository
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 # Chemin vers le dossier de tests
 TESTS_DIR = Path(__file__).parent
@@ -72,11 +71,6 @@ def cache(request, _shared_cache):
         # Ne pas réinitialiser - le cache est partagé
 
 
-@pytest.fixture(scope="function")
-def eve_client(cache):
-    """Fixture pour créer un client API Eve avec cache de test"""
-    return EveAPIClient()
-
 
 @pytest.fixture(scope="session")
 def reference_data():
@@ -90,3 +84,30 @@ def reference_data():
                 reference_data[key] = json.load(f)
 
     return reference_data
+
+
+@pytest.fixture
+def eve_repository(cache):
+    """Fixture pour créer un repository Eve avec cache de test"""
+    yield make_eve_repository()
+
+
+@pytest.fixture
+def services(eve_repository):
+    """Fixture pour créer les services avec cache de test"""
+    return Services(eve_repository)
+
+
+@pytest.fixture
+def test_app(services):
+    """Fixture pour créer une application FastAPI de test"""
+    app = FastAPI()
+    AppFactory.register_routers(app)
+    AppFactory.set_services(app, services)
+    return app
+
+
+@pytest.fixture
+def client(test_app):
+    """Fixture pour créer un client de test"""
+    return TestClient(test_app)

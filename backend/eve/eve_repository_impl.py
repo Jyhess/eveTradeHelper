@@ -5,7 +5,7 @@ Implémentation du repository Eve utilisant EveAPIClient (version asynchrone)
 import logging
 from typing import List, Dict, Any
 from domain.repository import EveRepository
-from eve.api_client import EveAPIClient
+from .eve_api_client import EveAPIClient
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,9 @@ class EveRepositoryImpl(EveRepository):
             api_client: Instance de EveAPIClient
         """
         self.api_client = api_client
+
+    async def close(self) :
+        await self.api_client.close()
 
     async def get_regions_list(self) -> List[int]:
         """Récupère la liste des IDs de régions"""

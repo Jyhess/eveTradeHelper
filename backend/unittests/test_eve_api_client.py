@@ -3,29 +3,22 @@ Tests d'intégration pour EveAPIClient
 Compare les réponses API avec des références
 """
 
+import time
 import pytest
 import json
-import sys
 from pathlib import Path
 
-# Ajouter le répertoire parent au path pour les imports
-backend_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(backend_dir))
+from eve.eve_repository_impl import EveRepositoryImpl
+from domain.region_service import RegionService
+from utils.cache import CacheManager, SimpleCache
+from utils.cache.fake_cache import FakeCache
 
 # Importer les fonctions utilitaires
-# Depuis backend/, on peut importer tests.test_utils ou test_utils selon le contexte
-try:
-    from tests.test_utils import (
-        save_reference,
-        load_reference,
-        normalize_for_comparison,
-    )
-except ImportError:
-    from test_utils import (
-        save_reference,
-        load_reference,
-        normalize_for_comparison,
-    )
+from unittests.test_utils import (
+    save_reference,
+    load_reference,
+    normalize_for_comparison,
+)
 
 
 class TestEveAPIClientRegions:
@@ -116,9 +109,6 @@ class TestEveAPIClientRegions:
     @pytest.mark.asyncio
     async def test_get_regions_with_details(self, eve_client, reference_data):
         """Test de récupération des régions avec leurs détails (limité à 5 pour les tests)"""
-        from eve.repository import EveRepositoryImpl
-        from domain.region_service import RegionService
-
         # Utiliser le service de domaine au lieu de la méthode directe
         repository = EveRepositoryImpl(eve_client)
         region_service = RegionService(repository)
@@ -174,8 +164,6 @@ class TestEveAPIClientCache:
     @pytest.mark.asyncio
     async def test_cache_is_used(self, eve_client):
         """Vérifie que le cache est utilisé lors du second appel"""
-        from utils.cache import CacheManager
-
         assert CacheManager.is_initialized(), "Le cache doit être initialisé"
 
         # Premier appel - doit aller à l'API
@@ -197,22 +185,29 @@ class TestEveAPIClientCache:
     @pytest.mark.asyncio
     async def test_cache_expiry(self, eve_client):
         """Vérifie que le cache expire correctement"""
-        from utils.cache import CacheManager, SimpleCache
-
         # Créer un cache avec expiration très courte (1 milliseconde)
-        # Utiliser le même client Redis mais avec un expiry différent
+        # Utiliser le même stockage mais avec un expiry différent
         original_cache = CacheManager.get_instance()
-        short_cache = SimpleCache.__new__(SimpleCache)
-        short_cache.expiry_hours = 0.000000278  # 1 ms
-        short_cache.redis_client = original_cache.redis_client
+        
+        # Détecter le type de cache et créer une instance temporaire appropriée
+        if isinstance(original_cache, SimpleCache):
+            short_cache = SimpleCache.__new__(SimpleCache)
+            short_cache.expiry_hours = 0.000000278  # 1 ms
+            short_cache.redis_client = original_cache.redis_client
+        elif isinstance(original_cache, FakeCache):
+            short_cache = FakeCache.__new__(FakeCache)
+            short_cache.expiry_hours = 0.000000278  # 1 ms
+            short_cache._cache_data = original_cache._cache_data
+            short_cache._metadata = original_cache._metadata
+        else:
+            pytest.skip("Type de cache non supporté pour ce test")
+        
         CacheManager.initialize(short_cache)
 
         # Premier appel
         result1 = await eve_client.get_regions_list()
 
         # Attendre que le cache expire
-        import time
-
         time.sleep(0.01)  # 10 ms
 
         # Deuxième appel - le cache devrait être expiré

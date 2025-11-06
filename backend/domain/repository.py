@@ -4,7 +4,7 @@ Définit le contrat que doit respecter tout repository Eve (version asynchrone)
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 
 class EveRepository(ABC):
@@ -123,7 +123,7 @@ class EveRepository(ABC):
 
     @abstractmethod
     async def get_market_orders(
-        self, region_id: int, type_id: int = None
+        self, region_id: int, type_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """
         Récupère les ordres de marché pour une région, optionnellement filtrés par type

@@ -9,34 +9,19 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import Optional
 from domain.market_service import MarketService
 from domain.constants import MARKET_CATEGORIES_CACHE_TTL
+from .services_provider import ServicesProvider
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+market_router = router
 
 # Cache LRU avec TTL pour les catégories de marché (en mémoire)
 _market_categories_cache = TTLCache(maxsize=1, ttl=MARKET_CATEGORIES_CACHE_TTL)
 
 
-# Variable globale pour stocker le service (sera initialisé dans app.py)
-_market_service: Optional[MarketService] = None
-
-
-def get_market_service() -> MarketService:
-    """Dependency pour obtenir le service de marché"""
-    if _market_service is None:
-        raise HTTPException(status_code=503, detail="Service non initialisé")
-    return _market_service
-
-
-def set_market_service(service: MarketService):
-    """Initialise le service de marché"""
-    global _market_service
-    _market_service = service
-
-
 @router.get("/api/v1/markets/categories")
 async def get_market_categories(
-    market_service: MarketService = Depends(get_market_service),
+    market_service: MarketService = Depends(ServicesProvider.get_market_service),
 ):
     """
     Récupère la liste des catégories du marché
@@ -77,7 +62,7 @@ async def get_market_categories(
 @router.get("/api/v1/universe/types/{type_id}")
 async def get_item_type(
     type_id: int,
-    market_service: MarketService = Depends(get_market_service),
+    market_service: MarketService = Depends(ServicesProvider.get_market_service),
 ):
     """
     Récupère les détails d'un type d'item
@@ -107,7 +92,7 @@ async def get_item_type(
 async def get_market_orders(
     region_id: int,
     type_id: Optional[int] = None,
-    market_service: MarketService = Depends(get_market_service),
+    market_service: MarketService = Depends(ServicesProvider.get_market_service),
 ):
     """
     Récupère les ordres de marché pour une région, optionnellement filtrés par type

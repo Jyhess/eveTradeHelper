@@ -6,26 +6,13 @@ Endpoints FastAPI pour les deals (version asynchrone)
 import logging
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Optional
+from .services_provider import ServicesProvider
 from domain.deals_service import DealsService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+deals_router = router
 
-# Variable globale pour stocker le service (sera initialisé dans app.py)
-_deals_service: Optional[DealsService] = None
-
-
-def get_deals_service() -> DealsService:
-    """Dependency pour obtenir le service de deals"""
-    if _deals_service is None:
-        raise HTTPException(status_code=503, detail="Service non initialisé")
-    return _deals_service
-
-
-def set_deals_service(service: DealsService):
-    """Initialise le service de deals pour les endpoints"""
-    global _deals_service
-    _deals_service = service
 
 
 @router.get("/api/v1/markets/deals")
@@ -36,7 +23,7 @@ async def get_market_deals(
     max_transport_volume: Optional[float] = None,
     max_buy_cost: Optional[float] = None,
     additional_regions: Optional[str] = None,
-    deals_service: DealsService = Depends(get_deals_service),
+    deals_service: DealsService = Depends(ServicesProvider.get_deals_service),
 ):
     """
     Trouve les bonnes affaires dans un groupe de marché pour une région
