@@ -56,7 +56,7 @@
 </template>
 
 <script>
-import axios from 'axios'
+import api from '../services/api'
 import eventBus from '../utils/eventBus'
 
 export default {
@@ -85,19 +85,16 @@ export default {
       this.systems = []
       
       try {
-        const response = await axios.get(
-          `http://localhost:5000/api/v1/constellations/${this.constellationId}/systems`
-        )
-        this.systems = response.data.systems || []
-        this.total = response.data.total || 0
+        const data = await api.constellations.getSystems(this.constellationId)
+        this.systems = data.systems || []
+        this.total = data.total || 0
         
         // Récupérer le nom de la constellation et de la région
         if (this.systems.length > 0) {
           await this.fetchConstellationInfo()
         }
       } catch (error) {
-        this.error = 'Erreur: ' + (error.response?.data?.error || error.message)
-        console.error('Erreur lors du chargement des systèmes:', error)
+        this.error = 'Erreur: ' + error.message
       } finally {
         this.loading = false
       }
@@ -105,14 +102,12 @@ export default {
     async fetchConstellationInfo() {
       try {
         // Récupérer toutes les régions pour trouver celle qui contient cette constellation
-        const regionsResponse = await axios.get('http://localhost:5000/api/v1/regions')
-        const regions = regionsResponse.data.regions || []
+        const regionsData = await api.regions.getRegions()
+        const regions = regionsData.regions || []
         
         for (const region of regions) {
-          const constellationsResponse = await axios.get(
-            `http://localhost:5000/api/v1/regions/${region.region_id}/constellations`
-          )
-          const constellation = constellationsResponse.data.constellations?.find(
+          const constellationsData = await api.regions.getConstellations(region.region_id)
+          const constellation = constellationsData.constellations?.find(
             c => c.constellation_id === parseInt(this.constellationId)
           )
           

@@ -59,7 +59,7 @@
 </template>
 
 <script>
-import axios from 'axios'
+import api from '../services/api'
 
 export default {
   name: 'Regions',
@@ -93,12 +93,11 @@ export default {
       this.regions = []
       
       try {
-        const response = await axios.get('http://localhost:5000/api/v1/regions')
-        this.regions = response.data.regions || []
-        this.total = response.data.total || 0
+        const data = await api.regions.getRegions()
+        this.regions = data.regions || []
+        this.total = data.total || 0
       } catch (error) {
-        this.error = 'Erreur: ' + (error.response?.data?.error || error.message)
-        console.error('Erreur lors du chargement des régions:', error)
+        this.error = 'Erreur: ' + error.message
       } finally {
         this.loading = false
       }

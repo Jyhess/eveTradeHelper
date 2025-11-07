@@ -142,7 +142,7 @@
 </template>
 
 <script>
-import axios from 'axios'
+import api from '../services/api'
 import TreeNode from '../components/TreeNode.vue'
 import eventBus from '../utils/eventBus'
 
@@ -195,9 +195,9 @@ export default {
       this.categories = []
 
       try {
-        const response = await axios.get('http://localhost:5000/api/v1/markets/categories')
-        this.categories = response.data.categories || []
-        this.total = response.data.total || 0
+        const data = await api.markets.getCategories()
+        this.categories = data.categories || []
+        this.total = data.total || 0
 
         console.log('Catégories reçues:', this.categories.length)
         console.log('TreeData construit:', this.treeData.length)
@@ -220,8 +220,7 @@ export default {
           await this.navigateToType(parseInt(typeIdFromQuery))
         }
       } catch (error) {
-        this.error = 'Erreur: ' + (error.response?.data?.detail || error.message)
-        console.error('Erreur lors du chargement des catégories:', error)
+        this.error = 'Erreur: ' + error.message
       } finally {
         this.loading = false
       }
@@ -300,8 +299,8 @@ export default {
     },
     async fetchRegionName() {
       try {
-        const response = await axios.get('http://localhost:5000/api/v1/regions')
-        const region = response.data.regions?.find(r => r.region_id === parseInt(this.regionId))
+        const data = await api.regions.getRegions()
+        const region = data.regions?.find(r => r.region_id === parseInt(this.regionId))
         if (region) {
           this.regionName = region.name
           // Mettre à jour le breadcrumb
@@ -317,10 +316,8 @@ export default {
     async fetchConstellationName() {
       try {
         if (!this.regionId) return
-        const response = await axios.get(
-          `http://localhost:5000/api/v1/regions/${this.regionId}/constellations`
-        )
-        const constellation = response.data.constellations?.find(
+        const data = await api.regions.getConstellations(this.regionId)
+        const constellation = data.constellations?.find(
           c => c.constellation_id === parseInt(this.constellationId)
         )
         if (constellation) {
@@ -337,11 +334,9 @@ export default {
     },
     async fetchSystemName() {
       try {
-        const response = await axios.get(
-          `http://localhost:5000/api/v1/systems/${this.systemId}`
-        )
-        if (response.data.system) {
-          this.systemName = response.data.system.name
+        const data = await api.systems.getSystem(this.systemId)
+        if (data.system) {
+          this.systemName = data.system.name
           // Mettre à jour le breadcrumb
           eventBus.emit('breadcrumb-update', {
             systemName: this.systemName,
@@ -396,10 +391,8 @@ export default {
     },
     async fetchTypeDetails(typeId) {
       try {
-        const response = await axios.get(
-          `http://localhost:5000/api/v1/universe/types/${typeId}`
-        )
-        this.typeDetails[typeId] = response.data
+        const data = await api.universe.getType(typeId)
+        this.typeDetails[typeId] = data
       } catch (error) {
         console.error(`Erreur lors de la récupération du type ${typeId}:`, error)
         this.typeDetails[typeId] = { name: `Type ${typeId}`, description: '' }
@@ -422,14 +415,10 @@ export default {
       this.marketOrdersError = ''
 
       try {
-        const response = await axios.get(
-          `http://localhost:5000/api/v1/markets/regions/${this.regionId}/orders`,
-          { params: { type_id: typeId } }
-        )
-        this.marketOrders = response.data
+        const data = await api.markets.getOrders(this.regionId, { type_id: typeId })
+        this.marketOrders = data
       } catch (error) {
-        this.marketOrdersError = 'Erreur: ' + (error.response?.data?.detail || error.message)
-        console.error('Erreur lors de la récupération des ordres:', error)
+        this.marketOrdersError = 'Erreur: ' + error.message
       } finally {
         this.marketOrdersLoading = false
       }

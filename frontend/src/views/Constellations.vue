@@ -58,7 +58,7 @@
 </template>
 
 <script>
-import axios from 'axios'
+import api from '../services/api'
 import eventBus from '../utils/eventBus'
 
 export default {
@@ -85,11 +85,9 @@ export default {
       this.constellations = []
       
       try {
-        const response = await axios.get(
-          `http://localhost:5000/api/v1/regions/${this.regionId}/constellations`
-        )
-        this.constellations = response.data.constellations || []
-        this.total = response.data.total || 0
+        const data = await api.regions.getConstellations(this.regionId)
+        this.constellations = data.constellations || []
+        this.total = data.total || 0
         
         // Récupérer le nom de la région depuis les régions
         if (this.constellations.length > 0) {
@@ -104,16 +102,15 @@ export default {
           })
         }
       } catch (error) {
-        this.error = 'Erreur: ' + (error.response?.data?.error || error.message)
-        console.error('Erreur lors du chargement des constellations:', error)
+        this.error = 'Erreur: ' + error.message
       } finally {
         this.loading = false
       }
     },
     async fetchRegionName() {
       try {
-        const response = await axios.get('http://localhost:5000/api/v1/regions')
-        const region = response.data.regions?.find(r => r.region_id === parseInt(this.regionId))
+        const data = await api.regions.getRegions()
+        const region = data.regions?.find(r => r.region_id === parseInt(this.regionId))
         if (region) {
           this.regionName = region.name
         }

@@ -92,7 +92,7 @@
 </template>
 
 <script>
-import axios from 'axios'
+import api from '../services/api'
 import eventBus from '../utils/eventBus'
 
 export default {
@@ -125,10 +125,8 @@ export default {
       
       try {
         // Récupérer directement les détails du système
-        const systemResponse = await axios.get(
-          `http://localhost:5000/api/v1/systems/${this.systemId}`
-        )
-        this.system = systemResponse.data.system
+        const systemData = await api.systems.getSystem(this.systemId)
+        this.system = systemData.system
         
         if (this.system && this.system.constellation_id) {
           // Charger les informations de la constellation et de la région
@@ -138,8 +136,7 @@ export default {
         // Charger les connexions
         this.fetchConnections()
       } catch (error) {
-        this.error = 'Erreur: ' + (error.response?.data?.error || error.message)
-        console.error('Erreur lors du chargement des détails du système:', error)
+        this.error = 'Erreur: ' + error.message
       } finally {
         this.loading = false
       }
@@ -147,18 +144,16 @@ export default {
     async fetchConstellationInfo(constellationId) {
       try {
         // Récupérer directement les informations de la constellation avec sa région
-        const response = await axios.get(
-          `http://localhost:5000/api/v1/constellations/${constellationId}`
-        )
+        const data = await api.constellations.getConstellation(constellationId)
         
-        if (response.data.constellation) {
-          this.constellationId = response.data.constellation.constellation_id
-          this.constellationName = response.data.constellation.name
+        if (data.constellation) {
+          this.constellationId = data.constellation.constellation_id
+          this.constellationName = data.constellation.name
         }
         
-        if (response.data.region) {
-          this.regionId = response.data.region.region_id
-          this.regionName = response.data.region.name
+        if (data.region) {
+          this.regionId = data.region.region_id
+          this.regionName = data.region.name
         }
         
         // Mettre à jour le breadcrumb dans le header
@@ -180,13 +175,10 @@ export default {
       this.connections = []
       
       try {
-        const response = await axios.get(
-          `http://localhost:5000/api/v1/systems/${this.systemId}/connections`
-        )
-        this.connections = response.data.connections || []
+        const data = await api.systems.getConnections(this.systemId)
+        this.connections = data.connections || []
       } catch (error) {
-        this.connectionsError = 'Erreur: ' + (error.response?.data?.error || error.message)
-        console.error('Erreur lors du chargement des connexions:', error)
+        this.connectionsError = 'Erreur: ' + error.message
       } finally {
         this.connectionsLoading = false
       }

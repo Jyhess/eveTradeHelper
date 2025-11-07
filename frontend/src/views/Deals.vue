@@ -261,7 +261,7 @@
 </template>
 
 <script>
-import axios from 'axios'
+import api from '../services/api'
 import TreeSelect from '../components/TreeSelect.vue'
 import eventBus from '../utils/eventBus'
 
@@ -445,8 +445,8 @@ export default {
     },
     async fetchRegions() {
       try {
-        const response = await axios.get('http://localhost:5000/api/v1/regions')
-        this.regions = response.data.regions || []
+        const data = await api.regions.getRegions()
+        this.regions = data.regions || []
         // Trouver le nom de la région si selectedRegionId est déjà défini
         if (this.selectedRegionId) {
           const region = this.regions.find(r => r.region_id === this.selectedRegionId)
@@ -455,8 +455,7 @@ export default {
           }
         }
       } catch (error) {
-        this.error = 'Erreur lors du chargement des régions: ' + (error.response?.data?.detail || error.message)
-        console.error('Erreur lors du chargement des régions:', error)
+        this.error = 'Erreur lors du chargement des régions: ' + error.message
       }
     },
     async onRegionChange() {
@@ -522,10 +521,8 @@ export default {
 
       this.loadingAdjacentRegions = true
       try {
-        const response = await axios.get(
-          `http://localhost:5000/api/v1/regions/${this.selectedRegionId}/adjacent`
-        )
-        this.adjacentRegions = response.data.adjacent_regions || []
+        const data = await api.regions.getAdjacentRegions(this.selectedRegionId)
+        this.adjacentRegions = data.adjacent_regions || []
         // Filtrer les régions adjacentes sélectionnées pour ne garder que celles qui existent toujours
         // (au cas où certaines régions adjacentes ne sont plus disponibles)
         this.selectedAdjacentRegions = this.selectedAdjacentRegions.filter(regionId =>
@@ -534,7 +531,7 @@ export default {
         this.saveSettings() // Sauvegarder après filtrage
       } catch (error) {
         console.error('Erreur lors du chargement des régions adjacentes:', error)
-        this.error = 'Erreur lors du chargement des régions adjacentes: ' + (error.response?.data?.detail || error.message)
+        this.error = 'Erreur lors du chargement des régions adjacentes: ' + error.message
         this.adjacentRegions = []
       } finally {
         this.loadingAdjacentRegions = false
@@ -549,8 +546,8 @@ export default {
       this.marketGroupsTree = []
 
       try {
-        const response = await axios.get('http://localhost:5000/api/v1/markets/categories')
-        const categories = response.data.categories || []
+        const data = await api.markets.getCategories()
+        const categories = data.categories || []
 
         // Construire l'arbre hiérarchique
         this.marketGroupsTree = this.buildTree(categories)
@@ -574,8 +571,7 @@ export default {
           }
         }
       } catch (error) {
-        this.error = 'Erreur lors du chargement des groupes de marché: ' + (error.response?.data?.detail || error.message)
-        console.error('Erreur lors du chargement des groupes:', error)
+        this.error = 'Erreur lors du chargement des groupes de marché: ' + error.message
       } finally {
         this.loadingGroups = false
       }
@@ -689,14 +685,13 @@ export default {
           params.additional_regions = this.selectedAdjacentRegions.join(',')
         }
 
-        const response = await axios.get('http://localhost:5000/api/v1/markets/deals', { params })
-        this.searchResults = response.data
+        const data = await api.markets.searchDeals(params)
+        this.searchResults = data
 
         // Sauvegarder les paramètres après une recherche réussie
         this.saveSettings()
       } catch (error) {
-        this.error = 'Erreur lors de la recherche: ' + (error.response?.data?.detail || error.message)
-        console.error('Erreur lors de la recherche de bonnes affaires:', error)
+        this.error = 'Erreur lors de la recherche: ' + error.message
       } finally {
         this.searching = false
       }
