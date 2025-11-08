@@ -1,0 +1,18 @@
+# Dépendances de développement et de test
+# Installer avec: pip install -r requirements-dev.txt
+# Ou avec les dépendances de production: pip install -r requirements.txt -r requirements-dev.txt
+
+# Dépendances de production (nécessaires pour le développement)
+-r requirements.txt
+
+# Outils de développement
+debugpy==1.8.0
+ruff==0.1.8
+mypy==1.7.1
+
+# Outils de test
+pytest==7.4.3
+pytest-cov==4.1.0
+pytest-asyncio==0.21.1
+fakeredis==2.20.1
+

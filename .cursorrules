@@ -213,6 +213,7 @@ def my_function():
 - [ ] **Imports en haut** : Tous les imports en haut du fichier uniquement
 - [ ] **Logique métier** : Dans les services, pas dans les APIs
 - [ ] **Gestion d'erreurs** : Exceptions spécifiques, pas de `except Exception` générique
+- [ ] **Formatage Ruff** : Exécuter `ruff format` sur tous les fichiers modifiés du backend après chaque modification
 
 ## INSTRUCTIONS POUR L'IA
 
@@ -223,6 +224,13 @@ def my_function():
 3. **Appliquer systématiquement** toutes les règles
 4. **Refuser** de générer du code qui viole ces règles
 5. **Proposer des corrections** si le code existant viole les règles
+
+**APRÈS avoir modifié du code dans le backend, l'IA DOIT** :
+
+1. **Exécuter Ruff format automatiquement** sur tous les fichiers Python modifiés
+2. **Commande à exécuter** : `ruff format <fichier1> <fichier2> ...` pour chaque fichier modifié dans `backend/`
+3. **Vérifier** que le formatage est appliqué avant de finaliser les modifications
+4. **Ne jamais** proposer de code non formaté avec Ruff
 
 **Si l'utilisateur demande quelque chose qui viole ces règles, l'IA DOIT** :
 

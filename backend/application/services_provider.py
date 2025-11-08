@@ -1,10 +1,10 @@
-from typing import Optional
-from domain import Services, DealsService, MarketService, RegionService
-
 from fastapi import HTTPException
 
+from domain import DealsService, MarketService, RegionService, Services
+
+
 class ServicesProvider:
-    _services: Optional[Services] = None
+    _services: Services | None = None
 
     @classmethod
     def set_services(cls, services):

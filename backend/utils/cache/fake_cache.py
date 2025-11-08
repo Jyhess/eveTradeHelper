@@ -3,8 +3,8 @@ Cache en mémoire pour les tests unitaires
 Simule le comportement de SimpleCache sans connexion Redis
 """
 
-from datetime import datetime, timedelta, timezone
-from typing import Optional, List, Dict, Any
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 
 class FakeCache:
@@ -13,8 +13,8 @@ class FakeCache:
     def __init__(
         self,
         expiry_hours: int,
-        redis_url: Optional[str] = None,
-        redis_host: Optional[str] = None,
+        redis_url: str | None = None,
+        redis_host: str | None = None,
         redis_port: int = 6379,
         redis_db: int = 0,
     ):
@@ -29,8 +29,8 @@ class FakeCache:
             redis_db: Ignoré (compatibilité avec SimpleCache)
         """
         self.expiry_hours = expiry_hours
-        self._cache_data: Dict[str, Dict[str, Any]] = {}
-        self._metadata: Dict[str, Dict[str, Any]] = {}
+        self._cache_data: dict[str, dict[str, Any]] = {}
+        self._metadata: dict[str, dict[str, Any]] = {}
 
     def is_valid(self, key: str) -> bool:
         """
@@ -55,13 +55,13 @@ class FakeCache:
         try:
             last_updated = datetime.fromisoformat(last_updated_str)
             if last_updated.tzinfo is None:
-                last_updated = last_updated.replace(tzinfo=timezone.utc)
+                last_updated = last_updated.replace(tzinfo=UTC)
             expiry_time = last_updated + timedelta(hours=self.expiry_hours)
-            return datetime.now(timezone.utc) < expiry_time
+            return datetime.now(UTC) < expiry_time
         except (ValueError, TypeError):
             return False
 
-    def get(self, key: str) -> Optional[List[Dict[str, Any]]]:
+    def get(self, key: str) -> list[dict[str, Any]] | None:
         """
         Récupère les données depuis le cache
 
@@ -80,9 +80,7 @@ class FakeCache:
             return cache_data.get("items", [])
         return None
 
-    def set(
-        self, key: str, items: List[Dict[str, Any]], metadata: Optional[Dict] = None
-    ):
+    def set(self, key: str, items: list[dict[str, Any]], metadata: dict | None = None):
         """
         Sauvegarde des données dans le cache
 
@@ -91,7 +89,7 @@ class FakeCache:
             items: Liste des éléments à mettre en cache
             metadata: Métadonnées optionnelles (ex: region_ids)
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         cache_key = f"cache:{key}"
         self._cache_data[cache_key] = {
@@ -107,7 +105,7 @@ class FakeCache:
             "metadata": metadata or {},
         }
 
-    def clear(self, key: Optional[str] = None):
+    def clear(self, key: str | None = None):
         """
         Vide le cache pour une clé spécifique ou tout le cache
 
@@ -122,4 +120,3 @@ class FakeCache:
         else:
             self._cache_data.clear()
             self._metadata.clear()
-

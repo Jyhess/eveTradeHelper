@@ -4,14 +4,14 @@ Définit le contrat que doit respecter tout repository Eve (version asynchrone)
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 
 class EveRepository(ABC):
     """Interface abstraite pour le repository Eve Online (asynchrone)"""
 
     @abstractmethod
-    async def get_regions_list(self) -> List[int]:
+    async def get_regions_list(self) -> list[int]:
         """
         Récupère la liste des IDs de régions
 
@@ -21,7 +21,7 @@ class EveRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_region_details(self, region_id: int) -> Dict[str, Any]:
+    async def get_region_details(self, region_id: int) -> dict[str, Any]:
         """
         Récupère les détails d'une région
 
@@ -34,7 +34,7 @@ class EveRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_constellation_details(self, constellation_id: int) -> Dict[str, Any]:
+    async def get_constellation_details(self, constellation_id: int) -> dict[str, Any]:
         """
         Récupère les détails d'une constellation
 
@@ -47,7 +47,7 @@ class EveRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_system_details(self, system_id: int) -> Dict[str, Any]:
+    async def get_system_details(self, system_id: int) -> dict[str, Any]:
         """
         Récupère les détails d'un système solaire
 
@@ -60,7 +60,7 @@ class EveRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_item_type(self, type_id: int) -> Dict[str, Any]:
+    async def get_item_type(self, type_id: int) -> dict[str, Any]:
         """
         Récupère les informations d'un type d'item
 
@@ -73,7 +73,7 @@ class EveRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_stargate_details(self, stargate_id: int) -> Dict[str, Any]:
+    async def get_stargate_details(self, stargate_id: int) -> dict[str, Any]:
         """
         Récupère les détails d'une stargate (porte stellaire)
 
@@ -86,7 +86,7 @@ class EveRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_station_details(self, station_id: int) -> Dict[str, Any]:
+    async def get_station_details(self, station_id: int) -> dict[str, Any]:
         """
         Récupère les détails d'une station
 
@@ -99,7 +99,7 @@ class EveRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_market_groups_list(self) -> List[int]:
+    async def get_market_groups_list(self) -> list[int]:
         """
         Récupère la liste des IDs de groupes de marché
 
@@ -109,7 +109,7 @@ class EveRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_market_group_details(self, group_id: int) -> Dict[str, Any]:
+    async def get_market_group_details(self, group_id: int) -> dict[str, Any]:
         """
         Récupère les détails d'un groupe de marché
 
@@ -123,8 +123,8 @@ class EveRepository(ABC):
 
     @abstractmethod
     async def get_market_orders(
-        self, region_id: int, type_id: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+        self, region_id: int, type_id: int | None = None
+    ) -> list[dict[str, Any]]:
         """
         Récupère les ordres de marché pour une région, optionnellement filtrés par type
 
@@ -138,7 +138,7 @@ class EveRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_route(self, origin: int, destination: int) -> List[int]:
+    async def get_route(self, origin: int, destination: int) -> list[int]:
         """
         Calcule la route entre deux systèmes
 
@@ -153,9 +153,7 @@ class EveRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_route_with_details(
-        self, origin: int, destination: int
-    ) -> List[Dict[str, Any]]:
+    async def get_route_with_details(self, origin: int, destination: int) -> list[dict[str, Any]]:
         """
         Calcule la route entre deux systèmes avec les détails de sécurité
 

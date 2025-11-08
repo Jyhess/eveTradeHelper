@@ -4,15 +4,16 @@ Endpoints FastAPI pour les deals (version asynchrone)
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, Depends
-from typing import Optional
-from .services_provider import ServicesProvider
+
+from fastapi import APIRouter, Depends, HTTPException
+
 from domain.deals_service import DealsService
+
+from .services_provider import ServicesProvider
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 deals_router = router
-
 
 
 @router.get("/api/v1/markets/deals")
@@ -20,9 +21,9 @@ async def get_market_deals(
     region_id: int,
     group_id: int,
     min_profit_isk: float = 100000.0,  # Utilise DEFAULT_MIN_PROFIT_ISK du service
-    max_transport_volume: Optional[float] = None,
-    max_buy_cost: Optional[float] = None,
-    additional_regions: Optional[str] = None,
+    max_transport_volume: float | None = None,
+    max_buy_cost: float | None = None,
+    additional_regions: str | None = None,
     deals_service: DealsService = Depends(ServicesProvider.get_deals_service),
 ):
     """
@@ -47,14 +48,10 @@ async def get_market_deals(
         if additional_regions:
             try:
                 additional_region_ids = [
-                    int(rid.strip())
-                    for rid in additional_regions.split(",")
-                    if rid.strip()
+                    int(rid.strip()) for rid in additional_regions.split(",") if rid.strip()
                 ]
             except ValueError:
-                logger.warning(
-                    f"Format invalide pour additional_regions: {additional_regions}"
-                )
+                logger.warning(f"Format invalide pour additional_regions: {additional_regions}")
                 additional_region_ids = []
 
         result = await deals_service.find_market_deals(
@@ -72,4 +69,4 @@ async def get_market_deals(
         raise HTTPException(
             status_code=500,
             detail=f"Erreur de connexion à l'API ESI: {str(e)}",
-        )
+        ) from None

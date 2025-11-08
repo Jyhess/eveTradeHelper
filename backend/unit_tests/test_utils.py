@@ -13,14 +13,14 @@ REFERENCE_DIR = TESTS_DIR / "reference"
 def save_reference(key: str, data):
     """
     Sauvegarde des données comme référence pour les tests
-    
+
     Args:
         key: Nom de la référence (nom du fichier sans extension)
         data: Données à sauvegarder (sera converties en JSON)
     """
     REFERENCE_DIR.mkdir(exist_ok=True)
     ref_file = REFERENCE_DIR / f"{key}.json"
-    
+
     with open(ref_file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False, sort_keys=True)
 
@@ -28,29 +28,29 @@ def save_reference(key: str, data):
 def load_reference(key: str):
     """
     Charge une référence pour comparaison
-    
+
     Args:
         key: Nom de la référence (nom du fichier sans extension)
-        
+
     Returns:
         Données de référence ou None si non trouvées
     """
     ref_file = REFERENCE_DIR / f"{key}.json"
-    
+
     if not ref_file.exists():
         return None
-    
-    with open(ref_file, "r", encoding="utf-8") as f:
+
+    with open(ref_file, encoding="utf-8") as f:
         return json.load(f)
 
 
 def normalize_for_comparison(data):
     """
     Normalise les données pour la comparaison (supprime les variations non importantes)
-    
+
     Args:
         data: Données à normaliser
-        
+
     Returns:
         Données normalisées
     """
@@ -69,4 +69,3 @@ def normalize_for_comparison(data):
         return normalized
     else:
         return data
-

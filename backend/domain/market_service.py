@@ -5,11 +5,11 @@ Contient la logique métier pure, indépendante de l'infrastructure (version asy
 
 import asyncio
 import logging
-from typing import List, Dict, Any, Optional
+from typing import Any
 
-from .repository import EveRepository
-from .constants import STATION_ID_THRESHOLD, DEFAULT_MARKET_ORDERS_LIMIT
+from .constants import DEFAULT_MARKET_ORDERS_LIMIT
 from .helpers import is_station
+from .repository import EveRepository
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ class MarketService:
         """
         self.repository = repository
 
-    async def get_market_categories(self) -> List[Dict[str, Any]]:
+    async def get_market_categories(self) -> list[dict[str, Any]]:
         """
         Récupère la liste des catégories du marché avec leurs détails
         Logique métier : orchestration des appels au repository (parallélisée)
@@ -38,7 +38,7 @@ class MarketService:
         group_ids = await self.repository.get_market_groups_list()
 
         # Récupérer les détails de chaque groupe en parallèle
-        async def fetch_group(group_id: int) -> Optional[Dict[str, Any]]:
+        async def fetch_group(group_id: int) -> dict[str, Any] | None:
             try:
                 group_data = await self.repository.get_market_group_details(group_id)
                 return {
@@ -49,26 +49,25 @@ class MarketService:
                     "types": group_data.get("types", []),
                 }
             except Exception as e:
-                logger.warning(
-                    f"Erreur lors de la récupération du groupe {group_id}: {e}"
-                )
+                logger.warning(f"Erreur lors de la récupération du groupe {group_id}: {e}")
                 return None
 
         results = await asyncio.gather(*[fetch_group(gid) for gid in group_ids])
 
         # Filtrer les résultats None et trier par nom
-        categories = sorted(
-            [c for c in results if c is not None], key=lambda x: x.get("name", "")
-        )
+        categories = sorted([c for c in results if c is not None], key=lambda x: x.get("name", ""))
 
         return categories
 
-    async def get_item_type(self, type_id: int) -> Dict[str, Any]:
+    async def get_item_type(self, type_id: int) -> dict[str, Any]:
         return await self.repository.get_item_type(type_id)
 
     async def get_enriched_market_orders(
-        self, region_id: int, type_id: Optional[int] = None, limit: int = DEFAULT_MARKET_ORDERS_LIMIT
-    ) -> Dict[str, Any]:
+        self,
+        region_id: int,
+        type_id: int | None = None,
+        limit: int = DEFAULT_MARKET_ORDERS_LIMIT,
+    ) -> dict[str, Any]:
         """
         Récupère les ordres de marché enrichis pour une région
         Logique métier : tri, limitation et enrichissement des ordres
@@ -97,7 +96,7 @@ class MarketService:
         sell_orders = sell_orders[:limit]
 
         # Enrichir les ordres avec les noms des systèmes et stations
-        async def enrich_order(order: Dict[str, Any]) -> Dict[str, Any]:
+        async def enrich_order(order: dict[str, Any]) -> dict[str, Any]:
             """Enrichit un ordre avec les noms du système et de la station"""
             location_id = order.get("location_id")
             if not location_id:
@@ -109,23 +108,15 @@ class MarketService:
             if is_station(location_id):
                 # C'est une station
                 try:
-                    station_data = await self.repository.get_station_details(
-                        location_id
-                    )
-                    enriched_order["station_name"] = station_data.get(
-                        "name", "Unknown Station"
-                    )
+                    station_data = await self.repository.get_station_details(location_id)
+                    enriched_order["station_name"] = station_data.get("name", "Unknown Station")
                     enriched_order["station_id"] = location_id
 
                     # Récupérer aussi le système de la station
                     system_id = station_data.get("system_id")
                     if system_id:
-                        system_data = await self.repository.get_system_details(
-                            system_id
-                        )
-                        enriched_order["system_name"] = system_data.get(
-                            "name", "Unknown System"
-                        )
+                        system_data = await self.repository.get_system_details(system_id)
+                        enriched_order["system_name"] = system_data.get("name", "Unknown System")
                         enriched_order["system_id"] = system_id
                 except Exception as e:
                     logger.warning(
@@ -137,14 +128,10 @@ class MarketService:
                 # C'est un système
                 try:
                     system_data = await self.repository.get_system_details(location_id)
-                    enriched_order["system_name"] = system_data.get(
-                        "name", "Unknown System"
-                    )
+                    enriched_order["system_name"] = system_data.get("name", "Unknown System")
                     enriched_order["system_id"] = location_id
                 except Exception as e:
-                    logger.warning(
-                        f"Erreur lors de la récupération du système {location_id}: {e}"
-                    )
+                    logger.warning(f"Erreur lors de la récupération du système {location_id}: {e}")
                     enriched_order["system_name"] = f"Système {location_id}"
                     enriched_order["system_id"] = location_id
 

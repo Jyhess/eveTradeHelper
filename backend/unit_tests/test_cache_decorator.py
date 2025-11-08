@@ -1,7 +1,8 @@
 import time
+
 import pytest
 
-from utils.cache import cached, CacheManager
+from utils.cache import CacheManager, cached
 
 
 @pytest.fixture
@@ -12,7 +13,6 @@ def no_cache(cache):
 
 
 class TestCacheDecorator:
-
     def test_cached_method_with_cache(self, cache):
         # Utiliser un timestamp pour avoir une clé unique à chaque test
         unique_id = int(time.time() * 1000000)
@@ -31,9 +31,7 @@ class TestCacheDecorator:
         # Premier appel - doit exécuter la méthode
         result1 = obj.test_method(42)
         # Le décorateur désérialise automatiquement le dict depuis le cache
-        assert isinstance(
-            result1, dict
-        ), f"Le résultat doit être un dict, mais est {type(result1)}"
+        assert isinstance(result1, dict), f"Le résultat doit être un dict, mais est {type(result1)}"
         assert result1["value"] == 42
         assert result1["call"] == 1
         assert (
@@ -42,16 +40,13 @@ class TestCacheDecorator:
 
         # Second appel - doit utiliser le cache
         result2 = obj.test_method(42)
-        assert isinstance(
-            result2, dict
-        ), f"Le résultat doit être un dict, mais est {type(result2)}"
+        assert isinstance(result2, dict), f"Le résultat doit être un dict, mais est {type(result2)}"
         assert result2["value"] == 42
         assert (
             TestClass.call_count == 1
         ), f"La méthode ne doit pas être appelée à nouveau. call_count={TestClass.call_count}"
 
     def test_cached_method_without_cache(self, no_cache):
-
         class TestClass:
             call_count = 0
 
@@ -81,12 +76,8 @@ class TestCacheDecorator:
         result2 = obj.test_method(2)
 
         # Le décorateur désérialise automatiquement les dicts depuis le cache
-        assert isinstance(
-            result1, dict
-        ), f"Le résultat doit être un dict, mais est {type(result1)}"
-        assert isinstance(
-            result2, dict
-        ), f"Le résultat doit être un dict, mais est {type(result2)}"
+        assert isinstance(result1, dict), f"Le résultat doit être un dict, mais est {type(result1)}"
+        assert isinstance(result2, dict), f"Le résultat doit être un dict, mais est {type(result2)}"
         assert result1["value"] == 1
         assert result2["value"] == 2
         assert result1 != result2
@@ -120,9 +111,7 @@ class TestCacheDecorator:
 
         # Premier appel - doit exécuter la méthode et retourner []
         result1 = obj.test_method()
-        assert (
-            result1 == []
-        ), f"Le premier appel doit retourner [], mais a retourné {result1!r}"
+        assert result1 == [], f"Le premier appel doit retourner [], mais a retourné {result1!r}"
         assert isinstance(result1, list), "Le résultat doit être une liste"
         assert TestClass.call_count == 1, "La méthode doit être appelée une fois"
 
@@ -209,18 +198,14 @@ class TestCacheDecorator:
         # Premier appel - doit exécuter la méthode et retourner la valeur originale
         result1 = obj.test_method()
         assert TestClass.call_count == 1, "La méthode doit être appelée une fois"
-        assert (
-            result1 == test_value
-        ), f"Valeur attendue {test_value!r}, obtenue {result1!r}"
+        assert result1 == test_value, f"Valeur attendue {test_value!r}, obtenue {result1!r}"
 
         # Second appel - doit utiliser le cache
         result2 = obj.test_method()
 
         # Vérifications génériques qui fonctionnent pour tous les types
         # Le résultat doit être identique à la valeur originale
-        assert (
-            result2 == test_value
-        ), f"Valeur attendue {test_value!r}, obtenue {result2!r}"
+        assert result2 == test_value, f"Valeur attendue {test_value!r}, obtenue {result2!r}"
 
         # Le type doit être exactement préservé
         assert type(result2) == type(

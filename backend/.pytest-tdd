@@ -1,8 +1,0 @@
-# Configuration TDD pour pytest
-# Ce fichier rappelle les bonnes pratiques TDD lors de l'exécution des tests
-
-# Cycle TDD : Red → Green → Refactor
-# 1. RED: Écrire le test qui échoue
-# 2. GREEN: Implémenter le minimum pour faire passer le test
-# 3. REFACTOR: Améliorer le code tout en gardant les tests verts
-

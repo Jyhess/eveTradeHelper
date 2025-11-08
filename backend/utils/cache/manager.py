@@ -2,14 +2,14 @@
 Gestionnaire de cache statique pour l'application
 """
 
-from typing import Optional
+
 from .simple_cache import SimpleCache
 
 
 class CacheManager:
     """Gestionnaire de cache statique"""
 
-    _instance: Optional[SimpleCache] = None
+    _instance: SimpleCache | None = None
 
     @classmethod
     def initialize(cls, cache: SimpleCache):
@@ -22,7 +22,7 @@ class CacheManager:
         cls._instance = cache
 
     @classmethod
-    def get_instance(cls) -> Optional[SimpleCache]:
+    def get_instance(cls) -> SimpleCache | None:
         """
         Retourne l'instance du cache
 
