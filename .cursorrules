@@ -1,64 +1,100 @@
-# Règles de développement pour ce projet
+# RÈGLES DE DÉVELOPPEMENT - À RESPECTER SYSTÉMATIQUEMENT
+
+⚠️ **IMPORTANT** : Ces règles sont OBLIGATOIRES. L'IA doit TOUJOURS les respecter lors de toute modification de code.
 
 ## Test-Driven Development (TDD)
 
-Toutes les modifications de code sur le abckend doivent suivre le cycle TDD Red-Green-Refactor :
+**TOUTES** les modifications de code sur le backend doivent suivre le cycle TDD Red-Green-Refactor :
 
 ### 1. 🔴 RED - Écrire le test qui échoue
 
-- Écrire le test avant d'implémenter la fonctionnalité
+**ÉTAPE OBLIGATOIRE** : Écrire le test AVANT d'implémenter la fonctionnalité.
+
 - Le test doit échouer pour la bonne raison (pas d'imports manquants, etc.)
 - Le test doit être spécifique et tester une seule chose
+- **NE PAS** implémenter de code sans avoir écrit le test d'abord
 
 ### 2. 🟢 GREEN - Implémenter le minimum pour faire passer le test
 
+**ÉTAPE OBLIGATOIRE** : Implémenter uniquement le minimum nécessaire.
+
 - Implémenter uniquement ce qui est nécessaire pour que le test passe
-- Ne pas ajouter de fonctionnalités supplémentaires
+- **NE PAS** ajouter de fonctionnalités supplémentaires
 - Le code peut être "sale" tant que le test passe
 
 ### 3. 🔵 REFACTOR - Améliorer le code
 
+**ÉTAPE OBLIGATOIRE** : Refactoriser après que le test passe.
+
 - Une fois le test vert, refactoriser le code
 - Améliorer la lisibilité, la performance, la maintenabilité
 - S'assurer que tous les tests passent toujours après le refactoring
+- Appliquer toutes les règles de clean code ci-dessous
 
 ## Règles spécifiques au projet
 
 ### Tests
 
-- Les tests unitaires utilisent `@pytest.mark.unit` et n'utilisent PAS le cache Redis
-- Les tests d'intégration utilisent `@pytest.mark.integration` et utilisent le cache Redis partagé
+- Les tests unitaires n'utilisent PAS le cache Redis
+- Les tests d'intégration utilisent le cache Redis partagé. Ne pas nettoyer le cache entre les tests (mutualisation avec la prod).
 - Utiliser `pytest.mark.parametrize` pour éviter la duplication de code dans les tests
-
-### Cache
-
-- Le cache est désactivé pour les tests unitaires (via la fixture `cache` dans `conftest.py`)
-- Le cache est partagé entre les tests d'intégration et la production
-- Ne pas nettoyer le cache entre les tests (mutualisation avec la prod)
 
 ### Code
 
 - Respecter les types Python (typing)
-- Documenter les fonctions complexes
 - Utiliser des noms de variables et fonctions explicites
 
-## Règles du Clean Code
+## RÈGLES DU CLEAN CODE - À APPLIQUER SYSTÉMATIQUEMENT
 
-Toutes les modifications de code doivent respecter les principes du clean code suivants :
+**TOUTES** les modifications de code doivent respecter les principes du clean code suivants. L'IA doit vérifier chaque règle avant de proposer du code.
 
 ### 1. Élimination des nombres magiques (Magic Numbers)
 
-- **JAMAIS** utiliser de nombres magiques directement dans le code
+**RÈGLE ABSOLUE** : **JAMAIS** utiliser de nombres magiques directement dans le code.
+
+**ACTION OBLIGATOIRE** :
+
 - Créer des constantes nommées dans `backend/domain/constants.py`
 - Exemples : `STATION_ID_THRESHOLD = 60000000`, `DEFAULT_MIN_PROFIT_ISK = 100000.0`
 - Les constantes doivent être explicites et documentées
 
+**EXEMPLE DE VIOLATION** :
+
+```python
+# ❌ MAUVAIS
+if station_id > 60000000:
+    # ...
+
+# ✅ BON
+from domain.constants import STATION_ID_THRESHOLD
+if station_id > STATION_ID_THRESHOLD:
+    # ...
+```
+
 ### 2. Fonctions courtes (Small Functions)
 
-- Une fonction doit faire **une seule chose** (Single Responsibility Principle)
-- Si une fonction dépasse 50 lignes, la diviser en sous-fonctions
+**RÈGLE ABSOLUE** : Une fonction doit faire **une seule chose** (Single Responsibility Principle).
+
+**ACTION OBLIGATOIRE** :
+
+- Si une fonction dépasse 50 lignes, **LA DIVISER** en sous-fonctions
 - Les fonctions doivent être testables individuellement
 - Préférer plusieurs petites fonctions qu'une grande fonction
+
+**EXEMPLE DE VIOLATION** :
+
+```python
+# ❌ MAUVAIS : fonction de 60 lignes
+def process_data(data):
+    # 60 lignes de code...
+    pass
+
+# ✅ BON : divisée en sous-fonctions
+def process_data(data):
+    validated = validate_data(data)
+    cleaned = clean_data(validated)
+    return transform_data(cleaned)
+```
 
 ### 3. Nommage explicite (Meaningful Names)
 
@@ -69,10 +105,14 @@ Toutes les modifications de code doivent respecter les principes du clean code s
 
 ### 4. DRY (Don't Repeat Yourself)
 
-- **JAMAIS** dupliquer du code
+**RÈGLE ABSOLUE** : **JAMAIS** dupliquer du code.
+
+**ACTION OBLIGATOIRE** :
+
 - Extraire la logique commune dans des fonctions utilitaires
 - Créer des helpers dans `backend/domain/helpers.py` si nécessaire
 - Réutiliser les fonctions existantes plutôt que de réécrire la logique
+- Si du code est répété 2 fois ou plus, l'extraire dans une fonction
 
 ### 4.1. Préférer les fonctions nommées aux commentaires
 
@@ -108,7 +148,7 @@ Toutes les modifications de code doivent respecter les principes du clean code s
 ### 8. Séparation des préoccupations
 
 - Séparer les constantes dans `constants.py`
-- Séparer les utilitaires dans `helpers.py`
+- Séparer les utilitaires dans `helpers.py` quand c'est spécifique au module, dans `backend/utils` quand ça peut être partagé entre plusieurs modules.
 - La logique métier doit être dans les services, pas dans les APIs
 - Chaque module doit avoir une responsabilité claire
 
@@ -127,10 +167,28 @@ Toutes les modifications de code doivent respecter les principes du clean code s
 
 ### 11. Gestion des imports
 
-- **JAMAIS** importer dans les fonctions (ex: `import logging` dans une fonction)
-- Tous les imports doivent être en haut du fichier
+**RÈGLE ABSOLUE** : **JAMAIS** importer dans les fonctions.
+
+**ACTION OBLIGATOIRE** :
+
+- Tous les imports doivent être **EN HAUT DU FICHIER** uniquement
 - Grouper les imports : standard library, tiers, locaux
 - Utiliser des imports absolus pour les modules du projet
+
+**EXEMPLE DE VIOLATION** :
+
+```python
+# ❌ MAUVAIS
+def my_function():
+    import logging  # ❌ Import dans une fonction
+    logging.info("test")
+
+# ✅ BON
+import logging  # ✅ Import en haut du fichier
+
+def my_function():
+    logging.info("test")
+```
 
 ### 12. Gestion des erreurs
 
@@ -139,17 +197,35 @@ Toutes les modifications de code doivent respecter les principes du clean code s
 - Utiliser des exceptions spécifiques quand c'est possible
 - Ne pas masquer les erreurs sans les logger
 
-### Checklist de refactoring
+## CHECKLIST OBLIGATOIRE AVANT TOUTE MODIFICATION DE CODE
 
-Avant de commiter du code, vérifier :
+**L'IA DOIT vérifier cette checklist avant de proposer du code** :
 
-- [ ] Pas de nombres magiques (utiliser des constantes)
-- [ ] Fonctions courtes et focalisées (< 50 lignes)
-- [ ] Noms explicites et significatifs
-- [ ] Pas de duplication de code
-- [ ] Fonctions nommées plutôt que commentaires explicatifs
-- [ ] Respect du SRP (une responsabilité par fonction/classe)
-- [ ] Encapsulation respectée (pas d'accès direct aux repositories depuis les APIs)
-- [ ] Docstrings uniquement dans les APIs et quand vraiment nécessaire (pas de redondance)
-- [ ] Imports en haut du fichier uniquement
-- [ ] Logique métier dans les services, pas dans les APIs
+- [ ] **TDD respecté** : Test écrit AVANT l'implémentation (RED → GREEN → REFACTOR)
+- [ ] **Pas de nombres magiques** : Utiliser des constantes de `backend/domain/constants.py`
+- [ ] **Fonctions courtes** : Aucune fonction ne dépasse 50 lignes
+- [ ] **Noms explicites** : Variables et fonctions auto-explicatifs
+- [ ] **Pas de duplication** : Code réutilisé via des fonctions helpers
+- [ ] **Fonctions nommées** : Pas de commentaires explicatifs, extraire en fonctions
+- [ ] **SRP respecté** : Une seule responsabilité par fonction/classe
+- [ ] **Encapsulation** : Pas d'accès direct aux repositories depuis les APIs
+- [ ] **Docstrings** : Uniquement dans les APIs (FastAPI) et si vraiment nécessaire
+- [ ] **Imports en haut** : Tous les imports en haut du fichier uniquement
+- [ ] **Logique métier** : Dans les services, pas dans les APIs
+- [ ] **Gestion d'erreurs** : Exceptions spécifiques, pas de `except Exception` générique
+
+## INSTRUCTIONS POUR L'IA
+
+**AVANT de proposer du code, l'IA DOIT** :
+
+1. **Lire cette checklist complète**
+2. **Vérifier chaque point** avant de générer du code
+3. **Appliquer systématiquement** toutes les règles
+4. **Refuser** de générer du code qui viole ces règles
+5. **Proposer des corrections** si le code existant viole les règles
+
+**Si l'utilisateur demande quelque chose qui viole ces règles, l'IA DOIT** :
+
+- Expliquer pourquoi la demande viole les règles
+- Proposer une alternative conforme aux règles
+- Ne pas générer de code non conforme
