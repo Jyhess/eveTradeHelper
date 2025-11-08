@@ -1,15 +1,15 @@
 <template>
   <div class="constellations-page">
     <div class="card">
-      <div v-if="loading" class="loading">
-        Loading constellations...
-      </div>
+      <div v-if="loading" class="loading">Loading constellations...</div>
       <div v-else-if="error" class="error">
         {{ error }}
       </div>
       <div v-else-if="constellations.length > 0" class="constellations-container">
         <div class="stats">
-          <p><strong>{{ total }} constellations</strong> in region <strong>{{ regionName }}</strong></p>
+          <p>
+            <strong>{{ total }} constellations</strong> in region <strong>{{ regionName }}</strong>
+          </p>
           <div class="action-links">
             <p class="market-link">
               <router-link :to="`/markets/region/${regionId}`" class="market-button">
@@ -23,18 +23,18 @@
             </p>
           </div>
         </div>
-        
+
         <div class="constellations-grid">
-          <div 
-            v-for="constellation in constellations" 
-            :key="constellation.constellation_id" 
+          <div
+            v-for="constellation in constellations"
+            :key="constellation.constellation_id"
             class="constellation-card"
           >
             <h3>{{ constellation.name }}</h3>
             <div class="constellation-info">
               <p class="constellation-id">ID: {{ constellation.constellation_id }}</p>
               <p class="systems-count">
-                <router-link 
+                <router-link
                   :to="`/constellations/${constellation.constellation_id}/systems`"
                   class="systems-link"
                 >
@@ -43,16 +43,15 @@
               </p>
               <div v-if="constellation.position" class="position">
                 <small>
-                  Position: ({{ constellation.position.x }}, {{ constellation.position.y }}, {{ constellation.position.z }})
+                  Position: ({{ constellation.position.x }}, {{ constellation.position.y }},
+                  {{ constellation.position.z }})
                 </small>
               </div>
             </div>
           </div>
         </div>
       </div>
-      <div v-else class="no-data">
-        No constellations found for this region.
-      </div>
+      <div v-else class="no-data">No constellations found for this region.</div>
     </div>
   </div>
 </template>
@@ -78,22 +77,30 @@ export default {
       regionName: ''
     }
   },
+  watch: {
+    regionId() {
+      this.fetchConstellations()
+    }
+  },
+  mounted() {
+    this.fetchConstellations()
+  },
   methods: {
     async fetchConstellations() {
       this.loading = true
       this.error = ''
       this.constellations = []
-      
+
       try {
         const data = await api.regions.getConstellations(this.regionId)
         this.constellations = data.constellations || []
         this.total = data.total || 0
-        
+
         // Retrieve region name from regions
         if (this.constellations.length > 0) {
           await this.fetchRegionName()
         }
-        
+
         // Update breadcrumb in header
         if (this.regionName) {
           eventBus.emit('breadcrumb-update', {
@@ -118,14 +125,6 @@ export default {
         console.error('Error retrieving region name:', error)
       }
     }
-  },
-  mounted() {
-    this.fetchConstellations()
-  },
-  watch: {
-    regionId() {
-      this.fetchConstellations()
-    }
   }
 }
 </script>
@@ -136,12 +135,11 @@ export default {
   padding: 20px;
 }
 
-
 .card {
   background: white;
   border-radius: 12px;
   padding: 30px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
 .loading {
@@ -196,7 +194,9 @@ export default {
   text-decoration: none;
   border-radius: 6px;
   font-weight: 500;
-  transition: background 0.2s, transform 0.2s;
+  transition:
+    background 0.2s,
+    transform 0.2s;
 }
 
 .market-button {
@@ -236,7 +236,9 @@ export default {
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   padding: 15px;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
 }
 
 .constellation-card:hover {
@@ -302,4 +304,3 @@ export default {
   font-size: 0.85em;
 }
 </style>
-

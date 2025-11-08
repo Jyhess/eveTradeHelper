@@ -100,9 +100,7 @@ class RegionService:
                     "position": constellation_data.get("position", {}),
                 }
             except Exception as e:
-                logger.warning(
-                    f"Error retrieving constellation {constellation_id}: {e}"
-                )
+                logger.warning(f"Error retrieving constellation {constellation_id}: {e}")
                 return None
 
         # Execute all requests in parallel

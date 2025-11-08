@@ -1,9 +1,7 @@
 <template>
   <div class="system-detail-page">
     <div class="card">
-      <div v-if="loading" class="loading">
-        Loading system information...
-      </div>
+      <div v-if="loading" class="loading">Loading system information...</div>
       <div v-else-if="error" class="error">
         {{ error }}
       </div>
@@ -30,7 +28,8 @@
             </p>
             <div v-if="system.position" class="position">
               <small>
-                Position: ({{ Math.round(system.position.x) }}, {{ Math.round(system.position.y) }}, {{ Math.round(system.position.z) }})
+                Position: ({{ Math.round(system.position.x) }}, {{ Math.round(system.position.y) }},
+                {{ Math.round(system.position.z) }})
               </small>
             </div>
           </div>
@@ -39,9 +38,7 @@
         <!-- Connected systems -->
         <div class="connections-section">
           <h3>Connected Systems</h3>
-          <div v-if="connectionsLoading" class="loading-small">
-            Loading connections...
-          </div>
+          <div v-if="connectionsLoading" class="loading-small">Loading connections...</div>
           <div v-else-if="connectionsError" class="error-small">
             {{ connectionsError }}
           </div>
@@ -73,7 +70,9 @@
                 </div>
                 <div v-else-if="!connection.same_constellation" class="location-warning">
                   <span class="warning-badge different-constellation-badge">
-                    Other constellation{{ connection.constellation_name ? `: ${connection.constellation_name}` : '' }}
+                    Other constellation{{
+                      connection.constellation_name ? `: ${connection.constellation_name}` : ''
+                    }}
                   </span>
                 </div>
                 <p class="stargate-info">
@@ -117,22 +116,30 @@ export default {
       regionName: ''
     }
   },
+  watch: {
+    systemId() {
+      this.fetchSystemDetails()
+    }
+  },
+  mounted() {
+    this.fetchSystemDetails()
+  },
   methods: {
     async fetchSystemDetails() {
       this.loading = true
       this.error = ''
       this.system = null
-      
+
       try {
         // Retrieve system details directly
         const systemData = await api.systems.getSystem(this.systemId)
         this.system = systemData.system
-        
+
         if (this.system && this.system.constellation_id) {
           // Load constellation and region information
           await this.fetchConstellationInfo(this.system.constellation_id)
         }
-        
+
         // Load connections
         this.fetchConnections()
       } catch (error) {
@@ -145,17 +152,17 @@ export default {
       try {
         // Retrieve constellation information directly with its region
         const data = await api.constellations.getConstellation(constellationId)
-        
+
         if (data.constellation) {
           this.constellationId = data.constellation.constellation_id
           this.constellationName = data.constellation.name
         }
-        
+
         if (data.region) {
           this.regionId = data.region.region_id
           this.regionName = data.region.name
         }
-        
+
         // Update breadcrumb in header
         eventBus.emit('breadcrumb-update', {
           regionName: this.regionName,
@@ -173,7 +180,7 @@ export default {
       this.connectionsLoading = true
       this.connectionsError = ''
       this.connections = []
-      
+
       try {
         const data = await api.systems.getConnections(this.systemId)
         this.connections = data.connections || []
@@ -192,14 +199,6 @@ export default {
       if (securityStatus <= 0.8) return 'sec-green' // Green also up to 0.8
       return 'sec-blue' // > 0.8
     }
-  },
-  mounted() {
-    this.fetchSystemDetails()
-  },
-  watch: {
-    systemId() {
-      this.fetchSystemDetails()
-    }
   }
 }
 </script>
@@ -210,12 +209,11 @@ export default {
   padding: 20px;
 }
 
-
 .card {
   background: white;
   border-radius: 12px;
   padding: 30px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
 .loading {
@@ -259,7 +257,9 @@ export default {
   text-decoration: none;
   border-radius: 6px;
   font-weight: 500;
-  transition: background 0.2s, transform 0.2s;
+  transition:
+    background 0.2s,
+    transform 0.2s;
 }
 
 .market-button:hover {
@@ -392,7 +392,10 @@ export default {
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   padding: 15px;
-  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s,
+    border-color 0.2s;
   text-decoration: none;
   color: inherit;
   display: block;
@@ -473,4 +476,3 @@ export default {
   border-left: 4px solid #ed8936;
 }
 </style>
-

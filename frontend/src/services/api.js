@@ -1,15 +1,15 @@
 import axios from 'axios'
-
-const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://localhost:5001/api/v1'
+import { API_BASE_URL, API_TIMEOUT_MS } from '@/constants'
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
+  timeout: API_TIMEOUT_MS,
   headers: {
     'Content-Type': 'application/json'
   }
 })
 
-const extractErrorMessage = (error) => {
+const extractErrorMessage = error => {
   if (error.response?.data?.error) {
     return error.response.data.error
   }

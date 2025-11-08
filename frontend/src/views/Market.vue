@@ -1,29 +1,43 @@
 <template>
   <div class="market-page">
     <div class="card">
-      <div v-if="loading" class="loading">
-        Loading market categories...
-      </div>
+      <div v-if="loading" class="loading">Loading market categories...</div>
       <div v-else-if="error" class="error">
         {{ error }}
       </div>
       <div v-else-if="treeData.length > 0" class="categories-container">
         <div class="stats">
-          <p><strong>{{ total }}</strong> market category(ies)</p>
+          <p>
+            <strong>{{ total }}</strong> market category(ies)
+          </p>
         </div>
 
         <div class="main-content">
           <div class="tree-container">
-            <TreeNode v-for="rootNode in treeData" :key="rootNode.group_id" :node="rootNode" :level="0"
-              :type-details="typeDetails" :region-id="regionId" :expanded-paths="expandedPaths"
-              @node-selected="handleNodeSelected" />
+            <TreeNode
+              v-for="rootNode in treeData"
+              :key="rootNode.group_id"
+              :node="rootNode"
+              :level="0"
+              :type-details="typeDetails"
+              :region-id="regionId"
+              :expanded-paths="expandedPaths"
+              @node-selected="handleNodeSelected"
+            />
           </div>
 
           <!-- Side panel -->
           <div v-if="selectedCategory || selectedTypeId" class="details-panel">
             <div class="panel-header">
-              <h3>{{ selectedCategory ? selectedCategory.name : (typeDetails[selectedTypeId]?.name || `Type
-                ${selectedTypeId}`) }}</h3>
+              <h3>
+                {{
+                  selectedCategory
+                    ? selectedCategory.name
+                    : typeDetails[selectedTypeId]?.name ||
+                      `Type
+                ${selectedTypeId}`
+                }}
+              </h3>
               <button class="close-button" @click="closePanel">×</button>
             </div>
             <div class="panel-content">
@@ -39,11 +53,18 @@
                   <p>{{ selectedCategory.description }}</p>
                 </div>
 
-                <div v-if="selectedCategory.types && selectedCategory.types.length > 0" class="types-section">
+                <div
+                  v-if="selectedCategory.types && selectedCategory.types.length > 0"
+                  class="types-section"
+                >
                   <h4>{{ selectedCategory.types.length }} item type(s)</h4>
                   <div class="types-list">
-                    <div v-for="typeId in selectedCategory.types" :key="typeId" class="type-item"
-                      @click="selectType(typeId)">
+                    <div
+                      v-for="typeId in selectedCategory.types"
+                      :key="typeId"
+                      class="type-item"
+                      @click="selectType(typeId)"
+                    >
                       Type ID: {{ typeId }}
                       <span v-if="typeDetails[typeId]" class="type-name">
                         - {{ typeDetails[typeId].name }}
@@ -65,20 +86,26 @@
                 <div v-if="regionId" class="market-orders">
                   <h4>Market Orders ({{ regionName }})</h4>
 
-                  <div v-if="marketOrdersLoading" class="loading-small">
-                    Loading orders...
-                  </div>
+                  <div v-if="marketOrdersLoading" class="loading-small">Loading orders...</div>
                   <div v-else-if="marketOrdersError" class="error-small">
                     {{ marketOrdersError }}
                   </div>
                   <div v-else>
                     <!-- Buy orders -->
-                    <div v-if="marketOrders.buy_orders && marketOrders.buy_orders.length > 0" class="orders-section">
+                    <div
+                      v-if="marketOrders.buy_orders && marketOrders.buy_orders.length > 0"
+                      class="orders-section"
+                    >
                       <h5>Buy Orders ({{ marketOrders.buy_orders.length }})</h5>
                       <div class="orders-list">
-                        <div v-for="order in marketOrders.buy_orders.slice(0, 10)" :key="order.order_id"
-                          class="order-item buy-order">
-                          <div class="order-quantity">Qty: {{ order.volume_remain || order.volume_total }}</div>
+                        <div
+                          v-for="order in marketOrders.buy_orders.slice(0, 10)"
+                          :key="order.order_id"
+                          class="order-item buy-order"
+                        >
+                          <div class="order-quantity">
+                            Qty: {{ order.volume_remain || order.volume_total }}
+                          </div>
                           <div class="order-price">{{ formatPrice(order.price) }} ISK</div>
                           <div class="order-location">
                             <span v-if="order.station_name && order.system_name">
@@ -87,21 +114,27 @@
                             <span v-else-if="order.system_name">
                               {{ order.system_name }}
                             </span>
-                            <span v-else>
-                              System: {{ order.location_id }}
-                            </span>
+                            <span v-else> System: {{ order.location_id }} </span>
                           </div>
                         </div>
                       </div>
                     </div>
 
                     <!-- Sell orders -->
-                    <div v-if="marketOrders.sell_orders && marketOrders.sell_orders.length > 0" class="orders-section">
+                    <div
+                      v-if="marketOrders.sell_orders && marketOrders.sell_orders.length > 0"
+                      class="orders-section"
+                    >
                       <h5>Sell Orders ({{ marketOrders.sell_orders.length }})</h5>
                       <div class="orders-list">
-                        <div v-for="order in marketOrders.sell_orders.slice(0, 10)" :key="order.order_id"
-                          class="order-item sell-order">
-                          <div class="order-quantity">Qty: {{ order.volume_remain || order.volume_total }}</div>
+                        <div
+                          v-for="order in marketOrders.sell_orders.slice(0, 10)"
+                          :key="order.order_id"
+                          class="order-item sell-order"
+                        >
+                          <div class="order-quantity">
+                            Qty: {{ order.volume_remain || order.volume_total }}
+                          </div>
                           <div class="order-price">{{ formatPrice(order.price) }} ISK</div>
                           <div class="order-location">
                             <span v-if="order.station_name && order.system_name">
@@ -110,33 +143,30 @@
                             <span v-else-if="order.system_name">
                               {{ order.system_name }}
                             </span>
-                            <span v-else>
-                              System: {{ order.location_id }}
-                            </span>
+                            <span v-else> System: {{ order.location_id }} </span>
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    <div v-if="marketOrders.total === 0" class="no-orders">
-                      No orders available
-                    </div>
+                    <div v-if="marketOrders.total === 0" class="no-orders">No orders available</div>
                   </div>
                 </div>
                 <div v-else-if="!regionId" class="no-region-warning">
                   Select a region to view market orders
                 </div>
-                <div v-else-if="regionId && !marketOrders" class="no-region-warning">
+                <div v-else-if="!marketOrders" class="no-region-warning">
                   Click on an item type to view orders
+                </div>
+                <div v-else class="no-region-warning">
+                  Loading market orders...
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-      <div v-else class="no-data">
-        No categories found.
-      </div>
+      <div v-else class="no-data">No categories found.</div>
     </div>
   </div>
 </template>
@@ -187,6 +217,25 @@ export default {
     treeData() {
       return this.buildTree(this.categories)
     }
+  },
+  watch: {
+    regionId() {
+      this.fetchCategories()
+    },
+    constellationId() {
+      this.fetchCategories()
+    },
+    systemId() {
+      this.fetchCategories()
+    },
+    '$route.query.type_id'(newTypeId) {
+      if (newTypeId && this.treeData.length > 0) {
+        this.navigateToType(parseInt(newTypeId))
+      }
+    }
+  },
+  mounted() {
+    this.fetchCategories()
   },
   methods: {
     async fetchCategories() {
@@ -257,7 +306,7 @@ export default {
       })
 
       // Third pass: add item types as child nodes
-      const addTypesAsChildren = (node) => {
+      const addTypesAsChildren = node => {
         if (node.types && node.types.length > 0) {
           node.types.forEach(typeId => {
             node.children.push({
@@ -279,7 +328,7 @@ export default {
       rootNodes.forEach(node => addTypesAsChildren(node))
 
       // Sort nodes and their children recursively
-      const sortNodes = (nodes) => {
+      const sortNodes = nodes => {
         nodes.sort((a, b) => {
           // Types after categories
           if (a.is_type && !b.is_type) return 1
@@ -435,13 +484,13 @@ export default {
         if (node.is_type && node.type_id === typeId) {
           return currentPath // Return path to parents (group_id only)
         }
-        
+
         // Build new path with parent group_id (not types)
         let newPath = currentPath
         if (!node.is_type && node.group_id) {
           newPath = [...currentPath, node.group_id]
         }
-        
+
         // If this node has children, search recursively
         if (node.children && node.children.length > 0) {
           const found = this.findTypePath(node.children, typeId, newPath)
@@ -456,29 +505,29 @@ export default {
     async navigateToType(typeId) {
       // Find path to this type
       const path = this.findTypePath(this.treeData, typeId)
-      
+
       if (path) {
         // Expand all parents in the path
         this.expandedPaths = new Set(path)
-        
+
         // Wait a tick for TreeNode components to update
         await this.$nextTick()
-        
+
         // Select type
         this.selectedTypeId = typeId
         this.selectedCategory = null
         this.marketOrders = null
-        
+
         // Load type details
         if (!this.typeDetails[typeId]) {
           await this.fetchTypeDetails(typeId)
         }
-        
+
         // Load market orders if we have a region
         if (this.regionId) {
           await this.fetchMarketOrders(typeId)
         }
-        
+
         // Scroll to element if possible (optional)
         await this.$nextTick()
         this.scrollToSelectedType()
@@ -491,8 +540,11 @@ export default {
       // This function can be improved if necessary
       const selectedElements = document.querySelectorAll('.type-node')
       selectedElements.forEach(el => {
-        if (el.textContent && this.typeDetails[this.selectedTypeId] && 
-            el.textContent.includes(this.typeDetails[this.selectedTypeId].name)) {
+        if (
+          el.textContent &&
+          this.typeDetails[this.selectedTypeId] &&
+          el.textContent.includes(this.typeDetails[this.selectedTypeId].name)
+        ) {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' })
         }
       })
@@ -512,25 +564,6 @@ export default {
         }).format(price)
       }
     }
-  },
-  mounted() {
-    this.fetchCategories()
-  },
-  watch: {
-    regionId() {
-      this.fetchCategories()
-    },
-    constellationId() {
-      this.fetchCategories()
-    },
-    systemId() {
-      this.fetchCategories()
-    },
-    '$route.query.type_id'(newTypeId) {
-      if (newTypeId && this.treeData.length > 0) {
-        this.navigateToType(parseInt(newTypeId))
-      }
-    }
   }
 }
 </script>
@@ -540,7 +573,6 @@ export default {
   min-height: 100vh;
   padding: 20px;
 }
-
 
 .card {
   background: white;
@@ -708,7 +740,9 @@ export default {
   border-radius: 4px;
   margin-bottom: 8px;
   cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
 }
 
 .type-item:hover {

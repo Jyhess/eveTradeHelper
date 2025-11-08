@@ -4,7 +4,7 @@
 
 ## Test-Driven Development (TDD)
 
-**ALL** code modifications on the backend must follow the TDD Red-Green-Refactor cycle:
+**ALL** code modifications (backend AND frontend) must follow the TDD Red-Green-Refactor cycle:
 
 ### 1. 🔴 RED - Write the failing test
 
@@ -61,13 +61,15 @@ def calculate_volume():
     pass
 ```
 
-### Tests
+## BACKEND-SPECIFIC RULES
+
+### Backend Tests
 
 - Unit tests do NOT use Redis cache
 - Integration tests use shared Redis cache. Do not clean cache between tests (shared with production).
 - Use `pytest.mark.parametrize` to avoid code duplication in tests
 
-### Code
+### Backend Code
 
 - Respect Python types (typing)
 - Use explicit variable and function names
@@ -76,14 +78,16 @@ def calculate_volume():
 
 **ALL** code modifications must respect the following clean code principles. The AI must verify each rule before proposing code.
 
-### 1. Elimination of magic numbers
+### 1. Elimination of magic numbers and strings
 
-**ABSOLUTE RULE**: **NEVER** use magic numbers directly in code.
+**ABSOLUTE RULE**: **NEVER** use magic numbers or strings directly in code.
 
 **MANDATORY ACTION**:
 
-- Create named constants in `backend/domain/constants.py`
-- Examples: `STATION_ID_THRESHOLD = 60000000`, `DEFAULT_MIN_PROFIT_ISK = 100000.0`
+- **Backend**: Create named constants in `backend/domain/constants.py`
+  - Examples: `STATION_ID_THRESHOLD = 60000000`, `DEFAULT_MIN_PROFIT_ISK = 100000.0`
+- **Frontend**: Create named constants in `frontend/src/constants.js`
+  - Examples: `API_TIMEOUT_MS = 10000`, `DEFAULT_PAGE_SIZE = 50`, `ROUTES = { REGIONS: '/regions' }`
 - Constants must be explicit and documented
 
 **VIOLATION EXAMPLE**:
@@ -99,15 +103,16 @@ if station_id > STATION_ID_THRESHOLD:
     # ...
 ```
 
-### 2. Small Functions
+### 2. Small Functions and Components
 
-**ABSOLUTE RULE**: A function must do **one thing** (Single Responsibility Principle).
+**ABSOLUTE RULE**: A function or component must do **one thing** (Single Responsibility Principle).
 
 **MANDATORY ACTION**:
 
-- If a function exceeds 50 lines, **DIVIDE IT** into sub-functions
-- Functions must be individually testable
-- Prefer several small functions over one large function
+- **Backend**: If a function exceeds 50 lines, **DIVIDE IT** into sub-functions
+- **Frontend**: If a function exceeds 50 lines OR a component exceeds 200 lines, **DIVIDE IT**
+- Functions and components must be individually testable
+- Prefer several small functions/components over one large one
 
 **VIOLATION EXAMPLE**:
 
@@ -137,10 +142,10 @@ def process_data(data):
 
 **MANDATORY ACTION**:
 
-- Extract common logic into utility functions
-- Create helpers in `backend/domain/helpers.py` if necessary
-- Reuse existing functions rather than rewriting logic
-- If code is repeated 2 times or more, extract it into a function
+- **Backend**: Extract common logic into utility functions in `backend/domain/helpers.py` or `backend/utils/`
+- **Frontend**: Extract common logic into utility functions in `frontend/src/utils/` or create reusable components
+- Reuse existing functions/components rather than rewriting logic
+- If code is repeated 2 times or more, extract it into a function/component
 
 ### 4.1. Prefer named functions over comments
 
@@ -158,26 +163,39 @@ def process_data(data):
 
 ### 6. Encapsulation and abstraction
 
-- **Hide implementation details** of lower layers
-- APIs must **NEVER** directly access repositories
-- Create methods in services to encapsulate repository access
-- Respect layered architecture (API → Service → Repository)
+- **Backend**: **Hide implementation details** of lower layers
+  - APIs must **NEVER** directly access repositories
+  - Create methods in services to encapsulate repository access
+  - Respect layered architecture (API → Service → Repository)
+- **Frontend**: **Hide implementation details** of services
+  - Components must **NEVER** directly make API calls
+  - All API calls must go through services in `frontend/src/services/`
+  - Components should focus on presentation and user interaction
 
 ### 7. Documentation and expressiveness
 
-- Add **docstrings** only when necessary:
+- **Backend**: Add **docstrings** only when necessary:
   - **ALWAYS** in APIs (FastAPI endpoints) to generate OpenAPI documentation
   - **AVOID** redundant docstrings in business code if the name and parameters are clear
-- If a function requires a docstring, it may be a sign that naming can be improved
+- **Frontend**: Add **JSDoc** only when necessary:
+  - **ALWAYS** for public API functions in services
+  - **AVOID** redundant JSDoc in components if the name and parameters are clear
+- If a function requires a docstring/JSDoc, it may be a sign that naming can be improved
 - Use comments to explain the **why**, not the **how**
 - Code must be self-documented through good naming
-- A docstring is useless if it simply repeats the function name and its parameters
+- A docstring/JSDoc is useless if it simply repeats the function name and its parameters
 
 ### 8. Separation of concerns
 
-- Separate constants in `constants.py`
-- Separate utilities in `helpers.py` when module-specific, in `backend/utils` when shared between multiple modules.
-- Business logic must be in services, not in APIs
+- **Backend**:
+  - Separate constants in `backend/domain/constants.py`
+  - Separate utilities in `backend/domain/helpers.py` when module-specific, in `backend/utils/` when shared
+  - Business logic must be in services, not in APIs
+- **Frontend**:
+  - Separate constants in `frontend/src/constants.js`
+  - Separate utilities in `frontend/src/utils/` when module-specific
+  - Business logic must be in services (`frontend/src/services/`), not in components
+  - Components should focus on presentation and user interaction
 - Each module must have a clear responsibility
 
 ### 9. Appropriate abstraction
@@ -225,9 +243,65 @@ def my_function():
 - Use specific exceptions when possible
 - Do not hide errors without logging them
 
+## FRONTEND-SPECIFIC RULES
+
+### Frontend Tests
+
+- Unit tests use Jest/Vitest with Vue Test Utils
+- Component tests should test behavior, not implementation details
+- Use `@vue/test-utils` for component testing
+- Mock API calls in unit tests
+- Integration tests can use real API calls (if needed)
+- Use `describe` and `it` blocks for test organization
+- Use descriptive test names that explain what is being tested
+
+### Frontend Code
+
+- Use ES6+ features (const/let, arrow functions, destructuring, etc.)
+- Use explicit variable and function names
+- Prefer composition over inheritance
+- Use Vue 3 Composition API when appropriate (for complex components)
+
+### Vue-Specific Best Practices
+
+**MANDATORY ACTION**:
+
+- Use `v-if` for conditional rendering (not `v-show` unless performance is critical)
+- Use `:key` for `v-for` loops with unique identifiers
+- Use computed properties for derived state (not methods)
+- Use methods for event handlers and actions
+- Avoid direct DOM manipulation - use Vue's reactivity system
+- Use props for parent-to-child communication
+- Use events (`$emit`) for child-to-parent communication
+- Use Vuex/Pinia or provide/inject for global state (if needed)
+- Use `scoped` styles to avoid CSS conflicts
+- Prefer template refs over direct DOM queries
+
+### Component Structure
+
+**MANDATORY ACTION**:
+
+- Follow Vue component structure: `<template>`, `<script>`, `<style>`
+- Organize script section: props, data, computed, methods, lifecycle hooks
+- Use single-file components (`.vue` files)
+- Keep template logic minimal - move complex logic to computed properties or methods
+- Use scoped styles when possible to avoid style conflicts
+
+### API Service Pattern
+
+**MANDATORY ACTION**:
+
+- All API calls must go through services in `frontend/src/services/`
+- Services must handle errors and transform data
+- Components must not contain API logic
+- Use async/await for asynchronous operations
+- Handle loading and error states in components
+
 ## MANDATORY CHECKLIST BEFORE ANY CODE MODIFICATION
 
 **THE AI MUST verify this checklist before proposing code**:
+
+### Backend Checklist
 
 - [ ] **TDD respected**: Test written BEFORE implementation (RED → GREEN → REFACTOR)
 - [ ] **No magic numbers**: Use constants from `backend/domain/constants.py`
@@ -242,7 +316,30 @@ def my_function():
 - [ ] **Business logic**: In services, not in APIs
 - [ ] **Error handling**: Specific exceptions, no generic `except Exception`
 - [ ] **Ruff formatting**: Execute `ruff format` on all modified backend files after each modification
+- [ ] **Ruff linting**: Execute `ruff check --fix` on all modified backend files after each modification
+- [ ] **Type checking**: Run `mypy` to verify type correctness (if applicable)
+- [ ] **Tests passing**: All tests must pass with `pytest`
 - [ ] **English language**: All code, comments, docstrings, and documentation in English
+
+### Frontend Checklist
+
+- [ ] **TDD respected**: Test written BEFORE implementation (RED → GREEN → REFACTOR)
+- [ ] **No magic numbers/strings**: Use constants from `frontend/src/constants.js`
+- [ ] **Small functions/components**: No function exceeds 50 lines, no component exceeds 200 lines
+- [ ] **Explicit names**: Self-explanatory variables, functions, and components
+- [ ] **No duplication**: Code reused via helper functions or components
+- [ ] **Named functions**: No explanatory comments, extract into functions
+- [ ] **SRP respected**: Single responsibility per function/component
+- [ ] **Component structure**: Proper Vue component organization
+- [ ] **JSDoc**: Only in services (public APIs) and if really necessary
+- [ ] **Imports at top**: All imports at top of file only
+- [ ] **Business logic**: In services, not in components
+- [ ] **Error handling**: Specific error handling, no generic catch
+- [ ] **Vue best practices**: Proper use of v-if, :key, computed, methods, etc.
+- [ ] **API calls**: Through services only, not in components
+- [ ] **ESLint**: Execute `npm run lint -- --fix` on all modified frontend files after each modification
+- [ ] **Tests passing**: All tests must pass with `npm test`
+- [ ] **English language**: All code, comments, JSDoc, and documentation in English
 
 ## INSTRUCTIONS FOR THE AI
 
@@ -255,12 +352,121 @@ def my_function():
 5. **Refuse** to generate code that violates these rules
 6. **Propose corrections** if existing code violates the rules
 
-**AFTER modifying code in the backend, THE AI MUST**:
+## CODE QUALITY TOOLS
 
-1. **Automatically execute Ruff format** on all modified Python files
-2. **Command to execute**: `ruff format <file1> <file2> ...` for each modified file in `backend/`
-3. **Verify** that formatting is applied before finalizing modifications
-4. **Never** propose code not formatted with Ruff
+### Backend Tools
+
+**MANDATORY TOOLS**:
+
+1. **Ruff** - Linting and formatting
+   - **Configuration**: `backend/pyproject.toml`
+   - **Formatting**: `ruff format <file>`
+   - **Linting**: `ruff check <file>`
+   - **Auto-fix**: `ruff check --fix <file>`
+   - **Rules**: E, W, F, I, N, UP, B, C4, SIM (see pyproject.toml)
+   - **Line length**: 100 characters
+
+2. **MyPy** - Type checking
+   - **Configuration**: `backend/pyproject.toml`
+   - **Command**: `mypy <file>` or `mypy backend/`
+   - **Purpose**: Static type checking for Python
+
+3. **Pytest** - Testing framework
+   - **Configuration**: `backend/pytest.ini`
+   - **Command**: `pytest` or `pytest <test_file>`
+   - **Coverage**: Use `pytest-cov` for coverage reports
+
+**MANDATORY ACTIONS**:
+
+- **ALWAYS** run `ruff format` after modifying Python files
+- **ALWAYS** run `ruff check` to verify linting rules
+- Run `mypy` before committing to catch type errors
+- Ensure all tests pass with `pytest`
+
+**COMMON COMMANDS**:
+
+```bash
+# Format code
+ruff format backend/path/to/file.py
+
+# Check and auto-fix linting issues
+ruff check --fix backend/path/to/file.py
+
+# Type checking
+mypy backend/path/to/file.py
+
+# Run all tests
+pytest
+
+# Run specific test file
+pytest backend/unit_tests/test_file.py
+
+# Run with coverage
+pytest --cov=backend --cov-report=html
+```
+
+### Frontend Tools
+
+**MANDATORY TOOLS**:
+
+1. **ESLint** - Linting for JavaScript/Vue
+   - **Configuration**: Should be configured in `package.json` or `.eslintrc.js`
+   - **Command**: `npm run lint` or `eslint <file>`
+   - **Auto-fix**: `npm run lint -- --fix` or `eslint --fix <file>`
+   - **Purpose**: Code quality and style enforcement
+
+2. **Prettier** - Code formatting (if configured)
+   - **Configuration**: `.prettierrc` or `package.json`
+   - **Command**: `prettier --write <file>`
+   - **Purpose**: Consistent code formatting
+
+3. **Vue Test Utils** - Component testing
+   - **Framework**: Jest/Vitest with Vue Test Utils
+   - **Command**: `npm test` or `npm run test:unit`
+   - **Purpose**: Unit testing for Vue components
+
+**MANDATORY ACTIONS**:
+
+- **ALWAYS** run `npm run lint -- --fix` after modifying JavaScript/Vue files
+- Ensure ESLint configuration is set up in the project
+- Run tests before committing: `npm test`
+- Verify code formatting is consistent
+
+**COMMON COMMANDS**:
+
+```bash
+# Lint and auto-fix
+npm run lint -- --fix
+
+# Lint specific file
+npm run lint -- src/path/to/file.vue
+
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage
+npm run test:coverage
+
+# Format with Prettier (if configured)
+npx prettier --write src/path/to/file.vue
+```
+
+**AFTER modifying code, THE AI MUST**:
+
+1. **Backend**: **Automatically execute Ruff format and check** on all modified Python files
+   - **Formatting**: `ruff format <file1> <file2> ...` for each modified file in `backend/`
+   - **Linting**: `ruff check <file1> <file2> ...` for each modified file
+   - **Auto-fix**: `ruff check --fix <file1> <file2> ...` if linting errors are found
+   - **Verify** that formatting and linting pass before finalizing modifications
+   - **Never** propose code not formatted with Ruff or with linting errors
+
+2. **Frontend**: **Automatically execute ESLint/Prettier** on all modified JavaScript/Vue files
+   - **Command to execute**: `npm run lint -- --fix <file1> <file2> ...` for each modified file in `frontend/src/`
+   - **Verify** that linting passes and formatting is applied before finalizing modifications
+   - **Never** propose code not formatted according to project standards or with linting errors
 
 **If the user requests something that violates these rules, THE AI MUST**:
 

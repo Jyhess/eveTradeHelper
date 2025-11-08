@@ -1,3 +1,5 @@
+const path = require('path')
+
 module.exports = {
   devServer: {
     host: '0.0.0.0',
@@ -5,7 +7,12 @@ module.exports = {
     allowedHosts: 'all'
   },
   configureWebpack: {
-    devtool: 'source-map'
+    devtool: 'source-map',
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, 'src')
+      }
+    }
   },
   productionSourceMap: true
 }

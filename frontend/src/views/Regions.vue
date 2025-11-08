@@ -2,7 +2,7 @@
   <div class="regions-page">
     <div class="card">
       <div v-if="error" class="error">{{ error }}</div>
-      
+
       <div class="filter-section">
         <input
           v-model="searchFilter"
@@ -11,29 +11,28 @@
           placeholder="Search for a region..."
           :disabled="loading"
         />
-        <div class="filter-info" v-if="!loading">
+        <div v-if="!loading" class="filter-info">
           <span v-if="searchFilter">
             {{ filteredRegions.length }} region(s) found out of {{ total }}
           </span>
-          <span v-else>
-            {{ total }} region(s) total
-          </span>
+          <span v-else> {{ total }} region(s) total </span>
         </div>
       </div>
-      
-      <div v-if="loading" class="loading">
-        Loading regions...
-      </div>
-      
+
+      <div v-if="loading" class="loading">Loading regions...</div>
+
       <div v-else-if="filteredRegions.length > 0" class="regions-container">
         <div class="stats">
-          <p><strong>{{ filteredRegions.length }}</strong> region(s) {{ searchFilter ? 'found' : 'loaded' }}</p>
+          <p>
+            <strong>{{ filteredRegions.length }}</strong> region(s)
+            {{ searchFilter ? 'found' : 'loaded' }}
+          </p>
         </div>
-        
+
         <div class="regions-grid">
-          <router-link 
-            v-for="region in filteredRegions" 
-            :key="region.region_id" 
+          <router-link
+            v-for="region in filteredRegions"
+            :key="region.region_id"
             :to="`/regions/${region.region_id}/constellations`"
             class="region-card"
           >
@@ -50,7 +49,7 @@
           </router-link>
         </div>
       </div>
-      
+
       <div v-else-if="!loading && regions.length > 0" class="no-results">
         <p>No region matches your search "{{ searchFilter }}"</p>
       </div>
@@ -77,21 +76,26 @@ export default {
       if (!this.searchFilter) {
         return this.regions
       }
-      
+
       const filter = this.searchFilter.toLowerCase().trim()
-      return this.regions.filter(region => 
-        region.name.toLowerCase().includes(filter) ||
-        region.description?.toLowerCase().includes(filter) ||
-        region.region_id.toString().includes(filter)
+      return this.regions.filter(
+        region =>
+          region.name.toLowerCase().includes(filter) ||
+          region.description?.toLowerCase().includes(filter) ||
+          region.region_id.toString().includes(filter)
       )
     }
+  },
+  mounted() {
+    // Automatically load regions on mount
+    this.fetchRegions()
   },
   methods: {
     async fetchRegions() {
       this.loading = true
       this.error = ''
       this.regions = []
-      
+
       try {
         const data = await api.regions.getRegions()
         this.regions = data.regions || []
@@ -102,10 +106,6 @@ export default {
         this.loading = false
       }
     }
-  },
-  mounted() {
-    // Automatically load regions on mount
-    this.fetchRegions()
   }
 }
 </script>
@@ -116,12 +116,11 @@ export default {
   padding: 20px;
 }
 
-
 .card {
   background: white;
   border-radius: 12px;
   padding: 30px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
 .filter-section {
@@ -134,7 +133,9 @@ export default {
   font-size: 1em;
   border: 2px solid #e0e0e0;
   border-radius: 6px;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
   box-sizing: border-box;
 }
 
@@ -206,7 +207,9 @@ export default {
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   padding: 20px;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
   text-decoration: none;
   color: inherit;
   display: block;
@@ -215,7 +218,7 @@ export default {
 
 .region-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   border-color: #667eea;
 }
 
@@ -258,5 +261,3 @@ export default {
   font-size: 1.1em;
 }
 </style>
-
-

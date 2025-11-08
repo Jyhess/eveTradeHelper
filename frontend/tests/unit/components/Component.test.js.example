@@ -1,0 +1,67 @@
+/**
+ * Example test file for Vue components
+ * This file demonstrates the testing structure and best practices
+ * 
+ * To use this as a template:
+ * 1. Copy this file and rename it (e.g., MyComponent.test.js)
+ * 2. Remove the .example extension
+ * 3. Update the imports and test cases
+ */
+
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+import MyComponent from '@/components/MyComponent.vue'
+import api from '@/services/api'
+
+// Mock API service
+vi.mock('@/services/api', () => ({
+  default: {
+    regions: {
+      getRegions: vi.fn()
+    }
+  }
+}))
+
+describe('MyComponent', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('should render correctly', () => {
+    const wrapper = mount(MyComponent, {
+      props: {
+        // Add props if needed
+      }
+    })
+
+    expect(wrapper.exists()).toBe(true)
+  })
+
+  it('should fetch data on mount', async () => {
+    const mockData = {
+      total: 1,
+      regions: [{ region_id: 1, name: 'Test Region' }]
+    }
+
+    api.regions.getRegions.mockResolvedValue(mockData)
+
+    const wrapper = mount(MyComponent)
+
+    await wrapper.vm.$nextTick()
+
+    expect(api.regions.getRegions).toHaveBeenCalled()
+  })
+
+  it('should handle errors correctly', async () => {
+    const error = new Error('API Error')
+    api.regions.getRegions.mockRejectedValue(error)
+
+    const wrapper = mount(MyComponent)
+
+    await wrapper.vm.$nextTick()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.error).toBeTruthy()
+  })
+})
+

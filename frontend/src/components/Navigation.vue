@@ -5,18 +5,12 @@
         <router-link to="/" class="logo-link">Eve Trade Helper</router-link>
       </div>
       <div class="nav-links">
-        <router-link to="/regions" class="nav-link" active-class="active">
-          Regions
-        </router-link>
-        <router-link to="/markets" class="nav-link" active-class="active">
-          Market
-        </router-link>
-        <router-link to="/deals" class="nav-link" active-class="active">
-          Deals
-        </router-link>
+        <router-link to="/regions" class="nav-link" active-class="active"> Regions </router-link>
+        <router-link to="/markets" class="nav-link" active-class="active"> Market </router-link>
+        <router-link to="/deals" class="nav-link" active-class="active"> Deals </router-link>
       </div>
     </div>
-    <div class="breadcrumb-container" v-if="breadcrumbItems.length > 0">
+    <div v-if="breadcrumbItems.length > 0" class="breadcrumb-container">
       <Breadcrumb :items="breadcrumbItems" />
     </div>
   </nav>
@@ -47,10 +41,10 @@ export default {
     breadcrumbItems() {
       const route = this.$route
       const items = []
-      
+
       // Always start with Home
       items.push({ label: 'Home', path: '/regions' })
-      
+
       // Detect current route and build breadcrumb
       if (route.name === 'Regions' || route.name === 'Home') {
         items.push({ label: 'Regions', path: '/regions' })
@@ -96,7 +90,12 @@ export default {
             path: `/systems/${this.breadcrumbData.systemId}`
           })
         }
-      } else if (route.name === 'Market' || route.name === 'MarketRegion' || route.name === 'MarketConstellation' || route.name === 'MarketSystem') {
+      } else if (
+        route.name === 'Market' ||
+        route.name === 'MarketRegion' ||
+        route.name === 'MarketConstellation' ||
+        route.name === 'MarketSystem'
+      ) {
         items.push({ label: 'Regions', path: '/regions' })
         if (this.breadcrumbData.regionId && this.breadcrumbData.regionName) {
           items.push({
@@ -129,16 +128,9 @@ export default {
           })
         }
       }
-      
+
       return items
     }
-  },
-  mounted() {
-    // Listen to events to update breadcrumb
-    eventBus.on('breadcrumb-update', this.updateBreadcrumb)
-  },
-  beforeUnmount() {
-    eventBus.off('breadcrumb-update', this.updateBreadcrumb)
   },
   watch: {
     $route() {
@@ -152,6 +144,13 @@ export default {
         systemId: null
       }
     }
+  },
+  mounted() {
+    // Listen to events to update breadcrumb
+    eventBus.on('breadcrumb-update', this.updateBreadcrumb)
+  },
+  beforeUnmount() {
+    eventBus.off('breadcrumb-update', this.updateBreadcrumb)
   },
   methods: {
     updateBreadcrumb(data) {

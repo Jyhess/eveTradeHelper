@@ -1,9 +1,14 @@
 <template>
   <div class="tree-select-node">
-    <div class="tree-select-option" :class="{
-      'is-selected': isSelected,
-      'has-children': hasChildren
-    }" :style="indentStyle" @click.stop="handleClick">
+    <div
+      class="tree-select-option"
+      :class="{
+        'is-selected': isSelected,
+        'has-children': hasChildren
+      }"
+      :style="indentStyle"
+      @click.stop="handleClick"
+    >
       <span v-if="hasChildren" class="expand-icon" @click.stop="toggleExpand">
         {{ expanded ? '▼' : '▶' }}
       </span>
@@ -13,8 +18,14 @@
     </div>
 
     <div v-if="expanded && hasChildren" class="tree-select-children">
-      <TreeSelectNode v-for="child in filteredChildren" :key="child.group_id || child.type_id" :node="child"
-        :level="level + 1" :selected-id="selectedId" @node-selected="$emit('node-selected', $event)" />
+      <TreeSelectNode
+        v-for="child in filteredChildren"
+        :key="child.group_id || child.type_id"
+        :node="child"
+        :level="level + 1"
+        :selected-id="selectedId"
+        @node-selected="$emit('node-selected', $event)"
+      />
     </div>
   </div>
 </template>

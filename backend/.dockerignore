@@ -1,0 +1,82 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# Testing
+tests/
+unit_tests/
+integration_tests/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!README.md
+
+# Development files
+requirements-dev.txt
+pytest.ini
+pyproject.toml
+.pylintrc
+.flake8
+.mypy.ini
+.ruff.toml
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Scripts (if not needed in production)
+scripts/
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Cache and temporary files
+*.tmp
+*.bak
+*.swp
+.cache/
+

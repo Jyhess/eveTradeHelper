@@ -1,0 +1,56 @@
+/**
+ * Example test file for API services
+ * This file demonstrates the testing structure and best practices
+ * 
+ * To use this as a template:
+ * 1. Copy this file and rename it (e.g., api.test.js)
+ * 2. Remove the .example extension
+ * 3. Update the imports and test cases
+ */
+
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import axios from 'axios'
+import { regionsApi } from '@/services/api'
+
+// Mock axios
+vi.mock('axios')
+
+describe('regionsApi', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('getRegions', () => {
+    it('should fetch regions successfully', async () => {
+      const mockData = {
+        total: 2,
+        regions: [
+          { region_id: 10000001, name: 'Test Region 1' },
+          { region_id: 10000002, name: 'Test Region 2' }
+        ]
+      }
+
+      axios.get.mockResolvedValue({ data: mockData })
+
+      const result = await regionsApi.getRegions()
+
+      expect(result).toEqual(mockData)
+      expect(axios.get).toHaveBeenCalledWith('/regions')
+    })
+
+    it('should handle API errors', async () => {
+      const mockError = {
+        response: {
+          data: {
+            detail: 'API Error'
+          }
+        }
+      }
+
+      axios.get.mockRejectedValue(mockError)
+
+      await expect(regionsApi.getRegions()).rejects.toThrow('API Error')
+    })
+  })
+})
+
