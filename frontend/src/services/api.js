@@ -16,7 +16,7 @@ const extractErrorMessage = (error) => {
   if (error.response?.data?.detail) {
     return error.response.data.detail
   }
-  return error.message || 'Une erreur est survenue'
+  return error.message || 'An error occurred'
 }
 
 export const regionsApi = {
@@ -25,7 +25,7 @@ export const regionsApi = {
       const response = await apiClient.get('/regions')
       return response.data
     } catch (error) {
-      console.error('Erreur lors de la récupération des régions:', error)
+      console.error('Error retrieving regions:', error)
       throw new Error(extractErrorMessage(error))
     }
   },
@@ -35,7 +35,7 @@ export const regionsApi = {
       const response = await apiClient.get(`/regions/${regionId}/constellations`)
       return response.data
     } catch (error) {
-      console.error(`Erreur lors de la récupération des constellations pour la région ${regionId}:`, error)
+      console.error(`Error retrieving constellations for region ${regionId}:`, error)
       throw new Error(extractErrorMessage(error))
     }
   },
@@ -45,7 +45,7 @@ export const regionsApi = {
       const response = await apiClient.get(`/regions/${regionId}/adjacent`)
       return response.data
     } catch (error) {
-      console.error(`Erreur lors de la récupération des régions adjacentes pour la région ${regionId}:`, error)
+      console.error(`Error retrieving adjacent regions for region ${regionId}:`, error)
       throw new Error(extractErrorMessage(error))
     }
   }
@@ -57,7 +57,7 @@ export const constellationsApi = {
       const response = await apiClient.get(`/constellations/${constellationId}`)
       return response.data
     } catch (error) {
-      console.error(`Erreur lors de la récupération de la constellation ${constellationId}:`, error)
+      console.error(`Error retrieving constellation ${constellationId}:`, error)
       throw new Error(extractErrorMessage(error))
     }
   },
@@ -67,7 +67,7 @@ export const constellationsApi = {
       const response = await apiClient.get(`/constellations/${constellationId}/systems`)
       return response.data
     } catch (error) {
-      console.error(`Erreur lors de la récupération des systèmes pour la constellation ${constellationId}:`, error)
+      console.error(`Error retrieving systems for constellation ${constellationId}:`, error)
       throw new Error(extractErrorMessage(error))
     }
   }
@@ -79,7 +79,7 @@ export const systemsApi = {
       const response = await apiClient.get(`/systems/${systemId}`)
       return response.data
     } catch (error) {
-      console.error(`Erreur lors de la récupération du système ${systemId}:`, error)
+      console.error(`Error retrieving system ${systemId}:`, error)
       throw new Error(extractErrorMessage(error))
     }
   },
@@ -89,7 +89,7 @@ export const systemsApi = {
       const response = await apiClient.get(`/systems/${systemId}/connections`)
       return response.data
     } catch (error) {
-      console.error(`Erreur lors de la récupération des connexions pour le système ${systemId}:`, error)
+      console.error(`Error retrieving connections for system ${systemId}:`, error)
       throw new Error(extractErrorMessage(error))
     }
   }
@@ -101,7 +101,7 @@ export const marketsApi = {
       const response = await apiClient.get('/markets/categories')
       return response.data
     } catch (error) {
-      console.error('Erreur lors de la récupération des catégories de marché:', error)
+      console.error('Error retrieving market categories:', error)
       throw new Error(extractErrorMessage(error))
     }
   },
@@ -111,7 +111,7 @@ export const marketsApi = {
       const response = await apiClient.get(`/markets/regions/${regionId}/orders`, { params })
       return response.data
     } catch (error) {
-      console.error(`Erreur lors de la récupération des ordres pour la région ${regionId}:`, error)
+      console.error(`Error retrieving orders for region ${regionId}:`, error)
       throw new Error(extractErrorMessage(error))
     }
   },
@@ -121,7 +121,7 @@ export const marketsApi = {
       const response = await apiClient.get('/markets/deals', { params })
       return response.data
     } catch (error) {
-      console.error('Erreur lors de la recherche de bonnes affaires:', error)
+      console.error('Error searching for deals:', error)
       throw new Error(extractErrorMessage(error))
     }
   }
@@ -133,7 +133,7 @@ export const universeApi = {
       const response = await apiClient.get(`/universe/types/${typeId}`)
       return response.data
     } catch (error) {
-      console.error(`Erreur lors de la récupération du type ${typeId}:`, error)
+      console.error(`Error retrieving type ${typeId}:`, error)
       throw new Error(extractErrorMessage(error))
     }
   }

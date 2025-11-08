@@ -2,17 +2,17 @@
   <div class="systems-page">
     <div class="card">
       <div v-if="loading" class="loading">
-        Chargement des systèmes...
+        Loading systems...
       </div>
       <div v-else-if="error" class="error">
         {{ error }}
       </div>
       <div v-else-if="systems.length > 0" class="systems-container">
         <div class="stats">
-          <p><strong>{{ total }} systèmes</strong> dans la constellation <strong>{{ constellationName }}</strong></p>
+          <p><strong>{{ total }} systems</strong> in constellation <strong>{{ constellationName }}</strong></p>
           <p class="market-link">
             <router-link :to="`/markets/constellation/${constellationId}`" class="market-button">
-              📊 Voir le marché de cette constellation
+              📊 View market for this constellation
             </router-link>
           </p>
         </div>
@@ -27,11 +27,11 @@
             <div class="system-info">
               <p class="system-id">ID: {{ system.system_id }}</p>
               <p class="security-status" :class="getSecurityClass(system.security_status)">
-                <strong>Sécurité: {{ system.security_status.toFixed(1) }}</strong>
+                <strong>Security: {{ system.security_status.toFixed(1) }}</strong>
                 <span v-if="system.security_class">{{ system.security_class }}</span>
               </p>
               <p class="planets-count">
-                <strong>{{ system.planets?.length || 0 }}</strong> planète(s)
+                <strong>{{ system.planets?.length || 0 }}</strong> planet(s)
               </p>
               <div v-if="system.position" class="position">
                 <small>
@@ -42,14 +42,14 @@
                 :to="`/systems/${system.system_id}`"
                 class="system-detail-link"
               >
-                Voir les détails et connexions →
+                View details and connections →
               </router-link>
             </div>
           </div>
         </div>
       </div>
       <div v-else class="no-data">
-        Aucun système trouvé pour cette constellation.
+        No systems found for this constellation.
       </div>
     </div>
   </div>
@@ -89,19 +89,19 @@ export default {
         this.systems = data.systems || []
         this.total = data.total || 0
         
-        // Récupérer le nom de la constellation et de la région
+        // Retrieve constellation and region names
         if (this.systems.length > 0) {
           await this.fetchConstellationInfo()
         }
       } catch (error) {
-        this.error = 'Erreur: ' + error.message
+        this.error = 'Error: ' + error.message
       } finally {
         this.loading = false
       }
     },
     async fetchConstellationInfo() {
       try {
-        // Récupérer toutes les régions pour trouver celle qui contient cette constellation
+        // Retrieve all regions to find the one containing this constellation
         const regionsData = await api.regions.getRegions()
         const regions = regionsData.regions || []
         
@@ -115,7 +115,7 @@ export default {
             this.constellationName = constellation.name
             this.regionId = region.region_id
             this.regionName = region.name
-            // Mettre à jour le breadcrumb dans le header
+            // Update breadcrumb in header
             eventBus.emit('breadcrumb-update', {
               regionName: this.regionName,
               regionId: this.regionId,
@@ -126,7 +126,7 @@ export default {
           }
         }
       } catch (error) {
-        console.error('Erreur lors de la récupération des informations:', error)
+        console.error('Error retrieving information:', error)
       }
     },
     getSecurityClass(securityStatus) {
@@ -135,7 +135,7 @@ export default {
       if (securityStatus <= 0.4) return 'sec-orange'
       if (securityStatus <= 0.5) return 'sec-yellow'
       if (securityStatus <= 0.6) return 'sec-green'
-      if (securityStatus <= 0.8) return 'sec-green' // Vert aussi jusqu'à 0.8
+      if (securityStatus <= 0.8) return 'sec-green' // Green also up to 0.8
       return 'sec-blue' // > 0.8
     }
   },

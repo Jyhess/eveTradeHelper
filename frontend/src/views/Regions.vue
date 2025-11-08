@@ -8,26 +8,26 @@
           v-model="searchFilter"
           type="text"
           class="filter-input"
-          placeholder="Rechercher une région..."
+          placeholder="Search for a region..."
           :disabled="loading"
         />
         <div class="filter-info" v-if="!loading">
           <span v-if="searchFilter">
-            {{ filteredRegions.length }} région(s) trouvée(s) sur {{ total }}
+            {{ filteredRegions.length }} region(s) found out of {{ total }}
           </span>
           <span v-else>
-            {{ total }} région(s) au total
+            {{ total }} region(s) total
           </span>
         </div>
       </div>
       
       <div v-if="loading" class="loading">
-        Chargement des régions...
+        Loading regions...
       </div>
       
       <div v-else-if="filteredRegions.length > 0" class="regions-container">
         <div class="stats">
-          <p><strong>{{ filteredRegions.length }}</strong> région(s) {{ searchFilter ? 'trouvée(s)' : 'chargée(s)' }}</p>
+          <p><strong>{{ filteredRegions.length }}</strong> region(s) {{ searchFilter ? 'found' : 'loaded' }}</p>
         </div>
         
         <div class="regions-grid">
@@ -52,7 +52,7 @@
       </div>
       
       <div v-else-if="!loading && regions.length > 0" class="no-results">
-        <p>Aucune région ne correspond à votre recherche "{{ searchFilter }}"</p>
+        <p>No region matches your search "{{ searchFilter }}"</p>
       </div>
     </div>
   </div>
@@ -97,14 +97,14 @@ export default {
         this.regions = data.regions || []
         this.total = data.total || 0
       } catch (error) {
-        this.error = 'Erreur: ' + error.message
+        this.error = 'Error: ' + error.message
       } finally {
         this.loading = false
       }
     }
   },
   mounted() {
-    // Charger automatiquement les régions au montage
+    // Automatically load regions on mount
     this.fetchRegions()
   }
 }

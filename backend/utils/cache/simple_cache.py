@@ -1,5 +1,5 @@
 """
-Cache basé sur Redis
+Redis-based cache
 """
 
 import json
@@ -15,7 +15,7 @@ except ImportError:
 
 
 class SimpleCache:
-    """Cache utilisant Redis"""
+    """Cache using Redis"""
 
     def __init__(
         self,
@@ -26,32 +26,32 @@ class SimpleCache:
         redis_db: int = 0,
     ):
         """
-        Initialise le cache Redis
+        Initialize Redis cache
 
         Args:
-            expiry_hours: Durée de vie du cache en heures
-            redis_url: URL de connexion Redis (ex: redis://localhost:6379/0)
-            redis_host: Host Redis (ignoré si redis_url est fourni)
-            redis_port: Port Redis (ignoré si redis_url est fourni)
-            redis_db: Base de données Redis (ignoré si redis_url est fourni)
+            expiry_hours: Cache lifetime in hours
+            redis_url: Redis connection URL (e.g., redis://localhost:6379/0)
+            redis_host: Redis host (ignored if redis_url is provided)
+            redis_port: Redis port (ignored if redis_url is provided)
+            redis_db: Redis database (ignored if redis_url is provided)
 
         Raises:
-            ImportError: Si redis-py n'est pas installé
-            ConnectionError: Si la connexion à Redis échoue
+            ImportError: If redis-py is not installed
+            ConnectionError: If connection to Redis fails
         """
         if not REDIS_AVAILABLE:
             raise ImportError(
-                "Redis est requis mais redis-py n'est pas installé. "
-                "Installez-le avec: pip install redis"
+                "Redis is required but redis-py is not installed. "
+                "Install it with: pip install redis"
             )
 
         self.expiry_hours = expiry_hours
 
-        # Vérifier qu'au moins une configuration Redis est fournie
+        # Check that at least one Redis configuration is provided
         if not redis_url and not redis_host:
             raise ValueError(
-                "Redis est requis mais aucune configuration n'est fournie. "
-                "Veuillez fournir REDIS_URL ou REDIS_HOST dans les variables d'environnement."
+                "Redis is required but no configuration is provided. "
+                "Please provide REDIS_URL or REDIS_HOST in environment variables."
             )
 
         try:
@@ -64,31 +64,31 @@ class SimpleCache:
                     db=redis_db,
                     decode_responses=True,
                 )
-            # Test de connexion
+            # Test connection
             self.redis_client.ping()
         except redis.ConnectionError as e:
             raise ConnectionError(
-                f"❌ Impossible de se connecter à Redis.\n"
-                f"   Vérifiez que Redis est démarré avec: docker-compose up -d redis\n"
-                f"   Ou démarrez le service Redis dans Docker: docker-compose up redis\n"
-                f"   Détails de l'erreur: {e}"
+                f"❌ Unable to connect to Redis.\n"
+                f"   Check that Redis is started with: docker-compose up -d redis\n"
+                f"   Or start the Redis service in Docker: docker-compose up redis\n"
+                f"   Error details: {e}"
             ) from e
         except Exception as e:
             raise ConnectionError(
-                f"❌ Erreur lors de la connexion à Redis.\n"
-                f"   Vérifiez que Redis est démarré avec: docker-compose up -d redis\n"
-                f"   Détails de l'erreur: {e}"
+                f"❌ Error connecting to Redis.\n"
+                f"   Check that Redis is started with: docker-compose up -d redis\n"
+                f"   Error details: {e}"
             ) from e
 
     def is_valid(self, key: str) -> bool:
         """
-        Vérifie si le cache pour une clé est encore valide
+        Checks if the cache for a key is still valid
 
         Args:
-            key: Clé du cache
+            key: Cache key
 
         Returns:
-            True si le cache est valide, False sinon
+            True if cache is valid, False otherwise
         """
         metadata_key = f"metadata:{key}"
         last_updated_str = self.redis_client.hget(metadata_key, "last_updated")
@@ -98,7 +98,7 @@ class SimpleCache:
 
         try:
             last_updated = datetime.fromisoformat(last_updated_str)
-            # S'assurer que la date est timezone-aware
+            # Ensure the date is timezone-aware
             if last_updated.tzinfo is None:
                 last_updated = last_updated.replace(tzinfo=UTC)
             expiry_time = last_updated + timedelta(hours=self.expiry_hours)
@@ -108,13 +108,13 @@ class SimpleCache:
 
     def get(self, key: str) -> list[dict[str, Any]] | None:
         """
-        Récupère les données depuis le cache
+        Retrieves data from cache
 
         Args:
-            key: Clé du cache
+            key: Cache key
 
         Returns:
-            Les données en cache ou None si non disponible
+            Cached data or None if not available
         """
         if not self.is_valid(key):
             return None
@@ -130,16 +130,16 @@ class SimpleCache:
 
     def set(self, key: str, items: list[dict[str, Any]], metadata: dict | None = None):
         """
-        Sauvegarde des données dans le cache
+        Saves data to cache
 
         Args:
-            key: Clé du cache
-            items: Liste des éléments à mettre en cache
-            metadata: Métadonnées optionnelles (ex: region_ids)
+            key: Cache key
+            items: List of items to cache
+            metadata: Optional metadata (e.g., region_ids)
         """
         now = datetime.now(UTC)
 
-        # Sauvegarder les données
+        # Save data
         cache_data = {
             "key": key,
             "items": items,
@@ -147,11 +147,11 @@ class SimpleCache:
         }
 
         try:
-            # Sauvegarder les données dans Redis
+            # Save data to Redis
             cache_key = f"cache:{key}"
             self.redis_client.set(cache_key, json.dumps(cache_data, ensure_ascii=False))
 
-            # Mettre à jour les métadonnées
+            # Update metadata
             metadata_key = f"metadata:{key}"
             metadata_data = {
                 "last_updated": now.isoformat(),
@@ -160,14 +160,14 @@ class SimpleCache:
             }
             self.redis_client.hset(metadata_key, mapping=metadata_data)
         except Exception as e:
-            raise Exception(f"Erreur lors de l'écriture du cache Redis: {e}") from e
+            raise Exception(f"Error writing to Redis cache: {e}") from e
 
     def clear(self, key: str | None = None):
         """
-        Vide le cache pour une clé spécifique ou tout le cache
+        Clears cache for a specific key or all cache
 
         Args:
-            key: Clé à supprimer, ou None pour tout supprimer
+            key: Key to delete, or None to delete all
         """
         try:
             if key:
@@ -175,10 +175,10 @@ class SimpleCache:
                 metadata_key = f"metadata:{key}"
                 self.redis_client.delete(cache_key, metadata_key)
             else:
-                # Supprimer toutes les clés du cache
+                # Delete all cache keys
                 for cache_key in self.redis_client.scan_iter(match="cache:*"):
                     self.redis_client.delete(cache_key)
                 for metadata_key in self.redis_client.scan_iter(match="metadata:*"):
                     self.redis_client.delete(metadata_key)
         except Exception as e:
-            raise Exception(f"Erreur lors de la suppression du cache Redis: {e}") from e
+            raise Exception(f"Error deleting Redis cache: {e}") from e

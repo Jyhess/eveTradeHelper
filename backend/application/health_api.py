@@ -1,5 +1,5 @@
 """
-API pour les endpoints de santé
+API for health endpoints
 """
 
 from fastapi import APIRouter
@@ -9,5 +9,5 @@ health_router = APIRouter()
 
 @health_router.get("/api/health")
 async def health():
-    """Endpoint de santé"""
+    """Health endpoint"""
     return {"status": "ok"}

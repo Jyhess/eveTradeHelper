@@ -1,6 +1,6 @@
 """
-Service de domaine pour la gestion des marchés
-Contient la logique métier pure, indépendante de l'infrastructure (version asynchrone)
+Domain service for market management
+Contains pure business logic, independent of infrastructure (async version)
 """
 
 import asyncio
@@ -15,29 +15,29 @@ logger = logging.getLogger(__name__)
 
 
 class MarketService:
-    """Service de domaine pour la gestion des marchés (asynchrone)"""
+    """Domain service for market management (async)"""
 
     def __init__(self, repository: EveRepository):
         """
-        Initialise le service avec un repository
+        Initialize the service with a repository
 
         Args:
-            repository: Implémentation du repository Eve
+            repository: Eve repository implementation
         """
         self.repository = repository
 
     async def get_market_categories(self) -> list[dict[str, Any]]:
         """
-        Récupère la liste des catégories du marché avec leurs détails
-        Logique métier : orchestration des appels au repository (parallélisée)
+        Retrieves the list of market categories with their details
+        Business logic: orchestration of repository calls (parallelized)
 
         Returns:
-            Liste des catégories formatées, triées par nom
+            List of formatted categories, sorted by name
         """
-        # Récupérer la liste des groupes de marché
+        # Fetch the list of market groups
         group_ids = await self.repository.get_market_groups_list()
 
-        # Récupérer les détails de chaque groupe en parallèle
+        # Fetch details of each group in parallel
         async def fetch_group(group_id: int) -> dict[str, Any] | None:
             try:
                 group_data = await self.repository.get_market_group_details(group_id)
@@ -49,12 +49,12 @@ class MarketService:
                     "types": group_data.get("types", []),
                 }
             except Exception as e:
-                logger.warning(f"Erreur lors de la récupération du groupe {group_id}: {e}")
+                logger.warning(f"Error retrieving group {group_id}: {e}")
                 return None
 
         results = await asyncio.gather(*[fetch_group(gid) for gid in group_ids])
 
-        # Filtrer les résultats None et trier par nom
+        # Filter None results and sort by name
         categories = sorted([c for c in results if c is not None], key=lambda x: x.get("name", ""))
 
         return categories
@@ -69,50 +69,50 @@ class MarketService:
         limit: int = DEFAULT_MARKET_ORDERS_LIMIT,
     ) -> dict[str, Any]:
         """
-        Récupère les ordres de marché enrichis pour une région
-        Logique métier : tri, limitation et enrichissement des ordres
+        Retrieves enriched market orders for a region
+        Business logic: sorting, limiting and enriching orders
 
         Args:
-            region_id: ID de la région
-            type_id: Optionnel, ID du type d'item pour filtrer les ordres
-            limit: Nombre maximum d'ordres par type (achat/vente) à retourner
+            region_id: Region ID
+            type_id: Optional, item type ID to filter orders
+            limit: Maximum number of orders per type (buy/sell) to return
 
         Returns:
-            Dictionnaire contenant les ordres d'achat et de vente enrichis
+            Dictionary containing enriched buy and sell orders
         """
-        # Récupérer les ordres depuis le repository
+        # Fetch orders from repository
         orders = await self.repository.get_market_orders(region_id, type_id)
 
-        # Séparer les ordres d'achat et de vente
+        # Separate buy and sell orders
         buy_orders = [o for o in orders if o.get("is_buy_order", False)]
         sell_orders = [o for o in orders if not o.get("is_buy_order", False)]
 
-        # Trier par prix (meilleur prix en premier)
+        # Sort by price (best price first)
         buy_orders.sort(key=lambda x: x.get("price", 0), reverse=True)
         sell_orders.sort(key=lambda x: x.get("price", 0))
 
-        # Limiter à N meilleurs ordres pour éviter trop d'appels API
+        # Limit to N best orders to avoid too many API calls
         buy_orders = buy_orders[:limit]
         sell_orders = sell_orders[:limit]
 
-        # Enrichir les ordres avec les noms des systèmes et stations
+        # Enrich orders with system and station names
         async def enrich_order(order: dict[str, Any]) -> dict[str, Any]:
-            """Enrichit un ordre avec les noms du système et de la station"""
+            """Enriches an order with system and station names"""
             location_id = order.get("location_id")
             if not location_id:
                 return order
 
             enriched_order = order.copy()
 
-            # Les IDs >= STATION_ID_THRESHOLD sont des stations, sinon ce sont des systèmes
+            # IDs >= STATION_ID_THRESHOLD are stations, otherwise they are systems
             if is_station(location_id):
-                # C'est une station
+                # It's a station
                 try:
                     station_data = await self.repository.get_station_details(location_id)
                     enriched_order["station_name"] = station_data.get("name", "Unknown Station")
                     enriched_order["station_id"] = location_id
 
-                    # Récupérer aussi le système de la station
+                    # Also fetch the station's system
                     system_id = station_data.get("system_id")
                     if system_id:
                         system_data = await self.repository.get_system_details(system_id)
@@ -120,24 +120,24 @@ class MarketService:
                         enriched_order["system_id"] = system_id
                 except Exception as e:
                     logger.warning(
-                        f"Erreur lors de la récupération de la station {location_id}: {e}"
+                        f"Error retrieving station {location_id}: {e}"
                     )
                     enriched_order["station_name"] = f"Station {location_id}"
                     enriched_order["station_id"] = location_id
             else:
-                # C'est un système
+                # It's a system
                 try:
                     system_data = await self.repository.get_system_details(location_id)
                     enriched_order["system_name"] = system_data.get("name", "Unknown System")
                     enriched_order["system_id"] = location_id
                 except Exception as e:
-                    logger.warning(f"Erreur lors de la récupération du système {location_id}: {e}")
-                    enriched_order["system_name"] = f"Système {location_id}"
+                    logger.warning(f"Error retrieving system {location_id}: {e}")
+                    enriched_order["system_name"] = f"System {location_id}"
                     enriched_order["system_id"] = location_id
 
             return enriched_order
 
-        # Enrichir tous les ordres en parallèle
+        # Enrich all orders in parallel
         buy_orders_enriched = await asyncio.gather(
             *[enrich_order(order) for order in buy_orders], return_exceptions=True
         )
@@ -145,7 +145,7 @@ class MarketService:
             *[enrich_order(order) for order in sell_orders], return_exceptions=True
         )
 
-        # Filtrer les erreurs (garder les ordres même si l'enrichissement a échoué)
+        # Filter errors (keep orders even if enrichment failed)
         buy_orders_final = [
             order if not isinstance(order, Exception) else buy_orders[i]
             for i, order in enumerate(buy_orders_enriched)

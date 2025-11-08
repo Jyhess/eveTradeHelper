@@ -1,239 +1,269 @@
-# RÈGLES DE DÉVELOPPEMENT - À RESPECTER SYSTÉMATIQUEMENT
+# DEVELOPMENT RULES - TO BE SYSTEMATICALLY FOLLOWED
 
-⚠️ **IMPORTANT** : Ces règles sont OBLIGATOIRES. L'IA doit TOUJOURS les respecter lors de toute modification de code.
+⚠️ **IMPORTANT**: These rules are MANDATORY. The AI must ALWAYS respect them when making any code modifications.
 
 ## Test-Driven Development (TDD)
 
-**TOUTES** les modifications de code sur le backend doivent suivre le cycle TDD Red-Green-Refactor :
+**ALL** code modifications on the backend must follow the TDD Red-Green-Refactor cycle:
 
-### 1. 🔴 RED - Écrire le test qui échoue
+### 1. 🔴 RED - Write the failing test
 
-**ÉTAPE OBLIGATOIRE** : Écrire le test AVANT d'implémenter la fonctionnalité.
+**MANDATORY STEP**: Write the test BEFORE implementing the feature.
 
-- Le test doit échouer pour la bonne raison (pas d'imports manquants, etc.)
-- Le test doit être spécifique et tester une seule chose
-- **NE PAS** implémenter de code sans avoir écrit le test d'abord
+- The test must fail for the right reason (no missing imports, etc.)
+- The test must be specific and test one thing
+- **DO NOT** implement code without writing the test first
 
-### 2. 🟢 GREEN - Implémenter le minimum pour faire passer le test
+### 2. 🟢 GREEN - Implement the minimum to make the test pass
 
-**ÉTAPE OBLIGATOIRE** : Implémenter uniquement le minimum nécessaire.
+**MANDATORY STEP**: Implement only the minimum necessary.
 
-- Implémenter uniquement ce qui est nécessaire pour que le test passe
-- **NE PAS** ajouter de fonctionnalités supplémentaires
-- Le code peut être "sale" tant que le test passe
+- Implement only what is necessary for the test to pass
+- **DO NOT** add additional features
+- Code can be "dirty" as long as the test passes
 
-### 3. 🔵 REFACTOR - Améliorer le code
+### 3. 🔵 REFACTOR - Improve the code
 
-**ÉTAPE OBLIGATOIRE** : Refactoriser après que le test passe.
+**MANDATORY STEP**: Refactor after the test passes.
 
-- Une fois le test vert, refactoriser le code
-- Améliorer la lisibilité, la performance, la maintenabilité
-- S'assurer que tous les tests passent toujours après le refactoring
-- Appliquer toutes les règles de clean code ci-dessous
+- Once the test is green, refactor the code
+- Improve readability, performance, maintainability
+- Ensure all tests still pass after refactoring
+- Apply all clean code rules below
 
-## Règles spécifiques au projet
+## Project-specific rules
+
+### Language
+
+**ABSOLUTE RULE**: **ALWAYS** write in English.
+
+**MANDATORY ACTION**:
+
+- All code, comments, docstrings, documentation, and messages must be in English
+- Variable names, function names, class names must be in English
+- Error messages, log messages, and user-facing text must be in English
+- Documentation files (README, ARCHITECTURE, DEBUG, etc.) must be in English
+- Test names and test descriptions must be in English
+
+**VIOLATION EXAMPLE**:
+
+```python
+# ❌ BAD
+def calculer_volume():
+    """Calcule le volume d'un item"""
+    # Récupérer les données
+    pass
+
+# ✅ GOOD
+def calculate_volume():
+    """Calculates the volume of an item"""
+    # Retrieve data
+    pass
+```
 
 ### Tests
 
-- Les tests unitaires n'utilisent PAS le cache Redis
-- Les tests d'intégration utilisent le cache Redis partagé. Ne pas nettoyer le cache entre les tests (mutualisation avec la prod).
-- Utiliser `pytest.mark.parametrize` pour éviter la duplication de code dans les tests
+- Unit tests do NOT use Redis cache
+- Integration tests use shared Redis cache. Do not clean cache between tests (shared with production).
+- Use `pytest.mark.parametrize` to avoid code duplication in tests
 
 ### Code
 
-- Respecter les types Python (typing)
-- Utiliser des noms de variables et fonctions explicites
+- Respect Python types (typing)
+- Use explicit variable and function names
 
-## RÈGLES DU CLEAN CODE - À APPLIQUER SYSTÉMATIQUEMENT
+## CLEAN CODE RULES - TO BE SYSTEMATICALLY APPLIED
 
-**TOUTES** les modifications de code doivent respecter les principes du clean code suivants. L'IA doit vérifier chaque règle avant de proposer du code.
+**ALL** code modifications must respect the following clean code principles. The AI must verify each rule before proposing code.
 
-### 1. Élimination des nombres magiques (Magic Numbers)
+### 1. Elimination of magic numbers
 
-**RÈGLE ABSOLUE** : **JAMAIS** utiliser de nombres magiques directement dans le code.
+**ABSOLUTE RULE**: **NEVER** use magic numbers directly in code.
 
-**ACTION OBLIGATOIRE** :
+**MANDATORY ACTION**:
 
-- Créer des constantes nommées dans `backend/domain/constants.py`
-- Exemples : `STATION_ID_THRESHOLD = 60000000`, `DEFAULT_MIN_PROFIT_ISK = 100000.0`
-- Les constantes doivent être explicites et documentées
+- Create named constants in `backend/domain/constants.py`
+- Examples: `STATION_ID_THRESHOLD = 60000000`, `DEFAULT_MIN_PROFIT_ISK = 100000.0`
+- Constants must be explicit and documented
 
-**EXEMPLE DE VIOLATION** :
+**VIOLATION EXAMPLE**:
 
 ```python
-# ❌ MAUVAIS
+# ❌ BAD
 if station_id > 60000000:
     # ...
 
-# ✅ BON
+# ✅ GOOD
 from domain.constants import STATION_ID_THRESHOLD
 if station_id > STATION_ID_THRESHOLD:
     # ...
 ```
 
-### 2. Fonctions courtes (Small Functions)
+### 2. Small Functions
 
-**RÈGLE ABSOLUE** : Une fonction doit faire **une seule chose** (Single Responsibility Principle).
+**ABSOLUTE RULE**: A function must do **one thing** (Single Responsibility Principle).
 
-**ACTION OBLIGATOIRE** :
+**MANDATORY ACTION**:
 
-- Si une fonction dépasse 50 lignes, **LA DIVISER** en sous-fonctions
-- Les fonctions doivent être testables individuellement
-- Préférer plusieurs petites fonctions qu'une grande fonction
+- If a function exceeds 50 lines, **DIVIDE IT** into sub-functions
+- Functions must be individually testable
+- Prefer several small functions over one large function
 
-**EXEMPLE DE VIOLATION** :
+**VIOLATION EXAMPLE**:
 
 ```python
-# ❌ MAUVAIS : fonction de 60 lignes
+# ❌ BAD: 60-line function
 def process_data(data):
-    # 60 lignes de code...
+    # 60 lines of code...
     pass
 
-# ✅ BON : divisée en sous-fonctions
+# ✅ GOOD: divided into sub-functions
 def process_data(data):
     validated = validate_data(data)
     cleaned = clean_data(validated)
     return transform_data(cleaned)
 ```
 
-### 3. Nommage explicite (Meaningful Names)
+### 3. Meaningful Names
 
-- Les noms de variables, fonctions et classes doivent être **auto-explicatifs**
-- Éviter les abréviations sauf si elles sont universelles (ex: `id`, `api`)
-- Utiliser des verbes pour les fonctions : `calculate_volume()`, `get_item_type()`
-- Utiliser des noms de domaine métier quand approprié
+- Variable, function, and class names must be **self-explanatory**
+- Avoid abbreviations unless they are universal (e.g., `id`, `api`)
+- Use verbs for functions: `calculate_volume()`, `get_item_type()`
+- Use domain business names when appropriate
 
 ### 4. DRY (Don't Repeat Yourself)
 
-**RÈGLE ABSOLUE** : **JAMAIS** dupliquer du code.
+**ABSOLUTE RULE**: **NEVER** duplicate code.
 
-**ACTION OBLIGATOIRE** :
+**MANDATORY ACTION**:
 
-- Extraire la logique commune dans des fonctions utilitaires
-- Créer des helpers dans `backend/domain/helpers.py` si nécessaire
-- Réutiliser les fonctions existantes plutôt que de réécrire la logique
-- Si du code est répété 2 fois ou plus, l'extraire dans une fonction
+- Extract common logic into utility functions
+- Create helpers in `backend/domain/helpers.py` if necessary
+- Reuse existing functions rather than rewriting logic
+- If code is repeated 2 times or more, extract it into a function
 
-### 4.1. Préférer les fonctions nommées aux commentaires
+### 4.1. Prefer named functions over comments
 
-- **JAMAIS** utiliser un commentaire pour expliquer ce que fait une ligne de code complexe
-- Extraire la logique dans une fonction nommée explicite
-- Exemple : remplacer `# Filtrer les résultats valides et None` + `deals = [r for r in results if isinstance(r, dict) and r is not None]` par `deals = filter_valid_deals(results)`
-- Les fonctions nommées sont auto-documentées et réutilisables
-- Si une ligne de code nécessite un commentaire, c'est un signe qu'elle devrait être extraite dans une fonction
+- **NEVER** use a comment to explain what a complex line of code does
+- Extract logic into an explicit named function
+- Example: replace `# Filter valid results and None` + `deals = [r for r in results if isinstance(r, dict) and r is not None]` with `deals = filter_valid_deals(results)`
+- Named functions are self-documented and reusable
+- If a line of code requires a comment, it's a sign it should be extracted into a function
 
-### 5. Principe de responsabilité unique (SRP)
+### 5. Single Responsibility Principle (SRP)
 
-- Chaque classe/fonction doit avoir **une seule raison de changer**
-- Séparer les préoccupations : collecte, calcul, formatage, etc.
-- Extraire la logique complexe dans des méthodes privées (`_method_name`)
+- Each class/function must have **one reason to change**
+- Separate concerns: collection, calculation, formatting, etc.
+- Extract complex logic into private methods (`_method_name`)
 
-### 6. Encapsulation et abstraction
+### 6. Encapsulation and abstraction
 
-- **Cacher les détails d'implémentation** des couches inférieures
-- Les APIs ne doivent **JAMAIS** accéder directement aux repositories
-- Créer des méthodes dans les services pour encapsuler l'accès au repository
-- Respecter l'architecture en couches (API → Service → Repository)
+- **Hide implementation details** of lower layers
+- APIs must **NEVER** directly access repositories
+- Create methods in services to encapsulate repository access
+- Respect layered architecture (API → Service → Repository)
 
-### 7. Documentation et expressivité
+### 7. Documentation and expressiveness
 
-- Ajouter des **docstrings** uniquement quand nécessaire :
-  - **TOUJOURS** dans les APIs (endpoints FastAPI) pour générer la documentation OpenAPI
-  - **ÉVITER** les docstrings redondantes dans le code métier si le nom et les paramètres sont clairs
-- Si une fonction nécessite une docstring, c'est peut-être un signe que le nommage peut être amélioré
-- Utiliser des commentaires pour expliquer le **pourquoi**, pas le **comment**
-- Le code doit être auto-documenté grâce à un bon nommage
-- Une docstring est inutile si elle répète simplement le nom de la fonction et ses paramètres
+- Add **docstrings** only when necessary:
+  - **ALWAYS** in APIs (FastAPI endpoints) to generate OpenAPI documentation
+  - **AVOID** redundant docstrings in business code if the name and parameters are clear
+- If a function requires a docstring, it may be a sign that naming can be improved
+- Use comments to explain the **why**, not the **how**
+- Code must be self-documented through good naming
+- A docstring is useless if it simply repeats the function name and its parameters
 
-### 8. Séparation des préoccupations
+### 8. Separation of concerns
 
-- Séparer les constantes dans `constants.py`
-- Séparer les utilitaires dans `helpers.py` quand c'est spécifique au module, dans `backend/utils` quand ça peut être partagé entre plusieurs modules.
-- La logique métier doit être dans les services, pas dans les APIs
-- Chaque module doit avoir une responsabilité claire
+- Separate constants in `constants.py`
+- Separate utilities in `helpers.py` when module-specific, in `backend/utils` when shared between multiple modules.
+- Business logic must be in services, not in APIs
+- Each module must have a clear responsibility
 
-### 9. Abstraction appropriée
+### 9. Appropriate abstraction
 
-- Utiliser le **bon niveau d'abstraction** pour chaque fonction
-- Créer des fonctions utilitaires réutilisables au lieu de logique inline
-- Éviter les niveaux d'abstraction mélangés dans une même fonction
+- Use the **right level of abstraction** for each function
+- Create reusable utility functions instead of inline logic
+- Avoid mixed abstraction levels in the same function
 
-### 10. Maintenabilité
+### 10. Maintainability
 
-- Le code doit être **facile à modifier** sans casser d'autres parties
-- Centraliser les constantes pour faciliter les changements
-- Structurer le code de manière modulaire
-- Préférer la composition à la duplication
+- Code must be **easy to modify** without breaking other parts
+- Centralize constants to facilitate changes
+- Structure code in a modular way
+- Prefer composition over duplication
 
-### 11. Gestion des imports
+### 11. Import management
 
-**RÈGLE ABSOLUE** : **JAMAIS** importer dans les fonctions.
+**ABSOLUTE RULE**: **NEVER** import inside functions.
 
-**ACTION OBLIGATOIRE** :
+**MANDATORY ACTION**:
 
-- Tous les imports doivent être **EN HAUT DU FICHIER** uniquement
-- Grouper les imports : standard library, tiers, locaux
-- Utiliser des imports absolus pour les modules du projet
+- All imports must be **AT THE TOP OF THE FILE** only
+- Group imports: standard library, third-party, local
+- Use absolute imports for project modules
 
-**EXEMPLE DE VIOLATION** :
+**VIOLATION EXAMPLE**:
 
 ```python
-# ❌ MAUVAIS
+# ❌ BAD
 def my_function():
-    import logging  # ❌ Import dans une fonction
+    import logging  # ❌ Import inside function
     logging.info("test")
 
-# ✅ BON
-import logging  # ✅ Import en haut du fichier
+# ✅ GOOD
+import logging  # ✅ Import at top of file
 
 def my_function():
     logging.info("test")
 ```
 
-### 12. Gestion des erreurs
+### 12. Error handling
 
-- Éviter les `except Exception` génériques quand possible
-- Logger les erreurs avec un contexte approprié
-- Utiliser des exceptions spécifiques quand c'est possible
-- Ne pas masquer les erreurs sans les logger
+- Avoid generic `except Exception` when possible
+- Log errors with appropriate context
+- Use specific exceptions when possible
+- Do not hide errors without logging them
 
-## CHECKLIST OBLIGATOIRE AVANT TOUTE MODIFICATION DE CODE
+## MANDATORY CHECKLIST BEFORE ANY CODE MODIFICATION
 
-**L'IA DOIT vérifier cette checklist avant de proposer du code** :
+**THE AI MUST verify this checklist before proposing code**:
 
-- [ ] **TDD respecté** : Test écrit AVANT l'implémentation (RED → GREEN → REFACTOR)
-- [ ] **Pas de nombres magiques** : Utiliser des constantes de `backend/domain/constants.py`
-- [ ] **Fonctions courtes** : Aucune fonction ne dépasse 50 lignes
-- [ ] **Noms explicites** : Variables et fonctions auto-explicatifs
-- [ ] **Pas de duplication** : Code réutilisé via des fonctions helpers
-- [ ] **Fonctions nommées** : Pas de commentaires explicatifs, extraire en fonctions
-- [ ] **SRP respecté** : Une seule responsabilité par fonction/classe
-- [ ] **Encapsulation** : Pas d'accès direct aux repositories depuis les APIs
-- [ ] **Docstrings** : Uniquement dans les APIs (FastAPI) et si vraiment nécessaire
-- [ ] **Imports en haut** : Tous les imports en haut du fichier uniquement
-- [ ] **Logique métier** : Dans les services, pas dans les APIs
-- [ ] **Gestion d'erreurs** : Exceptions spécifiques, pas de `except Exception` générique
-- [ ] **Formatage Ruff** : Exécuter `ruff format` sur tous les fichiers modifiés du backend après chaque modification
+- [ ] **TDD respected**: Test written BEFORE implementation (RED → GREEN → REFACTOR)
+- [ ] **No magic numbers**: Use constants from `backend/domain/constants.py`
+- [ ] **Small functions**: No function exceeds 50 lines
+- [ ] **Explicit names**: Self-explanatory variables and functions
+- [ ] **No duplication**: Code reused via helper functions
+- [ ] **Named functions**: No explanatory comments, extract into functions
+- [ ] **SRP respected**: Single responsibility per function/class
+- [ ] **Encapsulation**: No direct repository access from APIs
+- [ ] **Docstrings**: Only in APIs (FastAPI) and if really necessary
+- [ ] **Imports at top**: All imports at top of file only
+- [ ] **Business logic**: In services, not in APIs
+- [ ] **Error handling**: Specific exceptions, no generic `except Exception`
+- [ ] **Ruff formatting**: Execute `ruff format` on all modified backend files after each modification
+- [ ] **English language**: All code, comments, docstrings, and documentation in English
 
-## INSTRUCTIONS POUR L'IA
+## INSTRUCTIONS FOR THE AI
 
-**AVANT de proposer du code, l'IA DOIT** :
+**BEFORE proposing code, THE AI MUST**:
 
-1. **Lire cette checklist complète**
-2. **Vérifier chaque point** avant de générer du code
-3. **Appliquer systématiquement** toutes les règles
-4. **Refuser** de générer du code qui viole ces règles
-5. **Proposer des corrections** si le code existant viole les règles
+1. **Read this complete checklist**
+2. **Verify each point** before generating code
+3. **Systematically apply** all rules
+4. **Write everything in English** (code, comments, docstrings, documentation)
+5. **Refuse** to generate code that violates these rules
+6. **Propose corrections** if existing code violates the rules
 
-**APRÈS avoir modifié du code dans le backend, l'IA DOIT** :
+**AFTER modifying code in the backend, THE AI MUST**:
 
-1. **Exécuter Ruff format automatiquement** sur tous les fichiers Python modifiés
-2. **Commande à exécuter** : `ruff format <fichier1> <fichier2> ...` pour chaque fichier modifié dans `backend/`
-3. **Vérifier** que le formatage est appliqué avant de finaliser les modifications
-4. **Ne jamais** proposer de code non formaté avec Ruff
+1. **Automatically execute Ruff format** on all modified Python files
+2. **Command to execute**: `ruff format <file1> <file2> ...` for each modified file in `backend/`
+3. **Verify** that formatting is applied before finalizing modifications
+4. **Never** propose code not formatted with Ruff
 
-**Si l'utilisateur demande quelque chose qui viole ces règles, l'IA DOIT** :
+**If the user requests something that violates these rules, THE AI MUST**:
 
-- Expliquer pourquoi la demande viole les règles
-- Proposer une alternative conforme aux règles
-- Ne pas générer de code non conforme
+- Explain why the request violates the rules
+- Propose an alternative that complies with the rules
+- Not generate non-compliant code

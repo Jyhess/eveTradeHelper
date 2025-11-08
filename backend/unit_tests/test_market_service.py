@@ -1,6 +1,6 @@
 """
-Tests unitaires pour MarketService
-Teste la logique métier avec des mocks du repository
+Unit tests for MarketService
+Tests business logic with repository mocks
 """
 
 from typing import Any
@@ -12,7 +12,7 @@ from domain.repository import EveRepository
 
 
 class MockRepository(EveRepository):
-    """Mock repository pour les tests unitaires"""
+    """Mock repository for unit tests"""
 
     def __init__(self):
         self.market_groups_list = []
@@ -39,7 +39,7 @@ class MockRepository(EveRepository):
     async def get_system_details(self, system_id: int) -> dict[str, Any]:
         return self.system_details.get(system_id, {})
 
-    # Autres méthodes requises par l'interface mais non utilisées dans ces tests
+    # Other methods required by interface but not used in these tests
     async def get_regions_list(self) -> list[int]:
         return []
 
@@ -64,23 +64,23 @@ class MockRepository(EveRepository):
 
 @pytest.fixture
 def mock_repository():
-    """Fixture pour créer un repository mock"""
+    """Fixture to create a mock repository"""
     return MockRepository()
 
 
 @pytest.fixture
 def market_service(mock_repository):
-    """Fixture pour créer un MarketService avec un repository mock"""
+    """Fixture to create a MarketService with a mock repository"""
     return MarketService(mock_repository)
 
 
 @pytest.mark.asyncio
 @pytest.mark.unit
 class TestMarketServiceCategories:
-    """Tests pour la récupération des catégories de marché"""
+    """Tests for market category retrieval"""
 
     async def test_get_market_categories_empty(self, market_service, mock_repository):
-        """Test avec une liste vide de groupes"""
+        """Test with empty group list"""
         mock_repository.market_groups_list = []
 
         result = await market_service.get_market_categories()
@@ -89,7 +89,7 @@ class TestMarketServiceCategories:
         assert len(result) == 0
 
     async def test_get_market_categories_single_group(self, market_service, mock_repository):
-        """Test avec un seul groupe"""
+        """Test with a single group"""
         mock_repository.market_groups_list = [1]
         mock_repository.market_groups_details = {
             1: {
@@ -110,7 +110,7 @@ class TestMarketServiceCategories:
         assert result[0]["types"] == [101, 102, 103]
 
     async def test_get_market_categories_multiple_groups(self, market_service, mock_repository):
-        """Test avec plusieurs groupes, triés par nom"""
+        """Test with multiple groups, sorted by name"""
         mock_repository.market_groups_list = [1, 2, 3]
         mock_repository.market_groups_details = {
             1: {"name": "Zebra Group", "description": "", "parent_group_id": None, "types": []},
@@ -121,16 +121,16 @@ class TestMarketServiceCategories:
         result = await market_service.get_market_categories()
 
         assert len(result) == 3
-        # Vérifier que les résultats sont triés par nom
+        # Verify results are sorted by name
         assert result[0]["name"] == "Alpha Group"
         assert result[1]["name"] == "Beta Group"
         assert result[2]["name"] == "Zebra Group"
 
     async def test_get_market_categories_filters_errors(self, market_service, mock_repository):
-        """Test que les erreurs lors de la récupération d'un groupe sont filtrées"""
+        """Test that errors when retrieving a group are filtered"""
         mock_repository.market_groups_list = [1, 2, 3]
 
-        # Simuler une exception pour le groupe 2
+        # Simulate an exception for group 2
         async def failing_get_market_group_details(group_id: int):
             if group_id == 2:
                 raise Exception("API Error")
@@ -149,15 +149,15 @@ class TestMarketServiceCategories:
 
         result = await market_service.get_market_categories()
 
-        # Doit filtrer le groupe 2 (erreur) et retourner seulement 1 et 3
+        # Should filter group 2 (error) and return only 1 and 3
         assert len(result) == 2
-        # Vérifier que les groupes retournés sont valides (triés par nom)
+        # Verify returned groups are valid (sorted by name)
         group_names = [r["name"] for r in result]
         assert "Valid Group" in group_names
         assert "Another Valid Group" in group_names
 
     async def test_get_market_categories_with_parent(self, market_service, mock_repository):
-        """Test avec des groupes ayant un parent"""
+        """Test with groups having a parent"""
         mock_repository.market_groups_list = [1, 2]
         mock_repository.market_groups_details = {
             1: {
@@ -177,7 +177,7 @@ class TestMarketServiceCategories:
         result = await market_service.get_market_categories()
 
         assert len(result) == 2
-        # Vérifier que les groupes sont triés par nom
+        # Verify groups are sorted by name
         assert result[0]["name"] == "Child Group"
         assert result[0]["parent_group_id"] == 1
         assert result[1]["name"] == "Parent Group"
@@ -187,10 +187,10 @@ class TestMarketServiceCategories:
 @pytest.mark.asyncio
 @pytest.mark.unit
 class TestMarketServiceEnrichedOrders:
-    """Tests pour la récupération des ordres enrichis"""
+    """Tests for enriched order retrieval"""
 
     async def test_get_enriched_market_orders_empty(self, market_service, mock_repository):
-        """Test avec une liste vide d'ordres"""
+        """Test with empty order list"""
         region_id = 10000002
         mock_repository.market_orders = {(region_id, None): []}
 
@@ -203,7 +203,7 @@ class TestMarketServiceEnrichedOrders:
     async def test_get_enriched_market_orders_separates_buy_sell(
         self, market_service, mock_repository
     ):
-        """Test que les ordres d'achat et de vente sont séparés"""
+        """Test that buy and sell orders are separated"""
         region_id = 10000002
         mock_repository.market_orders = {
             (region_id, None): [
@@ -224,7 +224,7 @@ class TestMarketServiceEnrichedOrders:
     async def test_get_enriched_market_orders_sorted_by_price(
         self, market_service, mock_repository
     ):
-        """Test que les ordres sont triés par prix"""
+        """Test that orders are sorted by price"""
         region_id = 10000002
         mock_repository.market_orders = {
             (region_id, None): [
@@ -239,18 +239,18 @@ class TestMarketServiceEnrichedOrders:
 
         result = await market_service.get_enriched_market_orders(region_id)
 
-        # Ordres d'achat triés par prix décroissant (meilleur prix en premier)
+        # Buy orders sorted by descending price (best price first)
         buy_prices = [o["price"] for o in result["buy_orders"]]
         assert buy_prices == [110, 105, 100]
 
-        # Ordres de vente triés par prix croissant (meilleur prix en premier)
+        # Sell orders sorted by ascending price (best price first)
         sell_prices = [o["price"] for o in result["sell_orders"]]
         assert sell_prices == [85, 90, 95]
 
     async def test_get_enriched_market_orders_respects_limit(self, market_service, mock_repository):
-        """Test que la limite est respectée"""
+        """Test that limit is respected"""
         region_id = 10000002
-        # Créer 100 ordres d'achat et 100 de vente
+        # Create 100 buy orders and 100 sell orders
         buy_orders = [
             {"is_buy_order": True, "price": 100 + i, "location_id": None} for i in range(100)
         ]
@@ -262,13 +262,13 @@ class TestMarketServiceEnrichedOrders:
         result = await market_service.get_enriched_market_orders(region_id, limit=10)
 
         assert result["total"] == 200
-        assert len(result["buy_orders"]) == 10  # Limité à 10
-        assert len(result["sell_orders"]) == 10  # Limité à 10
+        assert len(result["buy_orders"]) == 10  # Limited to 10
+        assert len(result["sell_orders"]) == 10  # Limited to 10
 
     async def test_get_enriched_market_orders_enriches_system(
         self, market_service, mock_repository
     ):
-        """Test que les ordres avec un système sont enrichis"""
+        """Test that orders with a system are enriched"""
         region_id = 10000002
         system_id = 30000142
         mock_repository.market_orders = {
@@ -292,7 +292,7 @@ class TestMarketServiceEnrichedOrders:
     async def test_get_enriched_market_orders_enriches_station(
         self, market_service, mock_repository
     ):
-        """Test que les ordres avec une station sont enrichis"""
+        """Test that orders with a station are enriched"""
         region_id = 10000002
         station_id = 60008494
         system_id = 30000142
@@ -325,26 +325,26 @@ class TestMarketServiceEnrichedOrders:
     async def test_get_enriched_market_orders_handles_missing_location(
         self, market_service, mock_repository
     ):
-        """Test que les ordres sans location_id sont gérés"""
+        """Test that orders without location_id are handled"""
         region_id = 10000002
         mock_repository.market_orders = {
             (region_id, None): [
-                {"is_buy_order": True, "price": 100},  # Pas de location_id
+                {"is_buy_order": True, "price": 100},  # No location_id
             ]
         }
 
         result = await market_service.get_enriched_market_orders(region_id)
 
         assert len(result["buy_orders"]) == 1
-        # L'ordre doit être retourné tel quel, sans enrichissement
+        # Order should be returned as is, without enrichment
         assert "location_id" not in result["buy_orders"][0]
 
     async def test_get_enriched_market_orders_handles_enrichment_error(
         self, market_service, mock_repository
     ):
-        """Test que les erreurs d'enrichissement sont gérées gracieusement"""
+        """Test that enrichment errors are handled gracefully"""
         region_id = 10000002
-        system_id = 99999999  # Système inexistant
+        system_id = 99999999  # Non-existent system
         original_order = {
             "is_buy_order": True,
             "price": 100,
@@ -352,7 +352,7 @@ class TestMarketServiceEnrichedOrders:
         }
         mock_repository.market_orders = {(region_id, None): [original_order]}
 
-        # Simuler une exception lors de la récupération du système
+        # Simulate an exception when retrieving the system
         async def failing_get_system_details(system_id_param: int):
             if system_id_param == system_id:
                 raise Exception("System not found")
@@ -363,18 +363,18 @@ class TestMarketServiceEnrichedOrders:
         result = await market_service.get_enriched_market_orders(region_id)
 
         assert len(result["buy_orders"]) == 1
-        # En cas d'erreur, l'ordre original est retourné (sans enrichissement)
-        # car asyncio.gather avec return_exceptions=True retourne l'exception
-        # et le code filtre en retournant l'ordre original
+        # On error, original order is returned (without enrichment)
+        # because asyncio.gather with return_exceptions=True returns the exception
+        # and the code filters by returning the original order
         enriched_order = result["buy_orders"][0]
-        # L'ordre doit avoir ses champs originaux
+        # Order should have its original fields
         assert enriched_order["price"] == 100
         assert enriched_order["location_id"] == system_id
 
     async def test_get_enriched_market_orders_with_type_filter(
         self, market_service, mock_repository
     ):
-        """Test avec filtre par type_id"""
+        """Test with type_id filter"""
         region_id = 10000002
         type_id = 123
         mock_repository.market_orders = {
@@ -388,7 +388,7 @@ class TestMarketServiceEnrichedOrders:
 
         result = await market_service.get_enriched_market_orders(region_id, type_id=type_id)
 
-        # Doit retourner seulement les ordres filtrés par type_id
+        # Should return only orders filtered by type_id
         assert result["total"] == 1
         assert len(result["buy_orders"]) == 1
         assert result["buy_orders"][0]["price"] == 200

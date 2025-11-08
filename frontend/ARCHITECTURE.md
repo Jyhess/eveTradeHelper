@@ -1,92 +1,72 @@
-# Architecture du Frontend
+# Frontend Architecture
 
-Ce document décrit l'architecture détaillée du frontend Vue.js.
+This document describes the detailed Vue.js frontend architecture.
 
-## Vue d'ensemble
+## Overview
 
-Le frontend est une application Vue.js 3 avec Vue Router pour la navigation.
+The frontend is a Vue.js 3 application with Vue Router for navigation.
 
-## Structure des modules
+## Module Structure
 
-### Organisation des fichiers
-
-```
-frontend/
-├── src/
-│   ├── main.js              # Point d'entrée de l'application
-│   ├── App.vue              # Composant racine
-│   ├── components/          # Composants réutilisables
-│   │   ├── Breadcrumb.vue
-│   │   ├── Navigation.vue
-│   │   ├── TreeNode.vue
-│   │   ├── TreeSelect.vue
-│   │   └── TreeSelectNode.vue
-│   ├── views/               # Pages/Vues
-│   │   ├── Regions.vue
-│   │   ├── Constellations.vue
-│   │   ├── Systems.vue
-│   │   ├── SystemDetail.vue
-│   │   ├── Market.vue
-│   │   └── Deals.vue
-│   ├── router/              # Configuration du routeur
-│   │   └── index.js
-│   ├── services/            # Services API
-│   │   └── api.js
-│   └── utils/               # Utilitaires
-│       └── eventBus.js
-├── public/
-│   └── index.html           # Template HTML
-└── vue.config.js            # Configuration Vue.js
-```
-
-## Composants principaux
+## Main Components
 
 ### App.vue
 
-Composant racine de l'application qui contient :
-- La navigation principale
-- Le router-view pour afficher les pages
-- Le breadcrumb pour la navigation hiérarchique
+Root component of the application containing:
 
-### Composants réutilisables
+- Main navigation
+- Router-view to display pages
+- Breadcrumb for hierarchical navigation
+
+### Reusable Components
 
 #### Navigation.vue
-Barre de navigation principale avec les liens vers les différentes sections.
+
+Main navigation bar with links to different sections.
 
 #### Breadcrumb.vue
-Fil d'Ariane pour la navigation hiérarchique (Régions > Constellations > Systèmes).
+
+Breadcrumb trail for hierarchical navigation (Regions > Constellations > Systems).
 
 #### TreeNode.vue
-Composant pour afficher un arbre de données (régions, constellations, systèmes).
+
+Component to display a data tree (regions, constellations, systems).
 
 #### TreeSelect.vue / TreeSelectNode.vue
-Composants pour un sélecteur d'arbre interactif.
 
-### Vues (Pages)
+Components for an interactive tree selector.
+
+### Views (Pages)
 
 #### Regions.vue
-Affiche la liste des régions avec leurs détails.
+
+Displays the list of regions with their details.
 
 #### Constellations.vue
-Affiche les constellations d'une région sélectionnée.
+
+Displays constellations of a selected region.
 
 #### Systems.vue
-Affiche les systèmes d'une constellation sélectionnée.
+
+Displays systems of a selected constellation.
 
 #### SystemDetail.vue
-Affiche les détails d'un système (connexions, stations, etc.).
+
+Displays details of a system (connections, stations, etc.).
 
 #### Market.vue
-Affiche les informations de marché (catégories, groupes, types).
+
+Displays market information (categories, groups, types).
 
 #### Deals.vue
-Affiche les opportunités de trading (deals).
+
+Displays trading opportunities (deals).
 
 ## Services
 
 ### api.js
 
-Service centralisé pour les appels API vers le backend :
+Centralized service for API calls to the backend:
 
 ```javascript
 import axios from 'axios';
@@ -100,72 +80,72 @@ export default {
   getRegions() {
     return api.get('/api/v1/regions');
   },
-  // ... autres méthodes
+  // ... other methods
 };
 ```
 
 ## Router
 
-### Configuration du router
+### Router Configuration
 
-Le router est configuré dans `src/router/index.js` avec les routes suivantes :
+The router is configured in `src/router/index.js` with the following routes:
 
-- `/` - Page d'accueil (redirige vers `/regions`)
-- `/regions` - Liste des régions
-- `/regions/:regionId/constellations` - Constellations d'une région
-- `/constellations/:constellationId/systems` - Systèmes d'une constellation
-- `/systems/:systemId` - Détails d'un système
-- `/market` - Informations de marché
-- `/deals` - Opportunités de trading
+- `/` - Home page (redirects to `/regions`)
+- `/regions` - List of regions
+- `/regions/:regionId/constellations` - Constellations of a region
+- `/constellations/:constellationId/systems` - Systems of a constellation
+- `/systems/:systemId` - System details
+- `/market` - Market information
+- `/deals` - Trading opportunities
 
-## Communication avec le backend
+## Backend Communication
 
-### Configuration CORS
+### CORS Configuration
 
-Le backend doit être configuré pour accepter les requêtes depuis le frontend. La configuration CORS est gérée dans le backend FastAPI.
+The backend must be configured to accept requests from the frontend. CORS configuration is handled in the FastAPI backend.
 
 ### Base URL
 
-Par défaut, le frontend fait des requêtes vers `http://localhost:5001`. Cette URL peut être configurée via les variables d'environnement.
+By default, the frontend makes requests to `http://localhost:5001`. This URL can be configured via environment variables.
 
-## État de l'application
+## Application State
 
-L'application utilise principalement l'état local des composants. Pour la communication entre composants non liés, un EventBus est utilisé (`utils/eventBus.js`).
+The application mainly uses local component state. For communication between unrelated components, an EventBus is used (`utils/eventBus.js`).
 
-## Build et déploiement
+## Build and Deployment
 
-### Mode développement
+### Development Mode
 
 ```bash
-npm run serve
+npm run dev
 ```
 
-Lance le serveur de développement avec hot-reload.
+Launches the development server with hot-reload.
 
-### Mode production
+### Production Mode
 
 ```bash
 npm run build
 ```
 
-Génère les fichiers statiques dans `dist/` qui peuvent être servis par un serveur web statique ou intégrés dans le backend.
+Generates static files in `dist/` that can be served by a static web server or integrated into the backend.
 
 ## Configuration
 
 ### vue.config.js
 
-Configuration Vue.js incluant :
-- Source maps pour le débogage
-- Configuration du proxy (si nécessaire)
-- Options de build
+Vue.js configuration including:
 
-## Évolutions futures
+- Source maps for debugging
+- Proxy configuration (if necessary)
+- Build options
 
-Cette architecture permet facilement :
+## Future Evolutions
 
-- Ajout de nouvelles vues/pages
-- Ajout de nouveaux composants réutilisables
-- Intégration d'un state management (Vuex/Pinia) si nécessaire
-- Ajout de nouvelles routes
-- Amélioration de la gestion d'état globale
+This architecture easily allows:
 
+- Adding new views/pages
+- Adding new reusable components
+- Integrating state management (Vuex/Pinia) if necessary
+- Adding new routes
+- Improving global state management

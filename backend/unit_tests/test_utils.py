@@ -1,22 +1,22 @@
 """
-Utilitaires pour les tests
+Test utilities
 """
 
 import json
 from pathlib import Path
 
-# Chemin vers le dossier de tests
+# Path to tests directory
 TESTS_DIR = Path(__file__).parent
 REFERENCE_DIR = TESTS_DIR / "reference"
 
 
 def save_reference(key: str, data):
     """
-    Sauvegarde des données comme référence pour les tests
+    Saves data as reference for tests
 
     Args:
-        key: Nom de la référence (nom du fichier sans extension)
-        data: Données à sauvegarder (sera converties en JSON)
+        key: Reference name (filename without extension)
+        data: Data to save (will be converted to JSON)
     """
     REFERENCE_DIR.mkdir(exist_ok=True)
     ref_file = REFERENCE_DIR / f"{key}.json"
@@ -27,13 +27,13 @@ def save_reference(key: str, data):
 
 def load_reference(key: str):
     """
-    Charge une référence pour comparaison
+    Loads a reference for comparison
 
     Args:
-        key: Nom de la référence (nom du fichier sans extension)
+        key: Reference name (filename without extension)
 
     Returns:
-        Données de référence ou None si non trouvées
+        Reference data or None if not found
     """
     ref_file = REFERENCE_DIR / f"{key}.json"
 
@@ -46,21 +46,21 @@ def load_reference(key: str):
 
 def normalize_for_comparison(data):
     """
-    Normalise les données pour la comparaison (supprime les variations non importantes)
+    Normalizes data for comparison (removes non-important variations)
 
     Args:
-        data: Données à normaliser
+        data: Data to normalize
 
     Returns:
-        Données normalisées
+        Normalized data
     """
     if isinstance(data, dict):
-        # Trier les clés et normaliser les valeurs
+        # Sort keys and normalize values
         return {k: normalize_for_comparison(v) for k, v in sorted(data.items())}
     elif isinstance(data, list):
-        # Normaliser chaque élément et trier si possible
+        # Normalize each element and sort if possible
         normalized = [normalize_for_comparison(item) for item in data]
-        # Essayer de trier si tous les éléments sont des dicts avec une clé commune
+        # Try to sort if all elements are dicts with a common key
         if normalized and all(isinstance(item, dict) for item in normalized):
             if all("name" in item for item in normalized):
                 normalized.sort(key=lambda x: x.get("name", ""))

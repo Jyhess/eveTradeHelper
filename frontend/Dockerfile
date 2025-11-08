@@ -9,5 +9,5 @@ COPY . .
 
 EXPOSE 8080
 
-CMD ["npm", "run", "serve", "--", "--host", "0.0.0.0"]
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 

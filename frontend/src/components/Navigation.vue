@@ -6,13 +6,13 @@
       </div>
       <div class="nav-links">
         <router-link to="/regions" class="nav-link" active-class="active">
-          Régions
+          Regions
         </router-link>
         <router-link to="/markets" class="nav-link" active-class="active">
-          Marché
+          Market
         </router-link>
         <router-link to="/deals" class="nav-link" active-class="active">
-          Bonnes affaires
+          Deals
         </router-link>
       </div>
     </div>
@@ -48,14 +48,14 @@ export default {
       const route = this.$route
       const items = []
       
-      // Toujours commencer par Accueil
-      items.push({ label: 'Accueil', path: '/regions' })
+      // Always start with Home
+      items.push({ label: 'Home', path: '/regions' })
       
-      // Détecter la route actuelle et construire le breadcrumb
+      // Detect current route and build breadcrumb
       if (route.name === 'Regions' || route.name === 'Home') {
-        items.push({ label: 'Régions', path: '/regions' })
+        items.push({ label: 'Regions', path: '/regions' })
       } else if (route.name === 'Constellations') {
-        items.push({ label: 'Régions', path: '/regions' })
+        items.push({ label: 'Regions', path: '/regions' })
         if (this.breadcrumbData.regionName) {
           items.push({
             label: this.breadcrumbData.regionName,
@@ -63,7 +63,7 @@ export default {
           })
         }
       } else if (route.name === 'Systems') {
-        items.push({ label: 'Régions', path: '/regions' })
+        items.push({ label: 'Regions', path: '/regions' })
         if (this.breadcrumbData.regionName) {
           items.push({
             label: this.breadcrumbData.regionName,
@@ -77,7 +77,7 @@ export default {
           })
         }
       } else if (route.name === 'SystemDetail') {
-        items.push({ label: 'Régions', path: '/regions' })
+        items.push({ label: 'Regions', path: '/regions' })
         if (this.breadcrumbData.regionName) {
           items.push({
             label: this.breadcrumbData.regionName,
@@ -97,7 +97,7 @@ export default {
           })
         }
       } else if (route.name === 'Market' || route.name === 'MarketRegion' || route.name === 'MarketConstellation' || route.name === 'MarketSystem') {
-        items.push({ label: 'Régions', path: '/regions' })
+        items.push({ label: 'Regions', path: '/regions' })
         if (this.breadcrumbData.regionId && this.breadcrumbData.regionName) {
           items.push({
             label: this.breadcrumbData.regionName,
@@ -117,11 +117,11 @@ export default {
           })
         }
         items.push({
-          label: 'Marché',
+          label: 'Market',
           path: route.path
         })
       } else if (route.name === 'Deals' || route.name === 'DealsRegion') {
-        items.push({ label: 'Bonnes affaires', path: '/deals' })
+        items.push({ label: 'Deals', path: '/deals' })
         if (this.breadcrumbData.regionName) {
           items.push({
             label: this.breadcrumbData.regionName,
@@ -134,7 +134,7 @@ export default {
     }
   },
   mounted() {
-    // Écouter les événements pour mettre à jour le breadcrumb
+    // Listen to events to update breadcrumb
     eventBus.on('breadcrumb-update', this.updateBreadcrumb)
   },
   beforeUnmount() {
@@ -142,7 +142,7 @@ export default {
   },
   watch: {
     $route() {
-      // Réinitialiser les données de breadcrumb lors du changement de route
+      // Reset breadcrumb data on route change
       this.breadcrumbData = {
         regionName: '',
         regionId: null,

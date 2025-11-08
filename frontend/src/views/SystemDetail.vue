@@ -2,31 +2,31 @@
   <div class="system-detail-page">
     <div class="card">
       <div v-if="loading" class="loading">
-        Chargement des informations du système...
+        Loading system information...
       </div>
       <div v-else-if="error" class="error">
         {{ error }}
       </div>
       <div v-else-if="system" class="system-detail-container">
-        <!-- Informations du système -->
+        <!-- System information -->
         <div class="system-header">
           <h2>{{ system.name }}</h2>
           <div class="market-link">
             <router-link :to="`/markets/system/${systemId}`" class="market-button">
-              📊 Voir le marché de ce système
+              📊 View market for this system
             </router-link>
           </div>
           <div class="system-meta">
             <p class="system-id">ID: {{ system.system_id }}</p>
             <p class="security-status" :class="getSecurityClass(system.security_status)">
-              <strong>Sécurité: {{ system.security_status.toFixed(1) }}</strong>
+              <strong>Security: {{ system.security_status.toFixed(1) }}</strong>
               <span v-if="system.security_class">{{ system.security_class }}</span>
             </p>
             <p v-if="system.constellation_id" class="constellation-link">
               Constellation ID: {{ system.constellation_id }}
             </p>
             <p class="planets-count">
-              <strong>{{ system.planets?.length || 0 }}</strong> planète(s)
+              <strong>{{ system.planets?.length || 0 }}</strong> planet(s)
             </p>
             <div v-if="system.position" class="position">
               <small>
@@ -36,11 +36,11 @@
           </div>
         </div>
 
-        <!-- Systèmes connectés -->
+        <!-- Connected systems -->
         <div class="connections-section">
-          <h3>Systèmes connectés</h3>
+          <h3>Connected Systems</h3>
           <div v-if="connectionsLoading" class="loading-small">
-            Chargement des connexions...
+            Loading connections...
           </div>
           <div v-else-if="connectionsError" class="error-small">
             {{ connectionsError }}
@@ -60,12 +60,12 @@
               <div class="connection-info">
                 <p class="connection-id">ID: {{ connection.system_id }}</p>
                 <p class="security-status" :class="getSecurityClass(connection.security_status)">
-                  <strong>Sécurité: {{ connection.security_status.toFixed(1) }}</strong>
+                  <strong>Security: {{ connection.security_status.toFixed(1) }}</strong>
                   <span v-if="connection.security_class">{{ connection.security_class }}</span>
                 </p>
                 <div v-if="!connection.same_region" class="location-warning">
                   <span class="warning-badge different-region-badge">
-                    Autre région{{ connection.region_name ? `: ${connection.region_name}` : '' }}
+                    Other region{{ connection.region_name ? `: ${connection.region_name}` : '' }}
                   </span>
                   <span v-if="connection.constellation_name" class="constellation-info">
                     Constellation: {{ connection.constellation_name }}
@@ -73,7 +73,7 @@
                 </div>
                 <div v-else-if="!connection.same_constellation" class="location-warning">
                   <span class="warning-badge different-constellation-badge">
-                    Autre constellation{{ connection.constellation_name ? `: ${connection.constellation_name}` : '' }}
+                    Other constellation{{ connection.constellation_name ? `: ${connection.constellation_name}` : '' }}
                   </span>
                 </div>
                 <p class="stargate-info">
@@ -83,7 +83,7 @@
             </router-link>
           </div>
           <div v-else class="no-connections">
-            <p>Aucun système connecté trouvé.</p>
+            <p>No connected systems found.</p>
           </div>
         </div>
       </div>
@@ -124,26 +124,26 @@ export default {
       this.system = null
       
       try {
-        // Récupérer directement les détails du système
+        // Retrieve system details directly
         const systemData = await api.systems.getSystem(this.systemId)
         this.system = systemData.system
         
         if (this.system && this.system.constellation_id) {
-          // Charger les informations de la constellation et de la région
+          // Load constellation and region information
           await this.fetchConstellationInfo(this.system.constellation_id)
         }
         
-        // Charger les connexions
+        // Load connections
         this.fetchConnections()
       } catch (error) {
-        this.error = 'Erreur: ' + error.message
+        this.error = 'Error: ' + error.message
       } finally {
         this.loading = false
       }
     },
     async fetchConstellationInfo(constellationId) {
       try {
-        // Récupérer directement les informations de la constellation avec sa région
+        // Retrieve constellation information directly with its region
         const data = await api.constellations.getConstellation(constellationId)
         
         if (data.constellation) {
@@ -156,7 +156,7 @@ export default {
           this.regionName = data.region.name
         }
         
-        // Mettre à jour le breadcrumb dans le header
+        // Update breadcrumb in header
         eventBus.emit('breadcrumb-update', {
           regionName: this.regionName,
           regionId: this.regionId,
@@ -166,7 +166,7 @@ export default {
           systemId: this.systemId
         })
       } catch (error) {
-        console.error('Erreur lors de la récupération des informations:', error)
+        console.error('Error retrieving information:', error)
       }
     },
     async fetchConnections() {
@@ -178,7 +178,7 @@ export default {
         const data = await api.systems.getConnections(this.systemId)
         this.connections = data.connections || []
       } catch (error) {
-        this.connectionsError = 'Erreur: ' + error.message
+        this.connectionsError = 'Error: ' + error.message
       } finally {
         this.connectionsLoading = false
       }
@@ -189,7 +189,7 @@ export default {
       if (securityStatus <= 0.4) return 'sec-orange'
       if (securityStatus <= 0.5) return 'sec-yellow'
       if (securityStatus <= 0.6) return 'sec-green'
-      if (securityStatus <= 0.8) return 'sec-green' // Vert aussi jusqu'à 0.8
+      if (securityStatus <= 0.8) return 'sec-green' // Green also up to 0.8
       return 'sec-blue' // > 0.8
     }
   },

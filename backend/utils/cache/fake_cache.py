@@ -1,6 +1,6 @@
 """
-Cache en mémoire pour les tests unitaires
-Simule le comportement de SimpleCache sans connexion Redis
+In-memory cache for unit tests
+Simulates SimpleCache behavior without Redis connection
 """
 
 from datetime import UTC, datetime, timedelta
@@ -8,7 +8,7 @@ from typing import Any
 
 
 class FakeCache:
-    """Cache en mémoire pour les tests unitaires, simulant le comportement de SimpleCache"""
+    """In-memory cache for unit tests, simulating SimpleCache behavior"""
 
     def __init__(
         self,
@@ -19,14 +19,14 @@ class FakeCache:
         redis_db: int = 0,
     ):
         """
-        Initialise le fake cache en mémoire
+        Initialize the in-memory fake cache
 
         Args:
-            expiry_hours: Durée de vie du cache en heures
-            redis_url: Ignoré (compatibilité avec SimpleCache)
-            redis_host: Ignoré (compatibilité avec SimpleCache)
-            redis_port: Ignoré (compatibilité avec SimpleCache)
-            redis_db: Ignoré (compatibilité avec SimpleCache)
+            expiry_hours: Cache lifetime in hours
+            redis_url: Ignored (compatibility with SimpleCache)
+            redis_host: Ignored (compatibility with SimpleCache)
+            redis_port: Ignored (compatibility with SimpleCache)
+            redis_db: Ignored (compatibility with SimpleCache)
         """
         self.expiry_hours = expiry_hours
         self._cache_data: dict[str, dict[str, Any]] = {}
@@ -34,13 +34,13 @@ class FakeCache:
 
     def is_valid(self, key: str) -> bool:
         """
-        Vérifie si le cache pour une clé est encore valide
+        Checks if the cache for a key is still valid
 
         Args:
-            key: Clé du cache
+            key: Cache key
 
         Returns:
-            True si le cache est valide, False sinon
+            True if cache is valid, False otherwise
         """
         metadata_key = f"metadata:{key}"
         metadata = self._metadata.get(metadata_key)
@@ -63,13 +63,13 @@ class FakeCache:
 
     def get(self, key: str) -> list[dict[str, Any]] | None:
         """
-        Récupère les données depuis le cache
+        Retrieves data from cache
 
         Args:
-            key: Clé du cache
+            key: Cache key
 
         Returns:
-            Les données en cache ou None si non disponible
+            Cached data or None if not available
         """
         if not self.is_valid(key):
             return None
@@ -82,12 +82,12 @@ class FakeCache:
 
     def set(self, key: str, items: list[dict[str, Any]], metadata: dict | None = None):
         """
-        Sauvegarde des données dans le cache
+        Saves data to cache
 
         Args:
-            key: Clé du cache
-            items: Liste des éléments à mettre en cache
-            metadata: Métadonnées optionnelles (ex: region_ids)
+            key: Cache key
+            items: List of items to cache
+            metadata: Optional metadata (e.g., region_ids)
         """
         now = datetime.now(UTC)
 
@@ -107,10 +107,10 @@ class FakeCache:
 
     def clear(self, key: str | None = None):
         """
-        Vide le cache pour une clé spécifique ou tout le cache
+        Clears cache for a specific key or all cache
 
         Args:
-            key: Clé à supprimer, ou None pour tout supprimer
+            key: Key to delete, or None to delete all
         """
         if key:
             cache_key = f"cache:{key}"

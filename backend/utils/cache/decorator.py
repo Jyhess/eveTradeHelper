@@ -1,6 +1,6 @@
 """
-Décorateur pour mettre en cache automatiquement les résultats des méthodes
-Supporte les fonctions synchrones et asynchrones
+Decorator to automatically cache method results
+Supports synchronous and asynchronous functions
 """
 
 import functools
@@ -26,31 +26,31 @@ logger = logging.getLogger(__name__)
 
 def _generate_cache_key(func_name: str, prefix: str | None, args: tuple, kwargs: dict) -> str:
     """
-    Génère une clé de cache unique basée sur le nom de la fonction et ses paramètres
+    Generates a unique cache key based on the function name and its parameters
 
     Args:
-        func_name: Nom de la fonction
-        prefix: Préfixe optionnel pour la clé
-        args: Arguments positionnels
-        kwargs: Arguments nommés
+        func_name: Function name
+        prefix: Optional prefix for the key
+        args: Positional arguments
+        kwargs: Named arguments
 
     Returns:
-        Clé de cache hashée
+        Hashed cache key
     """
     prefix = prefix or func_name
     cache_key_parts = [prefix]
 
-    # Ajouter les arguments positionnels
+    # Add positional arguments
     if args:
         args_str = str(args) if len(args) > 0 else ""
         cache_key_parts.append(args_str)
 
-    # Ajouter les arguments nommés (triés pour garantir un ordre cohérent)
+    # Add named arguments (sorted to ensure consistent order)
     if kwargs:
         sorted_kwargs = sorted(kwargs.items())
         cache_key_parts.append(str(sorted_kwargs))
 
-    # Créer une clé de cache hashée pour éviter les noms trop longs
+    # Create a hashed cache key to avoid overly long names
     cache_key_raw = "_".join(str(part) for part in cache_key_parts)
     cache_key_hash = hashlib.md5(cache_key_raw.encode()).hexdigest()
     return f"{prefix}_{cache_key_hash}"
@@ -58,13 +58,13 @@ def _generate_cache_key(func_name: str, prefix: str | None, args: tuple, kwargs:
 
 def _get_cache_instance(expiry_hours: int | None) -> SimpleCache | Any | None:
     """
-    Récupère l'instance de cache, avec gestion de l'expiry personnalisé
+    Retrieves the cache instance, with custom expiry handling
 
     Args:
-        expiry_hours: Durée de vie personnalisée du cache en heures
+        expiry_hours: Custom cache lifetime in hours
 
     Returns:
-        Instance de cache ou None si le cache n'est pas initialisé
+        Cache instance or None if cache is not initialized
     """
     if not CacheManager.is_initialized():
         return None
@@ -73,20 +73,20 @@ def _get_cache_instance(expiry_hours: int | None) -> SimpleCache | Any | None:
     if cache_instance is None:
         return None
 
-    # À ce point, cache_instance ne peut pas être None (vérifié par is_initialized)
-    # Utiliser cast pour aider le type checker
+    # At this point, cache_instance cannot be None (checked by is_initialized)
+    # Use cast to help the type checker
     cache_instance = cast(SimpleCache | Any, cache_instance)
 
-    # Créer une instance temporaire si expiry_hours est différent
+    # Create a temporary instance if expiry_hours is different
     if expiry_hours and expiry_hours != cache_instance.expiry_hours:
-        # Détecter le type de cache et créer une instance temporaire appropriée
+        # Detect cache type and create appropriate temporary instance
         if isinstance(cache_instance, SimpleCache):
             temp_cache = SimpleCache.__new__(SimpleCache)
             temp_cache.expiry_hours = expiry_hours
             temp_cache.redis_client = cache_instance.redis_client
             return temp_cache
         elif FakeCache is not None and isinstance(cache_instance, FakeCache):
-            # Pour FakeCache, créer une nouvelle instance qui partage le même stockage
+            # For FakeCache, create a new instance that shares the same storage
             temp_cache = FakeCache.__new__(FakeCache)  # type: ignore[assignment]
             temp_cache.expiry_hours = expiry_hours
             temp_cache._cache_data = cache_instance._cache_data  # type: ignore[attr-defined]
@@ -98,14 +98,14 @@ def _get_cache_instance(expiry_hours: int | None) -> SimpleCache | Any | None:
 
 def _get_cached_result(cache_instance: SimpleCache | Any, cache_key: str) -> Any | None:
     """
-    Récupère le résultat depuis le cache si disponible et valide
+    Retrieves the result from cache if available and valid
 
     Args:
-        cache_instance: Instance du cache
-        cache_key: Clé du cache
+        cache_instance: Cache instance
+        cache_key: Cache key
 
     Returns:
-        Résultat en cache ou None si non disponible
+        Cached result or None if not available
     """
     if not cache_instance.is_valid(cache_key):
         return None
@@ -114,28 +114,28 @@ def _get_cached_result(cache_instance: SimpleCache | Any, cache_key: str) -> Any
     if cached_result is None:
         return None
 
-    # Le cache stocke une liste, récupérer le premier élément si nécessaire
+    # Cache stores a list, retrieve the first element if necessary
     if isinstance(cached_result, list):
-        # Si la liste a plusieurs éléments ou est vide, c'est une liste originale
+        # If the list has multiple elements or is empty, it's an original list
         if len(cached_result) != 1:
             return cached_result
-        # Si la liste a un seul élément, vérifier si c'est un wrapper normalisé
+        # If the list has a single element, check if it's a normalized wrapper
         single_item = cached_result[0]
         if isinstance(single_item, dict) and "_type" in single_item:
-            # C'est un wrapper normalisé avec métadonnée de type
+            # It's a normalized wrapper with type metadata
             original_type = single_item["_type"]
             value = single_item["value"]
 
-            # Vérifier si c'est une valeur originale (list ou dict) à préserver
+            # Check if it's an original value (list or dict) to preserve
             if single_item.get("_original", False):
                 if original_type == "list":
-                    # Liste originale avec un seul élément
+                    # Original list with a single element
                     return value
                 elif original_type == "dict":
-                    # Dict original (même s'il contient "value")
+                    # Original dict (even if it contains "value")
                     return value
 
-            # Restaurer le type original pour les wrappers normalisés
+            # Restore original type for normalized wrappers
             if original_type == "tuple":
                 return tuple(value)
             elif original_type == "set":
@@ -151,10 +151,10 @@ def _get_cached_result(cache_instance: SimpleCache | Any, cache_key: str) -> Any
             elif original_type == "NoneType" or value is None:
                 return None
             else:
-                # Type non géré, retourner la valeur telle quelle
+                # Unhandled type, return value as is
                 return value
         else:
-            # C'est un dict unique qui était le résultat original
+            # It's a unique dict that was the original result
             return single_item
 
     return cached_result
@@ -162,48 +162,48 @@ def _get_cached_result(cache_instance: SimpleCache | Any, cache_key: str) -> Any
 
 def _normalize_result_for_cache(result: Any) -> list:
     """
-    Normalise le résultat pour le stockage dans le cache (toujours stocker comme liste)
+    Normalizes the result for cache storage (always store as list)
 
     Args:
-        result: Résultat à normaliser
+        result: Result to normalize
 
     Returns:
-        Liste normalisée pour le cache avec métadonnées de type
+        Normalized list for cache with type metadata
     """
     if isinstance(result, list):
-        # Liste : si un seul élément, marquer comme liste originale
+        # List: if single element, mark as original list
         if len(result) == 1:
             return [{"_type": "list", "_original": True, "value": result}]
-        # Liste avec plusieurs éléments ou vide : retourner telle quelle
+        # List with multiple elements or empty: return as is
         return result
     elif isinstance(result, tuple):
-        # Tuple : stocker avec métadonnée de type pour le restaurer
+        # Tuple: store with type metadata to restore it
         return [{"_type": "tuple", "value": list(result)}]
     elif isinstance(result, dict):
-        # Dict : retourner dans une liste avec marqueur pour distinguer des wrappers
+        # Dict: return in a list with marker to distinguish from wrappers
         return [{"_type": "dict", "_original": True, "value": result}]
     elif isinstance(result, set):
-        # Set : stocker comme liste avec métadonnée de type
+        # Set: store as list with type metadata
         return [{"_type": "set", "value": list(result)}]
     else:
-        # Types simples (int, str, float, bool, None) : envelopper avec métadonnée de type
+        # Simple types (int, str, float, bool, None): wrap with type metadata
         return [{"_type": type(result).__name__, "value": result}]
 
 
 def _save_to_cache(cache_instance: SimpleCache | Any, cache_key: str, result: Any) -> None:
     """
-    Sauvegarde le résultat dans le cache
+    Saves the result to cache
 
     Args:
-        cache_instance: Instance du cache
-        cache_key: Clé du cache
-        result: Résultat à mettre en cache
+        cache_instance: Cache instance
+        cache_key: Cache key
+        result: Result to cache
     """
     cache_data = _normalize_result_for_cache(result)
     try:
         cache_instance.set(cache_key, cache_data)
     except Exception as e:
-        logger.warning(f"Erreur lors de la mise en cache: {e}")
+        logger.warning(f"Error caching: {e}")
 
 
 def _try_get_from_cache(
@@ -214,19 +214,19 @@ def _try_get_from_cache(
     kwargs: dict,
 ) -> tuple[SimpleCache | None, str | None, Any | None]:
     """
-    Essaie de récupérer le résultat depuis le cache
+    Tries to retrieve the result from cache
 
     Args:
-        func_name: Nom de la fonction
-        cache_key_prefix: Préfixe optionnel pour la clé
-        expiry_hours: Durée de vie personnalisée du cache
-        args: Arguments positionnels
-        kwargs: Arguments nommés
+        func_name: Function name
+        cache_key_prefix: Optional prefix for the key
+        expiry_hours: Custom cache lifetime
+        args: Positional arguments
+        kwargs: Named arguments
 
     Returns:
         Tuple (cache_instance, cache_key, cached_result)
-        Si le cache n'est pas disponible, retourne (None, None, None)
-        Si le résultat n'est pas en cache, retourne (cache_instance, cache_key, None)
+        If cache is not available, returns (None, None, None)
+        If result is not cached, returns (cache_instance, cache_key, None)
     """
     cache_instance = _get_cache_instance(expiry_hours)
     if cache_instance is None:
@@ -240,14 +240,14 @@ def _try_get_from_cache(
 
 def cached(cache_key_prefix: str | None = None, expiry_hours: int | None = None):
     """
-    Décorateur pour mettre en cache automatiquement les résultats d'une méthode
-    Supporte les fonctions synchrones et asynchrones
+    Decorator to automatically cache method results
+    Supports synchronous and asynchronous functions
 
-    Utilise CacheManager pour accéder au cache statique
+    Uses CacheManager to access the static cache
 
     Args:
-        cache_key_prefix: Préfixe pour la clé de cache (utilise le nom de la fonction si None)
-        expiry_hours: Durée de vie du cache en heures (utilise celle du cache statique si None)
+        cache_key_prefix: Prefix for cache key (uses function name if None)
+        expiry_hours: Cache lifetime in hours (uses static cache's if None)
 
     Usage:
         @cached()
@@ -276,7 +276,7 @@ def cached(cache_key_prefix: str | None = None, expiry_hours: int | None = None)
                 if cache_instance is None:
                     return await func(self, *args, **kwargs)
 
-                # Exécuter la méthode et mettre en cache le résultat
+                # Execute the method and cache the result
                 result = await func(self, *args, **kwargs)
                 _save_to_cache(cache_instance, cache_key, result)
                 return result
@@ -296,7 +296,7 @@ def cached(cache_key_prefix: str | None = None, expiry_hours: int | None = None)
                 if cache_instance is None:
                     return func(self, *args, **kwargs)
 
-                # Exécuter la méthode et mettre en cache le résultat
+                # Execute the method and cache the result
                 result = func(self, *args, **kwargs)
                 _save_to_cache(cache_instance, cache_key, result)
                 return result

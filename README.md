@@ -89,6 +89,4 @@ Pour les détails sur le débogage :
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) - Guide pour les contributeurs
 - [backend/ARCHITECTURE.md](backend/ARCHITECTURE.md) - Architecture détaillée du backend
-- [backend/DEBUG.md](backend/DEBUG.md) - Guide de débogage du backend
 - [frontend/ARCHITECTURE.md](frontend/ARCHITECTURE.md) - Architecture détaillée du frontend
-- [frontend/DEBUG.md](frontend/DEBUG.md) - Guide de débogage du frontend

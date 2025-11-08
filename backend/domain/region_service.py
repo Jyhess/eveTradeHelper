@@ -1,6 +1,6 @@
 """
-Service de domaine pour la gestion des régions
-Contient la logique métier pure, indépendante de l'infrastructure (version asynchrone)
+Domain service for region management
+Contains pure business logic, independent of infrastructure (async version)
 """
 
 import asyncio
@@ -13,39 +13,39 @@ logger = logging.getLogger(__name__)
 
 
 class RegionService:
-    """Service de domaine pour les régions d'Eve Online (asynchrone)"""
+    """Domain service for Eve Online regions (async)"""
 
     def __init__(self, repository: EveRepository):
         """
-        Initialise le service avec un repository
+        Initialize the service with a repository
 
         Args:
-            repository: Implémentation du repository Eve
+            repository: Eve repository implementation
         """
         self.repository = repository
 
     async def get_regions_with_details(self, limit: int | None = None) -> list[dict[str, Any]]:
         """
-        Récupère la liste des régions avec leurs détails
-        Logique métier : orchestration des appels au repository (parallélisée)
+        Retrieves the list of regions with their details
+        Business logic: orchestration of repository calls (parallelized)
 
         Args:
-            limit: Nombre maximum de régions à récupérer (None = toutes)
+            limit: Maximum number of regions to retrieve (None = all)
 
         Returns:
-            Liste des régions avec leurs détails formatés
+            List of regions with their formatted details
 
         Raises:
-            Exception: Si une erreur survient lors de la récupération
+            Exception: If an error occurs during retrieval
         """
-        # Récupérer la liste des IDs depuis le repository
+        # Fetch the list of IDs from the repository
         region_ids = await self.repository.get_regions_list()
 
-        # Appliquer la limite si spécifiée (logique métier)
+        # Apply limit if specified (business logic)
         if limit:
             region_ids = region_ids[:limit]
 
-        # Récupérer les détails de chaque région en parallèle
+        # Fetch details of each region in parallel
         async def fetch_region(region_id: int) -> dict[str, Any] | None:
             try:
                 region_data = await self.repository.get_region_details(region_id)
@@ -56,36 +56,36 @@ class RegionService:
                     "constellations": region_data.get("constellations", []),
                 }
             except Exception as e:
-                # Logger l'erreur mais continuer avec les autres régions
-                logger.warning(f"Erreur lors de la récupération de la région {region_id}: {e}")
+                # Log the error but continue with other regions
+                logger.warning(f"Error retrieving region {region_id}: {e}")
                 return None
 
-        # Exécuter toutes les requêtes en parallèle
+        # Execute all requests in parallel
         results = await asyncio.gather(*[fetch_region(rid) for rid in region_ids])
 
-        # Filtrer les résultats None
+        # Filter None results
         regions = [r for r in results if r is not None]
         return regions
 
     async def get_region_constellations_with_details(self, region_id: int) -> list[dict[str, Any]]:
         """
-        Récupère les détails de toutes les constellations d'une région
-        Logique métier : orchestration des appels au repository (parallélisée)
+        Retrieves details of all constellations in a region
+        Business logic: orchestration of repository calls (parallelized)
 
         Args:
-            region_id: ID de la région
+            region_id: Region ID
 
         Returns:
-            Liste des constellations avec leurs détails formatés
+            List of constellations with their formatted details
 
         Raises:
-            Exception: Si une erreur survient lors de la récupération
+            Exception: If an error occurs during retrieval
         """
-        # Récupérer les détails de la région pour obtenir les IDs des constellations
+        # Fetch region details to get constellation IDs
         region_data = await self.repository.get_region_details(region_id)
         constellation_ids = region_data.get("constellations", [])
 
-        # Récupérer les détails de chaque constellation en parallèle
+        # Fetch details of each constellation in parallel
         async def fetch_constellation(
             constellation_id: int,
         ) -> dict[str, Any] | None:
@@ -101,14 +101,14 @@ class RegionService:
                 }
             except Exception as e:
                 logger.warning(
-                    f"Erreur lors de la récupération de la constellation {constellation_id}: {e}"
+                    f"Error retrieving constellation {constellation_id}: {e}"
                 )
                 return None
 
-        # Exécuter toutes les requêtes en parallèle
+        # Execute all requests in parallel
         results = await asyncio.gather(*[fetch_constellation(cid) for cid in constellation_ids])
 
-        # Filtrer les résultats None
+        # Filter None results
         constellations = [c for c in results if c is not None]
         return constellations
 
@@ -116,23 +116,23 @@ class RegionService:
         self, constellation_id: int
     ) -> list[dict[str, Any]]:
         """
-        Récupère les détails de tous les systèmes d'une constellation
-        Logique métier : orchestration des appels au repository (parallélisée)
+        Retrieves details of all systems in a constellation
+        Business logic: orchestration of repository calls (parallelized)
 
         Args:
-            constellation_id: ID de la constellation
+            constellation_id: Constellation ID
 
         Returns:
-            Liste des systèmes avec leurs détails formatés
+            List of systems with their formatted details
 
         Raises:
-            Exception: Si une erreur survient lors de la récupération
+            Exception: If an error occurs during retrieval
         """
-        # Récupérer les détails de la constellation pour obtenir les IDs des systèmes
+        # Fetch constellation details to get system IDs
         constellation_data = await self.repository.get_constellation_details(constellation_id)
         system_ids = constellation_data.get("systems", [])
 
-        # Récupérer les détails de chaque système en parallèle
+        # Fetch details of each system in parallel
         async def fetch_system(system_id: int) -> dict[str, Any] | None:
             try:
                 system_data = await self.repository.get_system_details(system_id)
@@ -147,35 +147,35 @@ class RegionService:
                     "star_id": system_data.get("star_id"),
                 }
             except Exception as e:
-                logger.warning(f"Erreur lors de la récupération du système {system_id}: {e}")
+                logger.warning(f"Error retrieving system {system_id}: {e}")
                 return None
 
-        # Exécuter toutes les requêtes en parallèle
+        # Execute all requests in parallel
         results = await asyncio.gather(*[fetch_system(sid) for sid in system_ids])
 
-        # Filtrer les résultats None
+        # Filter None results
         systems = [s for s in results if s is not None]
         return systems
 
     async def get_system_connections(self, system_id: int) -> list[dict[str, Any]]:
         """
-        Récupère les systèmes connectés à un système donné via les stargates
-        Logique métier : orchestration des appels au repository
+        Retrieves systems connected to a given system via stargates
+        Business logic: orchestration of repository calls
 
         Args:
-            system_id: ID du système
+            system_id: System ID
 
         Returns:
-            Liste des systèmes connectés avec leurs détails
+            List of connected systems with their details
 
         Raises:
-            Exception: Si une erreur survient lors de la récupération
+            Exception: If an error occurs during retrieval
         """
-        # Récupérer les détails du système pour obtenir les IDs des stargates
+        # Fetch system details to get stargate IDs
         system_data = await self.repository.get_system_details(system_id)
         stargate_ids = system_data.get("stargates", [])
 
-        # Récupérer la constellation et la région du système source pour comparaison
+        # Fetch source system's constellation and region for comparison
         source_constellation_id = system_data.get("constellation_id")
         source_region_id = None
         if source_constellation_id:
@@ -184,7 +184,7 @@ class RegionService:
             )
             source_region_id = source_constellation.get("region_id")
 
-        # Fonction pour récupérer les détails d'une connexion
+        # Function to fetch connection details
         async def fetch_connection(stargate_id: int) -> dict[str, Any] | None:
             try:
                 stargate_data = await self.repository.get_stargate_details(stargate_id)
@@ -192,13 +192,13 @@ class RegionService:
                 destination_system_id = destination.get("system_id")
 
                 if destination_system_id and destination_system_id != system_id:
-                    # Récupérer les détails du système de destination
+                    # Fetch destination system details
                     destination_system = await self.repository.get_system_details(
                         destination_system_id
                     )
                     destination_constellation_id = destination_system.get("constellation_id")
 
-                    # Déterminer si le système est dans la même constellation/région
+                    # Determine if the system is in the same constellation/region
                     same_constellation = destination_constellation_id == source_constellation_id
                     same_region = False
                     destination_region_id = None
@@ -215,7 +215,7 @@ class RegionService:
                         )
                         same_region = destination_region_id == source_region_id
 
-                        # Récupérer le nom de la région si différente
+                        # Fetch region name if different
                         if destination_region_id and not same_region:
                             destination_region = await self.repository.get_region_details(
                                 destination_region_id
@@ -236,15 +236,15 @@ class RegionService:
                         "same_region": same_region,
                     }
             except Exception as e:
-                logger.warning(f"Erreur lors de la récupération de la stargate {stargate_id}: {e}")
+                logger.warning(f"Error retrieving stargate {stargate_id}: {e}")
                 return None
 
             return None
 
-        # Exécuter toutes les requêtes en parallèle
+        # Execute all requests in parallel
         results = await asyncio.gather(*[fetch_connection(sid) for sid in stargate_ids])
 
-        # Filtrer les résultats None
+        # Filter None results
         connected_systems = [c for c in results if c is not None]
         return connected_systems
 
