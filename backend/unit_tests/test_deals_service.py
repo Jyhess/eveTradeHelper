@@ -1,7 +1,7 @@
 import time
+from typing import Any
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock
-from typing import Dict, Any, List, Optional
 
 from domain.deals_service import DealsService
 from domain.repository import EveRepository
@@ -17,46 +17,44 @@ class MockRepository(EveRepository):
         self.item_types = {}
         self.system_details = {}
 
-    async def get_market_groups_list(self) -> List[int]:
+    async def get_market_groups_list(self) -> list[int]:
         return self.market_groups_list
 
-    async def get_market_group_details(self, group_id: int) -> Dict[str, Any]:
+    async def get_market_group_details(self, group_id: int) -> dict[str, Any]:
         return self.market_groups_details.get(group_id, {})
 
     async def get_market_orders(
-        self, region_id: int, type_id: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+        self, region_id: int, type_id: int | None = None
+    ) -> list[dict[str, Any]]:
         key = (region_id, type_id)
         return self.market_orders.get(key, [])
 
-    async def get_item_type(self, type_id: int) -> Dict[str, Any]:
+    async def get_item_type(self, type_id: int) -> dict[str, Any]:
         return self.item_types.get(type_id, {"name": f"Type {type_id}"})
 
     # Autres méthodes requises par l'interface mais non utilisées dans ces tests
-    async def get_regions_list(self) -> List[int]:
+    async def get_regions_list(self) -> list[int]:
         return []
 
-    async def get_region_details(self, region_id: int) -> Dict[str, Any]:
+    async def get_region_details(self, region_id: int) -> dict[str, Any]:
         return {}
 
-    async def get_constellation_details(self, constellation_id: int) -> Dict[str, Any]:
+    async def get_constellation_details(self, constellation_id: int) -> dict[str, Any]:
         return {}
 
-    async def get_system_details(self, system_id: int) -> Dict[str, Any]:
+    async def get_system_details(self, system_id: int) -> dict[str, Any]:
         return self.system_details.get(system_id, {})
 
-    async def get_stargate_details(self, stargate_id: int) -> Dict[str, Any]:
+    async def get_stargate_details(self, stargate_id: int) -> dict[str, Any]:
         return {}
 
-    async def get_station_details(self, station_id: int) -> Dict[str, Any]:
+    async def get_station_details(self, station_id: int) -> dict[str, Any]:
         return {}
 
-    async def get_route(self, origin: int, destination: int) -> List[int]:
+    async def get_route(self, origin: int, destination: int) -> list[int]:
         return []
 
-    async def get_route_with_details(
-        self, origin: int, destination: int
-    ) -> List[Dict[str, Any]]:
+    async def get_route_with_details(self, origin: int, destination: int) -> list[dict[str, Any]]:
         return []
 
 
@@ -77,9 +75,7 @@ def deals_service(mock_repository):
 class TestDealsServiceCollectTypes:
     """Tests pour la collecte de types d'un groupe"""
 
-    async def test_collect_all_types_from_simple_group(
-        self, deals_service, mock_repository
-    ):
+    async def test_collect_all_types_from_simple_group(self, deals_service, mock_repository):
         """Test avec un groupe simple sans sous-groupes"""
         # Configuration - utiliser des IDs uniques pour éviter les conflits de cache
         group_id = int(time.time() * 1000000) % 1000000 + 1000000
@@ -98,9 +94,7 @@ class TestDealsServiceCollectTypes:
         assert isinstance(result, set)
         assert result == {101, 102, 103}
 
-    async def test_collect_all_types_from_group_with_children(
-        self, deals_service, mock_repository
-    ):
+    async def test_collect_all_types_from_group_with_children(self, deals_service, mock_repository):
         """Test avec un groupe ayant des sous-groupes"""
         # Configuration : groupe parent avec 2 sous-groupes - utiliser des IDs uniques
         base_id = int(time.time() * 1000000) % 1000000 + 2000000
@@ -127,9 +121,7 @@ class TestDealsServiceCollectTypes:
         assert isinstance(result, set)
         assert result == {101, 102, 201, 202, 301}
 
-    async def test_collect_all_types_from_nested_groups(
-        self, deals_service, mock_repository
-    ):
+    async def test_collect_all_types_from_nested_groups(self, deals_service, mock_repository):
         """Test avec des groupes imbriqués sur plusieurs niveaux"""
         # Utiliser des IDs uniques pour éviter les conflits de cache
         base_id = int(time.time() * 1000000) % 1000000 + 3000000
@@ -162,9 +154,7 @@ class TestDealsServiceCollectTypes:
             result = set(result)
         assert result == {101, 201, 301, 401}
 
-    async def test_collect_all_types_from_unknown_group(
-        self, deals_service, mock_repository
-    ):
+    async def test_collect_all_types_from_unknown_group(self, deals_service, mock_repository):
         """Test avec un groupe inexistant"""
         # Utiliser un ID unique pour éviter les conflits de cache
         unknown_group_id = int(time.time() * 1000000) % 1000000 + 9999999
@@ -181,9 +171,7 @@ class TestDealsServiceCollectTypes:
         assert isinstance(result, set)
         assert len(result) == 0
 
-    async def test_collect_all_types_from_group_without_types(
-        self, deals_service, mock_repository
-    ):
+    async def test_collect_all_types_from_group_without_types(self, deals_service, mock_repository):
         """Test avec un groupe sans types (seulement des sous-groupes)"""
         # Utiliser des IDs uniques pour éviter les conflits de cache
         base_id = int(time.time() * 1000000) % 1000000 + 4000000
@@ -210,9 +198,7 @@ class TestDealsServiceCollectTypes:
 class TestDealsServiceAnalyzeType:
     """Tests pour l'analyse de rentabilité d'un type"""
 
-    async def test_analyze_type_profitability_profitable(
-        self, deals_service, mock_repository
-    ):
+    async def test_analyze_type_profitability_profitable(self, deals_service, mock_repository):
         """Test avec un type profitable"""
         region_id = 10000002
         type_id = 123
@@ -286,9 +272,7 @@ class TestDealsServiceAnalyzeType:
         assert result["buy_order_count"] == 2
         assert result["sell_order_count"] == 2
 
-    async def test_analyze_type_profitability_below_threshold(
-        self, deals_service, mock_repository
-    ):
+    async def test_analyze_type_profitability_below_threshold(self, deals_service, mock_repository):
         """Test avec un type non rentable (bénéfice < seuil)"""
         region_id = 10000002
         type_id = 123
@@ -309,9 +293,7 @@ class TestDealsServiceAnalyzeType:
         # Vérification : doit retourner None car bénéfice < seuil
         assert result is None
 
-    async def test_analyze_type_profitability_no_buy_orders(
-        self, deals_service, mock_repository
-    ):
+    async def test_analyze_type_profitability_no_buy_orders(self, deals_service, mock_repository):
         """Test avec seulement des ordres de vente"""
         region_id = 10000002
         type_id = 123
@@ -328,9 +310,7 @@ class TestDealsServiceAnalyzeType:
         # Vérification : doit retourner None
         assert result is None
 
-    async def test_analyze_type_profitability_no_sell_orders(
-        self, deals_service, mock_repository
-    ):
+    async def test_analyze_type_profitability_no_sell_orders(self, deals_service, mock_repository):
         """Test avec seulement des ordres d'achat"""
         region_id = 10000002
         type_id = 123
@@ -347,9 +327,7 @@ class TestDealsServiceAnalyzeType:
         # Vérification : doit retourner None
         assert result is None
 
-    async def test_analyze_type_profitability_exact_threshold(
-        self, deals_service, mock_repository
-    ):
+    async def test_analyze_type_profitability_exact_threshold(self, deals_service, mock_repository):
         """Test avec un bénéfice exactement égal au seuil"""
         region_id = 10000002
         type_id = 123
@@ -415,9 +393,7 @@ class TestDealsServiceFindDeals:
         mock_repository.market_groups_details = {}
 
         # Exécution
-        result = await deals_service.find_market_deals(
-            10000002, group_id, min_profit_isk=5.0
-        )
+        result = await deals_service.find_market_deals(10000002, group_id, min_profit_isk=5.0)
 
         # Vérification
         assert result["region_id"] == 10000002
@@ -426,14 +402,11 @@ class TestDealsServiceFindDeals:
         assert result["total_types"] == 0
         assert result["deals"] == []
 
-    async def test_find_market_deals_with_profitable_items(
-        self, deals_service, mock_repository
-    ):
+    async def test_find_market_deals_with_profitable_items(self, deals_service, mock_repository):
         """Test avec des items rentables"""
         # Utiliser des IDs uniques pour éviter les conflits de cache
         base_id = int(time.time() * 1000000) % 1000000 + 6000000
         region_id = 10000002
-        group_id = base_id
         profit_threshold = 5.0
 
         # Configuration des groupes
@@ -515,14 +488,10 @@ class TestDealsServiceFindDeals:
         assert result["deals"][0]["profit_percent"] == 20.0
         assert result["deals"][1]["type_id"] == 101  # 100 ISK
         assert result["deals"][1]["profit_percent"] == 10.0
-        assert (
-            result["deals"][2]["type_id"] == 102
-        )  # 20 ISK (le plus faible mais > 5.0)
+        assert result["deals"][2]["type_id"] == 102  # 20 ISK (le plus faible mais > 5.0)
         assert result["deals"][2]["profit_percent"] == 2.0
 
-    async def test_find_market_deals_sorted_by_profit(
-        self, deals_service, mock_repository
-    ):
+    async def test_find_market_deals_sorted_by_profit(self, deals_service, mock_repository):
         """Test que les deals sont triés par profit décroissant"""
         region_id = 10000002
         group_id = 1
@@ -586,9 +555,7 @@ class TestDealsServiceFindDeals:
         }
 
         # Exécution
-        result = await deals_service.find_market_deals(
-            region_id, group_id, min_profit_isk=5.0
-        )
+        result = await deals_service.find_market_deals(region_id, group_id, min_profit_isk=5.0)
 
         # Vérification : tri décroissant
         assert len(result["deals"]) == 3

@@ -4,13 +4,15 @@ Version asynchrone avec httpx
 """
 
 import asyncio
-import httpx
 import logging
 import time
-from typing import List, Dict, Any, Optional
 from collections import deque
-from utils.cache import cached
+from typing import Any
+
+import httpx
+
 from domain.constants import DEFAULT_API_MAX_RETRIES, DEFAULT_API_RETRY_DELAY_SECONDS
+from utils.cache import cached
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +37,11 @@ class EveAPIClient:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.rate_limit_per_second = rate_limit_per_second
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
 
         # Rate limiting: garder les timestamps des dernières requêtes
         self._request_timestamps: deque = deque()
-        self._rate_limit_lock: Optional[asyncio.Lock] = None
+        self._rate_limit_lock: asyncio.Lock | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Obtient ou crée un client HTTP asynchrone"""
@@ -77,18 +79,13 @@ class EveAPIClient:
                     await asyncio.sleep(wait_time)
                     # Nettoyer à nouveau après l'attente
                     now = time.time()
-                    while (
-                        self._request_timestamps
-                        and self._request_timestamps[0] < now - 1.0
-                    ):
+                    while self._request_timestamps and self._request_timestamps[0] < now - 1.0:
                         self._request_timestamps.popleft()
 
             # Ajouter le timestamp de cette requête
             self._request_timestamps.append(time.time())
 
-    def _create_exception_from_httpx_error(
-        self, error: Exception, url: str
-    ) -> Exception:
+    def _create_exception_from_httpx_error(self, error: Exception, url: str) -> Exception:
         """
         Crée une exception appropriée à partir d'une erreur httpx
 
@@ -131,8 +128,8 @@ class EveAPIClient:
             return f"Erreur inattendue lors de l'appel à {url}"
 
     async def _execute_request_with_retry(
-        self, url: str, params: Optional[Dict], max_retries: int
-    ) -> Dict[str, Any]:
+        self, url: str, params: dict | None, max_retries: int
+    ) -> dict[str, Any]:
         """
         Exécute une requête HTTP avec retry automatique
 
@@ -157,7 +154,7 @@ class EveAPIClient:
                 return response.json()
             except (httpx.TimeoutException, httpx.HTTPStatusError, httpx.RequestError) as e:
                 exception = self._create_exception_from_httpx_error(e, url)
-                
+
                 if attempt < max_retries:
                     error_message = self._get_error_message(e, url)
                     logger.warning(
@@ -165,13 +162,16 @@ class EveAPIClient:
                     )
                     await asyncio.sleep(DEFAULT_API_RETRY_DELAY_SECONDS)
                 else:
-                    raise exception
+                    raise exception from None
 
         raise Exception(f"Erreur inattendue lors de l'appel à {url}")
 
     async def _get(
-        self, endpoint: str, params: Optional[Dict] = None, max_retries: int = DEFAULT_API_MAX_RETRIES
-    ) -> Dict[str, Any]:
+        self,
+        endpoint: str,
+        params: dict | None = None,
+        max_retries: int = DEFAULT_API_MAX_RETRIES,
+    ) -> dict[str, Any]:
         """
         Effectue une requête GET vers l'API (asynchrone)
         Respecte automatiquement le rate limit configuré
@@ -192,7 +192,7 @@ class EveAPIClient:
         return await self._execute_request_with_retry(url, params, max_retries)
 
     @cached()
-    async def get_regions_list(self) -> List[int]:
+    async def get_regions_list(self) -> list[int]:
         """
         Récupère la liste des IDs de régions
 
@@ -202,10 +202,11 @@ class EveAPIClient:
         Raises:
             Exception: Si l'appel API échoue
         """
-        return await self._get("/universe/regions/")
+        result = await self._get("/universe/regions/")
+        return result if isinstance(result, list) else []
 
     @cached()
-    async def get_region_details(self, region_id: int) -> Dict[str, Any]:
+    async def get_region_details(self, region_id: int) -> dict[str, Any]:
         """
         Récupère les détails d'une région
 
@@ -221,7 +222,7 @@ class EveAPIClient:
         return await self._get(f"/universe/regions/{region_id}/")
 
     @cached()
-    async def get_systems_list(self) -> List[int]:
+    async def get_systems_list(self) -> list[int]:
         """
         Récupère la liste des IDs de systèmes solaires
 
@@ -231,10 +232,11 @@ class EveAPIClient:
         Raises:
             Exception: Si l'appel API échoue
         """
-        return await self._get("/universe/systems/")
+        result = await self._get("/universe/systems/")
+        return result if isinstance(result, list) else []
 
     @cached()
-    async def get_constellation_details(self, constellation_id: int) -> Dict[str, Any]:
+    async def get_constellation_details(self, constellation_id: int) -> dict[str, Any]:
         """
         Récupère les détails d'une constellation
 
@@ -250,7 +252,7 @@ class EveAPIClient:
         return await self._get(f"/universe/constellations/{constellation_id}/")
 
     @cached()
-    async def get_system_details(self, system_id: int) -> Dict[str, Any]:
+    async def get_system_details(self, system_id: int) -> dict[str, Any]:
         """
         Récupère les détails d'un système solaire
 
@@ -266,7 +268,7 @@ class EveAPIClient:
         return await self._get(f"/universe/systems/{system_id}/")
 
     @cached()
-    async def get_item_type(self, type_id: int) -> Dict[str, Any]:
+    async def get_item_type(self, type_id: int) -> dict[str, Any]:
         """
         Récupère les informations d'un type d'item
 
@@ -282,7 +284,7 @@ class EveAPIClient:
         return await self._get(f"/universe/types/{type_id}/")
 
     @cached()
-    async def get_stargate_details(self, stargate_id: int) -> Dict[str, Any]:
+    async def get_stargate_details(self, stargate_id: int) -> dict[str, Any]:
         """
         Récupère les détails d'une stargate (porte stellaire)
 
@@ -298,7 +300,7 @@ class EveAPIClient:
         return await self._get(f"/universe/stargates/{stargate_id}/")
 
     @cached()
-    async def get_station_details(self, station_id: int) -> Dict[str, Any]:
+    async def get_station_details(self, station_id: int) -> dict[str, Any]:
         """
         Récupère les détails d'une station
 
@@ -314,7 +316,7 @@ class EveAPIClient:
         return await self._get(f"/universe/stations/{station_id}/")
 
     @cached()
-    async def get_market_groups_list(self) -> List[int]:
+    async def get_market_groups_list(self) -> list[int]:
         """
         Récupère la liste des IDs de groupes de marché
 
@@ -324,10 +326,11 @@ class EveAPIClient:
         Raises:
             Exception: Si l'appel API échoue
         """
-        return await self._get("/markets/groups/")
+        result = await self._get("/markets/groups/")
+        return result if isinstance(result, list) else []
 
     @cached()
-    async def get_market_group_details(self, group_id: int) -> Dict[str, Any]:
+    async def get_market_group_details(self, group_id: int) -> dict[str, Any]:
         """
         Récupère les détails d'un groupe de marché
 
@@ -344,8 +347,8 @@ class EveAPIClient:
 
     @cached(expiry_hours=1)
     async def get_market_orders(
-        self, region_id: int, type_id: int = None
-    ) -> List[Dict[str, Any]]:
+        self, region_id: int, type_id: int | None = None
+    ) -> list[dict[str, Any]]:
         """
         Récupère les ordres de marché pour une région, optionnellement filtrés par type
 
@@ -362,16 +365,17 @@ class EveAPIClient:
         params = {}
         if type_id:
             params["type_id"] = type_id
-        return await self._get(f"/markets/{region_id}/orders/", params=params)
+        result = await self._get(f"/markets/{region_id}/orders/", params=params)
+        return result if isinstance(result, list) else []
 
     @cached()
     async def get_route(
         self,
         origin: int,
         destination: int,
-        avoid: List[int] = None,
-        connections: List[List[int]] = None,
-    ) -> List[int]:
+        avoid: list[int] | None = None,
+        connections: list[list[int]] | None = None,
+    ) -> list[int]:
         """
         Calcule la route entre deux systèmes
 
@@ -411,8 +415,8 @@ class EveAPIClient:
 
     @cached()
     async def search(
-        self, categories: List[str], search: str, strict: bool = False
-    ) -> Dict[str, Any]:
+        self, categories: list[str], search: str, strict: bool = False
+    ) -> dict[str, Any]:
         """
         Effectue une recherche dans l'univers d'Eve
 

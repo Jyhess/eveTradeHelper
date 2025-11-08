@@ -3,15 +3,16 @@ Configuration des tests et fixtures partagées
 """
 
 import json
-import pytest
 from pathlib import Path
 
-from utils.cache import CacheManager, create_cache
-from domain import Services
-from application import AppFactory
-from eve.eve_repository_factory import make_eve_repository
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+from application import AppFactory
+from domain import Services
+from eve.eve_repository_factory import make_eve_repository
+from utils.cache import CacheManager, create_cache
 
 # Chemin vers le dossier de tests
 TESTS_DIR = Path(__file__).parent
@@ -71,7 +72,6 @@ def cache(request, _shared_cache):
         # Ne pas réinitialiser - le cache est partagé
 
 
-
 @pytest.fixture(scope="session")
 def reference_data():
     """Charge les données de référence pour les tests"""
@@ -80,7 +80,7 @@ def reference_data():
     if REFERENCE_DIR.exists():
         for ref_file in REFERENCE_DIR.glob("*.json"):
             key = ref_file.stem
-            with open(ref_file, "r", encoding="utf-8") as f:
+            with open(ref_file, encoding="utf-8") as f:
                 reference_data[key] = json.load(f)
 
     return reference_data

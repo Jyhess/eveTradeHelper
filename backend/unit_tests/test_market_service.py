@@ -3,8 +3,9 @@ Tests unitaires pour MarketService
 Teste la logique métier avec des mocks du repository
 """
 
+from typing import Any
+
 import pytest
-from typing import Dict, Any, List, Optional
 
 from domain.market_service import MarketService
 from domain.repository import EveRepository
@@ -20,46 +21,44 @@ class MockRepository(EveRepository):
         self.station_details = {}
         self.system_details = {}
 
-    async def get_market_groups_list(self) -> List[int]:
+    async def get_market_groups_list(self) -> list[int]:
         return self.market_groups_list
 
-    async def get_market_group_details(self, group_id: int) -> Dict[str, Any]:
+    async def get_market_group_details(self, group_id: int) -> dict[str, Any]:
         return self.market_groups_details.get(group_id, {})
 
     async def get_market_orders(
-        self, region_id: int, type_id: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+        self, region_id: int, type_id: int | None = None
+    ) -> list[dict[str, Any]]:
         key = (region_id, type_id)
         return self.market_orders.get(key, [])
 
-    async def get_station_details(self, station_id: int) -> Dict[str, Any]:
+    async def get_station_details(self, station_id: int) -> dict[str, Any]:
         return self.station_details.get(station_id, {})
 
-    async def get_system_details(self, system_id: int) -> Dict[str, Any]:
+    async def get_system_details(self, system_id: int) -> dict[str, Any]:
         return self.system_details.get(system_id, {})
 
     # Autres méthodes requises par l'interface mais non utilisées dans ces tests
-    async def get_regions_list(self) -> List[int]:
+    async def get_regions_list(self) -> list[int]:
         return []
 
-    async def get_region_details(self, region_id: int) -> Dict[str, Any]:
+    async def get_region_details(self, region_id: int) -> dict[str, Any]:
         return {}
 
-    async def get_constellation_details(self, constellation_id: int) -> Dict[str, Any]:
+    async def get_constellation_details(self, constellation_id: int) -> dict[str, Any]:
         return {}
 
-    async def get_stargate_details(self, stargate_id: int) -> Dict[str, Any]:
+    async def get_stargate_details(self, stargate_id: int) -> dict[str, Any]:
         return {}
 
-    async def get_item_type(self, type_id: int) -> Dict[str, Any]:
+    async def get_item_type(self, type_id: int) -> dict[str, Any]:
         return {}
 
-    async def get_route(self, origin: int, destination: int) -> List[int]:
+    async def get_route(self, origin: int, destination: int) -> list[int]:
         return []
 
-    async def get_route_with_details(
-        self, origin: int, destination: int
-    ) -> List[Dict[str, Any]]:
+    async def get_route_with_details(self, origin: int, destination: int) -> list[dict[str, Any]]:
         return []
 
 
@@ -89,9 +88,7 @@ class TestMarketServiceCategories:
         assert isinstance(result, list)
         assert len(result) == 0
 
-    async def test_get_market_categories_single_group(
-        self, market_service, mock_repository
-    ):
+    async def test_get_market_categories_single_group(self, market_service, mock_repository):
         """Test avec un seul groupe"""
         mock_repository.market_groups_list = [1]
         mock_repository.market_groups_details = {
@@ -112,9 +109,7 @@ class TestMarketServiceCategories:
         assert result[0]["parent_group_id"] is None
         assert result[0]["types"] == [101, 102, 103]
 
-    async def test_get_market_categories_multiple_groups(
-        self, market_service, mock_repository
-    ):
+    async def test_get_market_categories_multiple_groups(self, market_service, mock_repository):
         """Test avec plusieurs groupes, triés par nom"""
         mock_repository.market_groups_list = [1, 2, 3]
         mock_repository.market_groups_details = {
@@ -131,21 +126,24 @@ class TestMarketServiceCategories:
         assert result[1]["name"] == "Beta Group"
         assert result[2]["name"] == "Zebra Group"
 
-    async def test_get_market_categories_filters_errors(
-        self, market_service, mock_repository
-    ):
+    async def test_get_market_categories_filters_errors(self, market_service, mock_repository):
         """Test que les erreurs lors de la récupération d'un groupe sont filtrées"""
         mock_repository.market_groups_list = [1, 2, 3]
-        
+
         # Simuler une exception pour le groupe 2
         async def failing_get_market_group_details(group_id: int):
             if group_id == 2:
                 raise Exception("API Error")
             return mock_repository.market_groups_details.get(group_id, {})
-        
+
         mock_repository.market_groups_details = {
             1: {"name": "Valid Group", "description": "", "parent_group_id": None, "types": []},
-            3: {"name": "Another Valid Group", "description": "", "parent_group_id": None, "types": []},
+            3: {
+                "name": "Another Valid Group",
+                "description": "",
+                "parent_group_id": None,
+                "types": [],
+            },
         }
         mock_repository.get_market_group_details = failing_get_market_group_details
 
@@ -158,9 +156,7 @@ class TestMarketServiceCategories:
         assert "Valid Group" in group_names
         assert "Another Valid Group" in group_names
 
-    async def test_get_market_categories_with_parent(
-        self, market_service, mock_repository
-    ):
+    async def test_get_market_categories_with_parent(self, market_service, mock_repository):
         """Test avec des groupes ayant un parent"""
         mock_repository.market_groups_list = [1, 2]
         mock_repository.market_groups_details = {
@@ -193,9 +189,7 @@ class TestMarketServiceCategories:
 class TestMarketServiceEnrichedOrders:
     """Tests pour la récupération des ordres enrichis"""
 
-    async def test_get_enriched_market_orders_empty(
-        self, market_service, mock_repository
-    ):
+    async def test_get_enriched_market_orders_empty(self, market_service, mock_repository):
         """Test avec une liste vide d'ordres"""
         region_id = 10000002
         mock_repository.market_orders = {(region_id, None): []}
@@ -253,19 +247,15 @@ class TestMarketServiceEnrichedOrders:
         sell_prices = [o["price"] for o in result["sell_orders"]]
         assert sell_prices == [85, 90, 95]
 
-    async def test_get_enriched_market_orders_respects_limit(
-        self, market_service, mock_repository
-    ):
+    async def test_get_enriched_market_orders_respects_limit(self, market_service, mock_repository):
         """Test que la limite est respectée"""
         region_id = 10000002
         # Créer 100 ordres d'achat et 100 de vente
         buy_orders = [
-            {"is_buy_order": True, "price": 100 + i, "location_id": None}
-            for i in range(100)
+            {"is_buy_order": True, "price": 100 + i, "location_id": None} for i in range(100)
         ]
         sell_orders = [
-            {"is_buy_order": False, "price": 50 + i, "location_id": None}
-            for i in range(100)
+            {"is_buy_order": False, "price": 50 + i, "location_id": None} for i in range(100)
         ]
         mock_repository.market_orders = {(region_id, None): buy_orders + sell_orders}
 
@@ -290,9 +280,7 @@ class TestMarketServiceEnrichedOrders:
                 }
             ]
         }
-        mock_repository.system_details = {
-            system_id: {"name": "Jita", "security_status": 0.9}
-        }
+        mock_repository.system_details = {system_id: {"name": "Jita", "security_status": 0.9}}
 
         result = await market_service.get_enriched_market_orders(region_id)
 
@@ -318,11 +306,12 @@ class TestMarketServiceEnrichedOrders:
             ]
         }
         mock_repository.station_details = {
-            station_id: {"name": "Jita IV - Moon 4 - Caldari Navy Assembly Plant", "system_id": system_id}
+            station_id: {
+                "name": "Jita IV - Moon 4 - Caldari Navy Assembly Plant",
+                "system_id": system_id,
+            }
         }
-        mock_repository.system_details = {
-            system_id: {"name": "Jita", "security_status": 0.9}
-        }
+        mock_repository.system_details = {system_id: {"name": "Jita", "security_status": 0.9}}
 
         result = await market_service.get_enriched_market_orders(region_id)
 
@@ -361,15 +350,14 @@ class TestMarketServiceEnrichedOrders:
             "price": 100,
             "location_id": system_id,
         }
-        mock_repository.market_orders = {
-            (region_id, None): [original_order]
-        }
-        
+        mock_repository.market_orders = {(region_id, None): [original_order]}
+
         # Simuler une exception lors de la récupération du système
         async def failing_get_system_details(system_id_param: int):
             if system_id_param == system_id:
                 raise Exception("System not found")
             return {}
+
         mock_repository.get_system_details = failing_get_system_details
 
         result = await market_service.get_enriched_market_orders(region_id)
@@ -404,4 +392,3 @@ class TestMarketServiceEnrichedOrders:
         assert result["total"] == 1
         assert len(result["buy_orders"]) == 1
         assert result["buy_orders"][0]["price"] == 200
-

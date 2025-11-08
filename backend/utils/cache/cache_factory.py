@@ -1,7 +1,8 @@
-import os
 import logging
-from .simple_cache import SimpleCache
+import os
+
 from .manager import CacheManager
+from .simple_cache import SimpleCache
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ def create_cache() -> SimpleCache:
         ConnectionError: Si la connexion à Redis échoue
     """
     # Configuration du cache Redis (obligatoire)
-    CACHE_EXPIRY_HOURS = int(os.getenv("CACHE_EXPIRY_HOURS", str(24 * 30)))
+    cache_expiry_hours = int(os.getenv("CACHE_EXPIRY_HOURS", str(24 * 30)))
 
     # Vérifier si Redis est configuré (valeurs par défaut pour développement local)
     redis_url = os.getenv("REDIS_URL")
@@ -33,14 +34,14 @@ def create_cache() -> SimpleCache:
     try:
         if redis_url:
             logger.info(f"Connexion à Redis via URL: {redis_url}")
-            cache = SimpleCache(expiry_hours=CACHE_EXPIRY_HOURS, redis_url=redis_url)
+            cache = SimpleCache(expiry_hours=cache_expiry_hours, redis_url=redis_url)
         else:
             # Utiliser les valeurs par défaut si redis_host n'est pas défini
             redis_port = int(os.getenv("REDIS_PORT", "6379"))
             redis_db = int(os.getenv("REDIS_DB", "0"))
             logger.info(f"Connexion à Redis: {redis_host}:{redis_port}/{redis_db}")
             cache = SimpleCache(
-                expiry_hours=CACHE_EXPIRY_HOURS,
+                expiry_hours=cache_expiry_hours,
                 redis_host=redis_host,
                 redis_port=redis_port,
                 redis_db=redis_db,

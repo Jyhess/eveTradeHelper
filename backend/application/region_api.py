@@ -3,14 +3,18 @@ API pour la gestion des régions
 Endpoints FastAPI pour les régions (asynchrone)
 """
 
-import os
 import logging
+import os
+from collections.abc import Hashable
+from typing import Any
+
 from cachetools import TTLCache
-from fastapi import APIRouter, HTTPException, Depends
-from typing import Optional, Dict, Any
-from domain.region_service import RegionService
-from domain.constants import ADJACENT_REGIONS_CACHE_TTL
+from fastapi import APIRouter, Depends, HTTPException
+
 from application.utils import cached_async
+from domain.constants import ADJACENT_REGIONS_CACHE_TTL
+from domain.region_service import RegionService
+
 from .services_provider import ServicesProvider
 
 logger = logging.getLogger(__name__)
@@ -19,7 +23,9 @@ region_router = router
 
 # Cache LRU avec TTL pour les régions adjacentes (en mémoire)
 # Les régions adjacentes changent rarement, donc un TTL long est approprié
-_adjacent_regions_cache = TTLCache(maxsize=100, ttl=ADJACENT_REGIONS_CACHE_TTL)
+_adjacent_regions_cache: TTLCache[Hashable, Any] = TTLCache(
+    maxsize=100, ttl=ADJACENT_REGIONS_CACHE_TTL
+)
 
 
 @router.get("/api/v1/regions")
@@ -48,7 +54,7 @@ async def get_regions(region_service: RegionService = Depends(ServicesProvider.g
         logger.error(f"Erreur lors de la récupération des régions: {e}")
         raise HTTPException(
             status_code=500, detail=f"Erreur de connexion à l'API ESI: {str(e)}"
-        )
+        ) from None
 
 
 @router.get("/api/v1/regions/{region_id}/constellations")
@@ -67,9 +73,7 @@ async def get_region_constellations(
     """
     try:
         logger.info(f"Récupération des constellations de la région {region_id}")
-        constellations = await region_service.get_region_constellations_with_details(
-            region_id
-        )
+        constellations = await region_service.get_region_constellations_with_details(region_id)
 
         # Trier par nom
         constellations_sorted = sorted(constellations, key=lambda x: x.get("name", ""))
@@ -85,7 +89,7 @@ async def get_region_constellations(
         raise HTTPException(
             status_code=500,
             detail=f"Erreur de connexion à l'API ESI: {str(e)}",
-        )
+        ) from None
 
 
 @router.get("/api/v1/constellations/{constellation_id}/systems")
@@ -105,9 +109,7 @@ async def get_constellation_systems(
     """
     try:
         logger.info(f"Récupération des systèmes de la constellation {constellation_id}")
-        systems = await region_service.get_constellation_systems_with_details(
-            constellation_id
-        )
+        systems = await region_service.get_constellation_systems_with_details(constellation_id)
 
         # Trier par nom
         systems_sorted = sorted(systems, key=lambda x: x.get("name", ""))
@@ -123,7 +125,7 @@ async def get_constellation_systems(
         raise HTTPException(
             status_code=500,
             detail=f"Erreur de connexion à l'API ESI: {str(e)}",
-        )
+        ) from None
 
 
 @router.get("/api/v1/systems/{system_id}")
@@ -166,7 +168,7 @@ async def get_system_details(
         raise HTTPException(
             status_code=500,
             detail=f"Erreur de connexion à l'API ESI: {str(e)}",
-        )
+        ) from None
 
 
 @router.get("/api/v1/systems/{system_id}/connections")
@@ -201,7 +203,7 @@ async def get_system_connections(
         raise HTTPException(
             status_code=500,
             detail=f"Erreur de connexion à l'API ESI: {str(e)}",
-        )
+        ) from None
 
 
 @router.get("/api/v1/constellations/{constellation_id}")
@@ -223,9 +225,7 @@ async def get_constellation_info(
         logger.info(f"Récupération des infos de la constellation {constellation_id}")
 
         # Récupérer les détails de la constellation
-        constellation_data = await region_service.get_constellation_details(
-            constellation_id
-        )
+        constellation_data = await region_service.get_constellation_details(constellation_id)
         region_id = constellation_data.get("region_id")
 
         # Récupérer les détails de la région
@@ -251,13 +251,11 @@ async def get_constellation_info(
         return info
 
     except Exception as e:
-        logger.error(
-            f"Erreur lors de la récupération des infos de la constellation: {e}"
-        )
+        logger.error(f"Erreur lors de la récupération des infos de la constellation: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Erreur de connexion à l'API ESI: {str(e)}",
-        )
+        ) from None
 
 
 @router.get("/api/v1/regions/{region_id}/adjacent")
@@ -297,10 +295,7 @@ async def get_adjacent_regions(
 
         # Récupérer les détails des constellations pour obtenir les systèmes
         constellation_details_list = await asyncio.gather(
-            *[
-                region_service.get_constellation_details(cid)
-                for cid in constellation_ids
-            ],
+            *[region_service.get_constellation_details(cid) for cid in constellation_ids],
             return_exceptions=True,
         )
 
@@ -340,22 +335,22 @@ async def get_adjacent_regions(
                 adjacent_regions = set()
                 for stargate_data in stargate_details_list:
                     if isinstance(stargate_data, dict):
-                        destination_system_id = stargate_data.get(
-                            "destination", {}
-                        ).get("system_id")
+                        destination_system_id = stargate_data.get("destination", {}).get(
+                            "system_id"
+                        )
                         if destination_system_id:
                             # Récupérer les détails du système de destination pour obtenir sa constellation
                             try:
                                 dest_system_details = await region_service.get_system_details(
                                     destination_system_id
                                 )
-                                dest_constellation_id = dest_system_details.get(
-                                    "constellation_id"
-                                )
+                                dest_constellation_id = dest_system_details.get("constellation_id")
                                 if dest_constellation_id:
                                     # Récupérer la constellation pour obtenir la région
-                                    dest_constellation = await region_service.get_constellation_details(
-                                        dest_constellation_id
+                                    dest_constellation = (
+                                        await region_service.get_constellation_details(
+                                            dest_constellation_id
+                                        )
                                     )
                                     dest_region_id = dest_constellation.get("region_id")
                                     if dest_region_id and dest_region_id != region_id:
@@ -368,9 +363,7 @@ async def get_adjacent_regions(
 
                 return adjacent_regions
             except Exception as e:
-                logger.warning(
-                    f"Erreur lors de la récupération du système {system_id}: {e}"
-                )
+                logger.warning(f"Erreur lors de la récupération du système {system_id}: {e}")
                 return set()
 
         # Récupérer les régions adjacentes pour tous les systèmes en parallèle
@@ -393,7 +386,7 @@ async def get_adjacent_regions(
             }
 
         # Récupérer les détails de chaque région adjacente en parallèle
-        async def fetch_adjacent_region(adj_region_id: int) -> Optional[Dict[str, Any]]:
+        async def fetch_adjacent_region(adj_region_id: int) -> dict[str, Any] | None:
             try:
                 region_data = await region_service.get_region_details(adj_region_id)
                 return {
@@ -402,9 +395,7 @@ async def get_adjacent_regions(
                     "description": region_data.get("description", ""),
                 }
             except Exception as e:
-                logger.warning(
-                    f"Erreur lors de la récupération de la région {adj_region_id}: {e}"
-                )
+                logger.warning(f"Erreur lors de la récupération de la région {adj_region_id}: {e}")
                 return None
 
         adjacent_regions_results = await asyncio.gather(
@@ -431,6 +422,4 @@ async def get_adjacent_regions(
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors de la récupération des régions adjacentes: {str(e)}",
-        )
-
-
+        ) from None

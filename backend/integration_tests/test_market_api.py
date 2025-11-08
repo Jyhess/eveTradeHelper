@@ -3,7 +3,6 @@ import pytest
 
 @pytest.mark.integration
 class TestMarketAPI:
-
     def test_get_market_categories_endpoint_structure(self, client):
         response = client.get("/api/v1/markets/categories")
 

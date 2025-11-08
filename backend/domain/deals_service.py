@@ -5,20 +5,20 @@ Contient la logique métier pure, indépendante de l'infrastructure (version asy
 
 import asyncio
 import logging
-from typing import List, Dict, Any, Optional, Set, Tuple
+from typing import Any
 
-from .repository import EveRepository
+from utils.cache import cached
+
 from .constants import (
-    STATION_ID_THRESHOLD,
-    DEFAULT_MIN_PROFIT_ISK,
     DEFAULT_MAX_CONCURRENT_ANALYSES,
+    DEFAULT_MIN_PROFIT_ISK,
 )
 from .helpers import (
-    get_system_id_from_location,
-    calculate_tradable_volume,
     apply_buy_cost_limit,
+    calculate_tradable_volume,
+    get_system_id_from_location,
 )
-from utils.cache import cached
+from .repository import EveRepository
 
 logger = logging.getLogger(__name__)
 
@@ -36,15 +36,13 @@ class DealsService:
         self.repository = repository
 
     async def _collect_orders_from_regions(
-        self, region_ids: List[int], type_id: int
-    ) -> Tuple[List[Tuple[Dict[str, Any], int]], List[Tuple[Dict[str, Any], int]]]:
+        self, region_ids: list[int], type_id: int
+    ) -> tuple[list[tuple[dict[str, Any], int]], list[tuple[dict[str, Any], int]]]:
         # Récupérer les ordres de toutes les régions en parallèle
         all_orders_promises = [
             self.repository.get_market_orders(reg_id, type_id) for reg_id in region_ids
         ]
-        all_orders_results = await asyncio.gather(
-            *all_orders_promises, return_exceptions=True
-        )
+        all_orders_results = await asyncio.gather(*all_orders_promises, return_exceptions=True)
 
         # Collecter tous les ordres valides de toutes les régions
         all_buy_orders = []
@@ -64,17 +62,13 @@ class DealsService:
 
     async def _calculate_route_details(
         self, buy_location_id: int, sell_location_id: int, type_id: int
-    ) -> Tuple[Optional[int], Optional[int], Optional[int], List[Dict[str, Any]]]:
+    ) -> tuple[int | None, int | None, int | None, list[dict[str, Any]]]:
         if not buy_location_id or not sell_location_id:
             return None, None, None, []
 
         try:
-            buy_system_id = await get_system_id_from_location(
-                self.repository, buy_location_id
-            )
-            sell_system_id = await get_system_id_from_location(
-                self.repository, sell_location_id
-            )
+            buy_system_id = await get_system_id_from_location(self.repository, buy_location_id)
+            sell_system_id = await get_system_id_from_location(self.repository, sell_location_id)
 
             if not buy_system_id or not sell_system_id:
                 return buy_system_id, sell_system_id, None, []
@@ -102,23 +96,21 @@ class DealsService:
             logger.warning(f"Erreur lors du calcul de la route pour {type_id}: {e}")
             return None, None, None, []
 
-    def _filter_valid_deals(self, results: List[Any]) -> List[Dict[str, Any]]:
+    def _filter_valid_deals(self, results: list[Any]) -> list[dict[str, Any]]:
         return [r for r in results if isinstance(r, dict) and r is not None]
 
-    def _sort_deals_by_profit(
-        self, deals: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def _sort_deals_by_profit(self, deals: list[dict[str, Any]]) -> list[dict[str, Any]]:
         deals.sort(
             key=lambda x: (x.get("profit_isk", 0), x.get("profit_percent", 0)),
             reverse=True,
         )
         return deals
 
-    def _calculate_total_profit(self, deals: List[Dict[str, Any]]) -> float:
+    def _calculate_total_profit(self, deals: list[dict[str, Any]]) -> float:
         return sum(deal.get("profit_isk", 0) for deal in deals)
 
     @cached(cache_key_prefix="collect_all_types_from_group2")
-    async def collect_all_types_from_group(self, group_id: int) -> Set[int]:
+    async def collect_all_types_from_group(self, group_id: int) -> set[int]:
         """
         Collecte récursivement tous les types d'items d'un groupe de marché
         et de ses sous-groupes
@@ -155,9 +147,7 @@ class DealsService:
                 groups_map[parent_id]["children"].append(gid)
 
         # Fonction récursive pour collecter tous les types
-        def collect_all_types_recursive(
-            gid: int, collected_types: Set[int]
-        ) -> Set[int]:
+        def collect_all_types_recursive(gid: int, collected_types: set[int]) -> set[int]:
             """Collecte récursivement tous les types d'un groupe de marché"""
             if gid not in groups_map:
                 return collected_types
@@ -173,19 +163,19 @@ class DealsService:
 
         # Collecter tous les types du groupe (et sous-groupes)
         result_set = collect_all_types_recursive(group_id, set())
-        # Le décorateur @cached normalise en liste, donc on convertit le Set en liste
+        # Le décorateur @cached normalise en liste, mais on retourne un set
         # Le décorateur le reconvertira automatiquement en Set si nécessaire via le typage
-        return list(result_set)
+        return result_set
 
     async def analyze_type_profitability(
         self,
         region_id: int,
         type_id: int,
         min_profit_isk: float,
-        max_transport_volume: Optional[float] = None,
-        max_buy_cost: Optional[float] = None,
-        additional_regions: Optional[List[int]] = None,
-    ) -> Optional[Dict[str, Any]]:
+        max_transport_volume: float | None = None,
+        max_buy_cost: float | None = None,
+        additional_regions: list[int] | None = None,
+    ) -> dict[str, Any] | None:
         """
         Analyse un type d'item pour trouver les opportunités de profit
         Cherche dans la région principale et les régions supplémentaires pour trouver le meilleur bénéfice
@@ -221,12 +211,10 @@ class DealsService:
             # - sell_order (is_buy_order=False) = quelqu'un veut VENDRE → on peut ACHETER à ce prix
 
             # Meilleur prix pour VENDRE (le plus élevé parmi tous les buy_orders)
-            best_sell_order_tuple = max(
-                all_buy_orders, key=lambda x: x[0].get("price", 0)
-            )
+            best_sell_order_tuple = max(all_buy_orders, key=lambda x: x[0].get("price", 0))
             best_sell_order, sell_region_id = best_sell_order_tuple
             sell_price = best_sell_order.get("price", 0)
-            sell_location_id = best_sell_order.get("location_id")
+            sell_location_id: int | None = best_sell_order.get("location_id")
             sell_volume = min(
                 best_sell_order.get("volume_remain", 0),
                 best_sell_order.get("volume_total", 0),
@@ -238,7 +226,7 @@ class DealsService:
             )
             best_buy_order, buy_region_id = best_buy_order_tuple
             buy_price = best_buy_order.get("price", float("inf"))
-            buy_location_id = best_buy_order.get("location_id")
+            buy_location_id: int | None = best_buy_order.get("location_id")
             buy_volume = min(
                 best_buy_order.get("volume_remain", 0),
                 best_buy_order.get("volume_total", 0),
@@ -259,9 +247,7 @@ class DealsService:
                 return None
 
             # Appliquer la limite de coût d'achat si nécessaire
-            tradable_volume = apply_buy_cost_limit(
-                tradable_volume, buy_price, max_buy_cost
-            )
+            tradable_volume = apply_buy_cost_limit(tradable_volume, buy_price, max_buy_cost)
             if tradable_volume is None:
                 return None
 
@@ -279,11 +265,18 @@ class DealsService:
             profit_percent = ((sell_price - buy_price) / buy_price) * 100
 
             # Calculer les détails de la route
-            buy_system_id, sell_system_id, jumps, route_details = (
-                await self._calculate_route_details(
-                    buy_location_id, sell_location_id, type_id
-                )
-            )
+            if buy_location_id is None or sell_location_id is None:
+                buy_system_id = None
+                sell_system_id = None
+                jumps = None
+                route_details: list[dict[str, Any]] = []
+            else:
+                (
+                    buy_system_id,
+                    sell_system_id,
+                    jumps,
+                    route_details,
+                ) = await self._calculate_route_details(buy_location_id, sell_location_id, type_id)
             estimated_time_minutes = jumps if jumps is not None else None
 
             # Compter les ordres dans toutes les régions
@@ -321,11 +314,11 @@ class DealsService:
         region_id: int,
         group_id: int,
         min_profit_isk: float = DEFAULT_MIN_PROFIT_ISK,
-        max_transport_volume: Optional[float] = None,
-        max_buy_cost: Optional[float] = None,
-        additional_regions: Optional[List[int]] = None,
+        max_transport_volume: float | None = None,
+        max_buy_cost: float | None = None,
+        additional_regions: list[int] | None = None,
         max_concurrent: int = DEFAULT_MAX_CONCURRENT_ANALYSES,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Trouve les bonnes affaires dans un groupe de marché pour une région
         Parcourt tous les types d'items du groupe (y compris les sous-groupes) et calcule
@@ -357,9 +350,7 @@ class DealsService:
         # Collecter tous les types du groupe (et sous-groupes)
         # Le décorateur @cached retourne une liste, on la convertit en Set
         all_types_list = await self.collect_all_types_from_group(group_id)
-        all_types = (
-            set(all_types_list) if isinstance(all_types_list, list) else all_types_list
-        )
+        all_types = set(all_types_list) if isinstance(all_types_list, list) else all_types_list
 
         if not all_types:
             return {

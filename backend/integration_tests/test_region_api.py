@@ -3,7 +3,6 @@ import pytest
 
 @pytest.mark.integration
 class TestRegionAPI:
-
     def test_get_adjacent_regions_endpoint_structure(self, client):
         region_id = 10000002
         response = client.get(f"/api/v1/regions/{region_id}/adjacent")
@@ -81,4 +80,3 @@ class TestRegionAPI:
             if len(data["adjacent_regions"]) > 1:
                 names = [r["name"] for r in data["adjacent_regions"]]
                 assert names == sorted(names), "Les régions doivent être triées par nom"
-

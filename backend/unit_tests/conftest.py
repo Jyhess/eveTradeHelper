@@ -3,15 +3,15 @@ Configuration des tests et fixtures partagées
 """
 
 import json
-import pytest
 from pathlib import Path
-from eve.eve_repository_factory import make_eve_repository
+
+import pytest
 
 from eve.eve_api_client import EveAPIClient
+from eve.eve_repository_factory import make_eve_repository
 from utils.cache import CacheManager, create_cache
-from utils.cache.simple_cache import SimpleCache
 from utils.cache.fake_cache import FakeCache
-from typing import Optional
+from utils.cache.simple_cache import SimpleCache
 
 # Chemin vers le dossier de tests
 TESTS_DIR = Path(__file__).parent
@@ -19,7 +19,7 @@ REFERENCE_DIR = TESTS_DIR / "reference"
 
 
 # Cache Redis partagé pour la session (initialisé une seule fois)
-_cache_instance: Optional[SimpleCache] = None
+_cache_instance: SimpleCache | None = None
 
 
 @pytest.fixture(scope="session")
@@ -51,7 +51,7 @@ def cache(request, _shared_cache):
         and request.node.parent is not None
         and request.node.parent.get_closest_marker("unit") is not None
     )
-    
+
     # Si le test est dans le dossier unittests, utiliser le fake cache
     if not is_unit_test:
         test_file = getattr(request.node, "fspath", None)
@@ -96,7 +96,7 @@ def reference_data():
     if REFERENCE_DIR.exists():
         for ref_file in REFERENCE_DIR.glob("*.json"):
             key = ref_file.stem
-            with open(ref_file, "r", encoding="utf-8") as f:
+            with open(ref_file, encoding="utf-8") as f:
                 reference_data[key] = json.load(f)
 
     return reference_data

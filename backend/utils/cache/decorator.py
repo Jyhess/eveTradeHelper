@@ -7,21 +7,24 @@ import functools
 import hashlib
 import inspect
 import logging
-from typing import Callable, Any, Optional, Union, cast
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, cast
+
 from .manager import CacheManager
 from .simple_cache import SimpleCache
 
-try:
+if TYPE_CHECKING:
     from .fake_cache import FakeCache
-except ImportError:
-    FakeCache = None
+else:
+    try:
+        from .fake_cache import FakeCache
+    except ImportError:
+        FakeCache = None  # type: ignore[assignment, misc]
 
 logger = logging.getLogger(__name__)
 
 
-def _generate_cache_key(
-    func_name: str, prefix: Optional[str], args: tuple, kwargs: dict
-) -> str:
+def _generate_cache_key(func_name: str, prefix: str | None, args: tuple, kwargs: dict) -> str:
     """
     Génère une clé de cache unique basée sur le nom de la fonction et ses paramètres
 
@@ -53,7 +56,7 @@ def _generate_cache_key(
     return f"{prefix}_{cache_key_hash}"
 
 
-def _get_cache_instance(expiry_hours: Optional[int]) -> Optional[Union[SimpleCache, Any]]:
+def _get_cache_instance(expiry_hours: int | None) -> SimpleCache | Any | None:
     """
     Récupère l'instance de cache, avec gestion de l'expiry personnalisé
 
@@ -72,7 +75,7 @@ def _get_cache_instance(expiry_hours: Optional[int]) -> Optional[Union[SimpleCac
 
     # À ce point, cache_instance ne peut pas être None (vérifié par is_initialized)
     # Utiliser cast pour aider le type checker
-    cache_instance = cast(Union[SimpleCache, Any], cache_instance)
+    cache_instance = cast(SimpleCache | Any, cache_instance)
 
     # Créer une instance temporaire si expiry_hours est différent
     if expiry_hours and expiry_hours != cache_instance.expiry_hours:
@@ -82,18 +85,18 @@ def _get_cache_instance(expiry_hours: Optional[int]) -> Optional[Union[SimpleCac
             temp_cache.expiry_hours = expiry_hours
             temp_cache.redis_client = cache_instance.redis_client
             return temp_cache
-        elif FakeCache and isinstance(cache_instance, FakeCache):
+        elif FakeCache is not None and isinstance(cache_instance, FakeCache):
             # Pour FakeCache, créer une nouvelle instance qui partage le même stockage
-            temp_cache = FakeCache.__new__(FakeCache)
+            temp_cache = FakeCache.__new__(FakeCache)  # type: ignore[assignment]
             temp_cache.expiry_hours = expiry_hours
-            temp_cache._cache_data = cache_instance._cache_data
-            temp_cache._metadata = cache_instance._metadata
-            return temp_cache
+            temp_cache._cache_data = cache_instance._cache_data  # type: ignore[attr-defined]
+            temp_cache._metadata = cache_instance._metadata  # type: ignore[attr-defined]
+            return temp_cache  # type: ignore[return-value]
 
     return cache_instance
 
 
-def _get_cached_result(cache_instance: Union[SimpleCache, Any], cache_key: str) -> Optional[Any]:
+def _get_cached_result(cache_instance: SimpleCache | Any, cache_key: str) -> Any | None:
     """
     Récupère le résultat depuis le cache si disponible et valide
 
@@ -187,7 +190,7 @@ def _normalize_result_for_cache(result: Any) -> list:
         return [{"_type": type(result).__name__, "value": result}]
 
 
-def _save_to_cache(cache_instance: Union[SimpleCache, Any], cache_key: str, result: Any) -> None:
+def _save_to_cache(cache_instance: SimpleCache | Any, cache_key: str, result: Any) -> None:
     """
     Sauvegarde le résultat dans le cache
 
@@ -205,11 +208,11 @@ def _save_to_cache(cache_instance: Union[SimpleCache, Any], cache_key: str, resu
 
 def _try_get_from_cache(
     func_name: str,
-    cache_key_prefix: Optional[str],
-    expiry_hours: Optional[int],
+    cache_key_prefix: str | None,
+    expiry_hours: int | None,
     args: tuple,
     kwargs: dict,
-) -> tuple[Optional[SimpleCache], Optional[str], Optional[Any]]:
+) -> tuple[SimpleCache | None, str | None, Any | None]:
     """
     Essaie de récupérer le résultat depuis le cache
 
@@ -235,7 +238,7 @@ def _try_get_from_cache(
     return cache_instance, cache_key, cached_result
 
 
-def cached(cache_key_prefix: Optional[str] = None, expiry_hours: Optional[int] = None):
+def cached(cache_key_prefix: str | None = None, expiry_hours: int | None = None):
     """
     Décorateur pour mettre en cache automatiquement les résultats d'une méthode
     Supporte les fonctions synchrones et asynchrones

@@ -3,14 +3,16 @@ Application FastAPI principale
 Configuration et initialisation selon Clean Architecture (version asynchrone)
 """
 
-import os
 import logging
+import os
 from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+
+from application import AppFactory
+from domain import Services
 from eve import make_eve_repository
 from utils.cache import create_cache
-from application import AppFactory
-from fastapi import FastAPI
-from domain import Services
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO)

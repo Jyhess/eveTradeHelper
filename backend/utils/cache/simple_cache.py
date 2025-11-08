@@ -3,8 +3,8 @@ Cache basé sur Redis
 """
 
 import json
-from datetime import datetime, timedelta, timezone
-from typing import Optional, List, Dict, Any
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 try:
     import redis
@@ -20,8 +20,8 @@ class SimpleCache:
     def __init__(
         self,
         expiry_hours: int,
-        redis_url: Optional[str] = None,
-        redis_host: Optional[str] = None,
+        redis_url: str | None = None,
+        redis_host: str | None = None,
         redis_port: int = 6379,
         redis_db: int = 0,
     ):
@@ -72,13 +72,13 @@ class SimpleCache:
                 f"   Vérifiez que Redis est démarré avec: docker-compose up -d redis\n"
                 f"   Ou démarrez le service Redis dans Docker: docker-compose up redis\n"
                 f"   Détails de l'erreur: {e}"
-            )
+            ) from e
         except Exception as e:
             raise ConnectionError(
                 f"❌ Erreur lors de la connexion à Redis.\n"
                 f"   Vérifiez que Redis est démarré avec: docker-compose up -d redis\n"
                 f"   Détails de l'erreur: {e}"
-            )
+            ) from e
 
     def is_valid(self, key: str) -> bool:
         """
@@ -100,13 +100,13 @@ class SimpleCache:
             last_updated = datetime.fromisoformat(last_updated_str)
             # S'assurer que la date est timezone-aware
             if last_updated.tzinfo is None:
-                last_updated = last_updated.replace(tzinfo=timezone.utc)
+                last_updated = last_updated.replace(tzinfo=UTC)
             expiry_time = last_updated + timedelta(hours=self.expiry_hours)
-            return datetime.now(timezone.utc) < expiry_time
+            return datetime.now(UTC) < expiry_time
         except (ValueError, TypeError):
             return False
 
-    def get(self, key: str) -> Optional[List[Dict[str, Any]]]:
+    def get(self, key: str) -> list[dict[str, Any]] | None:
         """
         Récupère les données depuis le cache
 
@@ -128,9 +128,7 @@ class SimpleCache:
         except (json.JSONDecodeError, Exception):
             return None
 
-    def set(
-        self, key: str, items: List[Dict[str, Any]], metadata: Optional[Dict] = None
-    ):
+    def set(self, key: str, items: list[dict[str, Any]], metadata: dict | None = None):
         """
         Sauvegarde des données dans le cache
 
@@ -139,7 +137,7 @@ class SimpleCache:
             items: Liste des éléments à mettre en cache
             metadata: Métadonnées optionnelles (ex: region_ids)
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Sauvegarder les données
         cache_data = {
@@ -162,9 +160,9 @@ class SimpleCache:
             }
             self.redis_client.hset(metadata_key, mapping=metadata_data)
         except Exception as e:
-            raise Exception(f"Erreur lors de l'écriture du cache Redis: {e}")
+            raise Exception(f"Erreur lors de l'écriture du cache Redis: {e}") from e
 
-    def clear(self, key: Optional[str] = None):
+    def clear(self, key: str | None = None):
         """
         Vide le cache pour une clé spécifique ou tout le cache
 
@@ -183,5 +181,4 @@ class SimpleCache:
                 for metadata_key in self.redis_client.scan_iter(match="metadata:*"):
                     self.redis_client.delete(metadata_key)
         except Exception as e:
-            raise Exception(f"Erreur lors de la suppression du cache Redis: {e}")
-
+            raise Exception(f"Erreur lors de la suppression du cache Redis: {e}") from e

@@ -1,6 +1,6 @@
-# Guide de débogage détaillé
+# Guide de débogage du Backend
 
-Ce guide explique comment utiliser le débogueur dans Cursor/VS Code pour ce projet.
+Ce guide explique comment utiliser le débogueur dans Cursor/VS Code pour le backend Python.
 
 ## Prérequis : Environnement virtuel Python
 
@@ -8,24 +8,19 @@ Avant de commencer le débogage, assurez-vous d'avoir créé et activé l'enviro
 
 ```bash
 # Créer l'environnement virtuel
-python -m venv .venv  # ou python3 -m venv .venv sur Linux/Mac
+make develop
 
 # Activer l'environnement virtuel
-# Windows
-.venv\Scripts\activate
-
-# Linux/Mac
-source .venv/bin/activate
-
-# Installer les dépendances
-pip install -r backend/requirements.txt
+source .venv/bin/activate  # Linux/Mac
+# ou
+.venv\Scripts\activate     # Windows
 ```
 
 **Important** : L'interpréteur Python dans Cursor/VS Code doit pointer vers `.venv/Scripts/python.exe` (Windows) ou `.venv/bin/python` (Linux/Mac). Cursor devrait détecter automatiquement le venv, mais vous pouvez aussi le sélectionner manuellement avec `Ctrl+Shift+P` > "Python: Select Interpreter".
 
 ## Configuration des débogueurs
 
-### Backend Python (Flask)
+### Backend Python (FastAPI)
 
 Le backend utilise `debugpy` pour permettre le débogage depuis Cursor/VS Code.
 
@@ -35,19 +30,21 @@ Le backend utilise `debugpy` pour permettre le débogage depuis Cursor/VS Code.
 2. Sélectionnez "Python: Flask (Backend)"
 3. Appuyez sur `F5` ou cliquez sur "Start Debugging"
 
-Cette méthode lance Flask directement avec le débogueur intégré. **Aucune modification du code n'est nécessaire** - debugpy s'injecte automatiquement grâce à la configuration `launch`.
+Cette méthode lance FastAPI directement avec le débogueur intégré. **Aucune modification du code n'est nécessaire** - debugpy s'injecte automatiquement grâce à la configuration `launch`.
 
 #### Méthode 2 : Attach
 
-Cette méthode permet de se connecter à un processus Flask déjà en cours d'exécution :
+Cette méthode permet de se connecter à un processus FastAPI déjà en cours d'exécution :
 
-1. **Modifiez `backend/app.py`** pour ajouter debugpy avant de démarrer Flask :
+1. **Modifiez `backend/app.py`** pour ajouter debugpy avant de démarrer FastAPI :
+
    ```python
    import debugpy
    debugpy.listen(("0.0.0.0", 5678))
    app.run(host='0.0.0.0', port=5000, debug=True)
    ```
-2. Démarrez Flask manuellement : `python backend/app.py`
+
+2. Démarrez FastAPI manuellement : `python backend/app.py`
 3. Dans Cursor, sélectionnez "Python: Flask (Attach)"
 4. Appuyez sur `F5`
 
@@ -55,55 +52,11 @@ Cette méthode permet de se connecter à un processus Flask déjà en cours d'ex
 
 #### Utilisation des breakpoints
 
-Placez des breakpoints dans `backend/app.py` :
+Placez des breakpoints dans `backend/app.py` ou dans n'importe quel fichier Python :
 
 - Cliquez dans la marge à gauche du numéro de ligne
 - Un point rouge apparaît indiquant un breakpoint actif
 - Le code s'arrêtera à cet endroit lors de l'exécution
-
-### Frontend Vue.js
-
-Le frontend utilise les DevTools du navigateur pour le débogage.
-
-#### Configuration Chrome
-
-1. Ouvrez le panneau de debug
-2. Sélectionnez "Vue.js: Chrome"
-3. Appuyez sur `F5`
-4. Le serveur de développement Vue.js démarre automatiquement (`npm run serve`)
-5. Chrome s'ouvre automatiquement avec le débogueur connecté une fois le serveur prêt
-
-#### Configuration Edge
-
-Même processus mais sélectionnez "Vue.js: Edge" à la place. Le serveur démarre également automatiquement.
-
-#### Utilisation des breakpoints
-
-Placez des breakpoints dans vos fichiers Vue.js :
-
-- `frontend/src/App.vue` - Dans les sections `<script>`
-- `frontend/src/main.js` - Point d'entrée de l'application
-
-#### Debug dans le navigateur
-
-Vous pouvez aussi :
-
-- Ouvrir les DevTools manuellement (`F12`)
-- Utiliser `console.log()` pour le debug
-- Utiliser le debugger JavaScript : `debugger;`
-
-## Debug combiné (Full Stack)
-
-Pour déboguer le backend et le frontend simultanément :
-
-1. Sélectionnez "Full Stack Debug" dans le panneau de debug
-2. Appuyez sur `F5`
-3. Les deux débogueurs démarrent en parallèle
-
-Cette configuration lance automatiquement :
-
-- Le backend Flask avec debugpy
-- Chrome avec le débogueur connecté au frontend Vue.js
 
 ## Commandes de debug utiles
 
@@ -152,19 +105,18 @@ Gérez tous vos breakpoints :
 
 ### Debug d'une requête API
 
-1. Placez un breakpoint dans `backend/app.py` dans la fonction `hello()`
+1. Placez un breakpoint dans `backend/application/region_api.py` dans la fonction `get_regions()`
 2. Lancez "Python: Flask (Backend)"
-3. Dans le frontend, cliquez sur le bouton "Appeler le Backend"
+3. Faites une requête HTTP vers `http://localhost:5001/api/v1/regions`
 4. L'exécution s'arrête au breakpoint
-5. Inspectez `request` pour voir les données de la requête
+5. Inspectez les variables pour voir les données de la requête
 
-### Debug d'un composant Vue
+### Debug d'un service de domaine
 
-1. Placez un breakpoint dans `frontend/src/App.vue` dans la méthode `fetchHello()`
-2. Lancez "Vue.js: Chrome"
-3. Cliquez sur le bouton dans l'interface
-4. L'exécution s'arrête au breakpoint
-5. Inspectez `this.message` et `this.loading`
+1. Placez un breakpoint dans `backend/domain/region_service.py` dans la méthode `get_regions_with_details()`
+2. Lancez le débogueur
+3. Faites une requête API qui déclenche ce service
+4. Inspectez les variables et la pile d'appels
 
 ### Debug d'une erreur
 
@@ -179,12 +131,6 @@ Si vous rencontrez une erreur :
 ### Modifier le port de debug
 
 Par défaut, debugpy écoute sur le port 5678. Pour le modifier :
-
-Dans `backend/app.py` (optionnel, pour le mode attach uniquement) :
-
-```python
-debugpy.listen(("0.0.0.0", 5679))  # Port différent
-```
 
 Dans `.vscode/launch.json`, mettez à jour :
 
@@ -202,6 +148,7 @@ Dans `.vscode/launch.json`, section `env` :
 ```json
 "env": {
   "FLASK_ENV": "development",
+  "REDIS_URL": "redis://localhost:6379",
   "CUSTOM_VAR": "value"
 }
 ```
@@ -230,32 +177,18 @@ Cette erreur se produit quand le port 5678 est déjà utilisé par un autre proc
    taskkill /PID <PID> /F
    ```
 
-   Ou utilisez le script fourni : `kill_debug_port.bat`
-
 2. **Utiliser un port alternatif** :
 
    - Sélectionnez la configuration "Python: Flask (Backend - Port Alternatif)" dans le panneau de debug
    - Cette configuration utilise le port 5679 au lieu de 5678
-   - Assurez-vous de mettre à jour aussi la configuration "Attach" si vous l'utilisez
 
-3. **Modifier le port manuellement** :
-
-   - Dans `.vscode/launch.json`, modifiez le port dans la section `connect` ou `env.DEBUGPY_PORT`
-   - Ou définissez la variable d'environnement `DEBUGPY_PORT=5679` avant de lancer le debug
-
-4. **Redémarrer Cursor/VS Code** : Fermez complètement l'IDE pour libérer les ports
+3. **Redémarrer Cursor/VS Code** : Fermez complètement l'IDE pour libérer les ports
 
 ### Les breakpoints ne sont pas atteints
 
 - Vérifiez que le code est bien exécuté
 - Vérifiez que les breakpoints sont sur des lignes exécutables
 - Pour Python, vérifiez `"justMyCode": false` si vous voulez debugger le code des dépendances
-
-### Le débogueur Vue.js ne fonctionne pas
-
-- Assurez-vous que le serveur de développement est démarré (`npm run serve`)
-- Vérifiez que les source maps sont activées dans `vue.config.js`
-- Vérifiez que le port 8080 est accessible
 
 ### Erreur de connexion au débogueur
 

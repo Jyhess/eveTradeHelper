@@ -3,7 +3,6 @@ import pytest
 
 @pytest.mark.integration
 class TestDealsAPI:
-
     def test_get_market_deals_endpoint_structure(self, client):
         response = client.get(
             "/api/v1/markets/deals",
@@ -94,10 +93,10 @@ class TestDealsAPI:
 
             assert isinstance(deal["type_id"], int)
             assert isinstance(deal["type_name"], str)
-            assert isinstance(deal["buy_price"], (int, float))
-            assert isinstance(deal["sell_price"], (int, float))
-            assert isinstance(deal["profit_percent"], (int, float))
-            assert isinstance(deal["profit_isk"], (int, float))
+            assert isinstance(deal["buy_price"], int | float)
+            assert isinstance(deal["sell_price"], int | float)
+            assert isinstance(deal["profit_percent"], int | float)
+            assert isinstance(deal["profit_isk"], int | float)
             assert isinstance(deal["buy_order_count"], int)
             assert isinstance(deal["sell_order_count"], int)
 
@@ -117,10 +116,7 @@ class TestDealsAPI:
         # Vérifier que les deals sont triés par profit décroissant
         if len(data["deals"]) > 1:
             for i in range(len(data["deals"]) - 1):
-                assert (
-                    data["deals"][i]["profit_percent"]
-                    >= data["deals"][i + 1]["profit_percent"]
-                )
+                assert data["deals"][i]["profit_percent"] >= data["deals"][i + 1]["profit_percent"]
 
     def test_get_market_deals_endpoint_missing_params(self, client):
         # Test sans region_id

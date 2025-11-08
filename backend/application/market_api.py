@@ -4,11 +4,15 @@ Endpoints FastAPI pour les marchés (asynchrone)
 """
 
 import logging
+from collections.abc import Hashable
+from typing import Any
+
 from cachetools import TTLCache
-from fastapi import APIRouter, HTTPException, Depends
-from typing import Optional
-from domain.market_service import MarketService
+from fastapi import APIRouter, Depends, HTTPException
+
 from domain.constants import MARKET_CATEGORIES_CACHE_TTL
+from domain.market_service import MarketService
+
 from .services_provider import ServicesProvider
 
 logger = logging.getLogger(__name__)
@@ -16,7 +20,9 @@ router = APIRouter()
 market_router = router
 
 # Cache LRU avec TTL pour les catégories de marché (en mémoire)
-_market_categories_cache = TTLCache(maxsize=1, ttl=MARKET_CATEGORIES_CACHE_TTL)
+_market_categories_cache: TTLCache[Hashable, Any] = TTLCache(
+    maxsize=1, ttl=MARKET_CATEGORIES_CACHE_TTL
+)
 
 
 @router.get("/api/v1/markets/categories")
@@ -56,7 +62,7 @@ async def get_market_categories(
         raise HTTPException(
             status_code=500,
             detail=f"Erreur de connexion à l'API ESI: {str(e)}",
-        )
+        ) from None
 
 
 @router.get("/api/v1/universe/types/{type_id}")
@@ -85,13 +91,13 @@ async def get_item_type(
         raise HTTPException(
             status_code=500,
             detail=f"Erreur de connexion à l'API ESI: {str(e)}",
-        )
+        ) from None
 
 
 @router.get("/api/v1/markets/regions/{region_id}/orders")
 async def get_market_orders(
     region_id: int,
-    type_id: Optional[int] = None,
+    type_id: int | None = None,
     market_service: MarketService = Depends(ServicesProvider.get_market_service),
 ):
     """
@@ -112,9 +118,7 @@ async def get_market_orders(
             + (f" et le type {type_id}" if type_id else "")
         )
 
-        enriched_orders = await market_service.get_enriched_market_orders(
-            region_id, type_id
-        )
+        enriched_orders = await market_service.get_enriched_market_orders(region_id, type_id)
 
         return {
             "region_id": region_id,
@@ -127,4 +131,4 @@ async def get_market_orders(
         raise HTTPException(
             status_code=500,
             detail=f"Erreur de connexion à l'API ESI: {str(e)}",
-        )
+        ) from None
