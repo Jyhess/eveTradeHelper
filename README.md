@@ -7,9 +7,11 @@ Application web pour analyser les opportunités de trading dans EVE Online, avec
 ### Prérequis
 
 - Python 3.12+
-- Node.js 18+
+- Node.js 18+ (recommandé: Node.js 20 LTS pour une meilleure compatibilité)
 - Docker et Docker Compose (pour le mode production)
 - Make (optionnel, pour simplifier les commandes)
+
+**Note:** Si vous utilisez Node.js 23+, vous pouvez voir des warnings `EBADENGINE` lors de l'installation des dépendances frontend. Ces warnings sont non bloquants et n'empêchent pas le fonctionnement de l'application. Ils proviennent de dépendances transitives de Vue CLI qui n'ont pas encore mis à jour leur support pour Node.js 23.
 
 ### Installation
 
@@ -33,9 +35,9 @@ docker-compose up --build
 
 ```bash
 # Backend (dans un terminal)
-source .venv/bin/activate  # Linux/Mac
+source backend/.venv/bin/activate  # Linux/Mac
 # ou
-.venv\Scripts\activate     # Windows
+backend\.venv\Scripts\activate     # Windows
 python backend/app.py
 
 # Frontend (dans un autre terminal)
@@ -61,12 +63,12 @@ L'application est composée de trois services principaux :
 
 ```bash
 make help              # Voir toutes les commandes disponibles
+make init              # Initialiser les dépendances (backend + frontend)
 make check             # Vérifier la qualité du code (format, lint, typecheck)
-make test              # Exécuter tous les tests
-make test-unit         # Tests unitaires uniquement
-make test-integration  # Tests d'intégration uniquement
-make coverage          # Rapport de couverture
-make all               # Tout exécuter (check, test, coverage)
+make tests             # Exécuter tous les tests (backend + frontend)
+make build             # Build les images Docker (backend + frontend)
+make all               # Initialiser, tester et build (backend + frontend)
+make clean             # Nettoyer les fichiers générés
 ```
 
 ### Docker
