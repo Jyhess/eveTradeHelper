@@ -158,9 +158,7 @@
                 <div v-else-if="!marketOrders" class="no-region-warning">
                   Click on an item type to view orders
                 </div>
-                <div v-else class="no-region-warning">
-                  Loading market orders...
-                </div>
+                <div v-else class="no-region-warning">Loading market orders...</div>
               </div>
             </div>
           </div>
