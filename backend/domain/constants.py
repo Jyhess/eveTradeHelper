@@ -18,3 +18,7 @@ ADJACENT_REGIONS_CACHE_TTL = 86400  # 24 heures
 # Cache TTL pour les ordres de marché (en heures)
 MARKET_ORDERS_CACHE_EXPIRY_HOURS = 1
 
+# Configuration des retries pour les appels API
+DEFAULT_API_MAX_RETRIES = 2
+DEFAULT_API_RETRY_DELAY_SECONDS = 0.5
+
