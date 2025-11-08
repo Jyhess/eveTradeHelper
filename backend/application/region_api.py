@@ -52,9 +52,7 @@ async def get_regions(region_service: RegionService = Depends(ServicesProvider.g
 
     except Exception as e:
         logger.error(f"Error retrieving regions: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"ESI API connection error: {str(e)}"
-        ) from None
+        raise HTTPException(status_code=500, detail=f"ESI API connection error: {str(e)}") from None
 
 
 @router.get("/api/v1/regions/{region_id}/constellations")

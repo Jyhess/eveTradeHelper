@@ -15,40 +15,84 @@
         <div class="form-group">
           <label for="group-select">Market Group:</label>
           <div v-if="loadingGroups" class="loading-small">Loading groups...</div>
-          <TreeSelect v-else :tree="marketGroupsTree" :value="selectedGroupId" placeholder="Select a group..."
-            :disabled="!selectedRegionId || loadingGroups" @input="handleGroupSelect" @change="handleGroupChange" />
+          <TreeSelect
+            v-else
+            :tree="marketGroupsTree"
+            :value="selectedGroupId"
+            placeholder="Select a group..."
+            :disabled="!selectedRegionId || loadingGroups"
+            @input="handleGroupSelect"
+            @change="handleGroupChange"
+          />
         </div>
 
         <div class="form-group thresholds-row">
           <div class="threshold-item">
             <label for="min-profit-input">Profit Threshold (ISK):</label>
-            <input id="min-profit-input" type="text" v-model="minProfitIskDisplay" placeholder="100 000"
-              :disabled="!selectedGroupId" @input="handleMinProfitInput" @blur="handleMinProfitBlur" />
+            <input
+              id="min-profit-input"
+              v-model="minProfitIskDisplay"
+              type="text"
+              placeholder="100 000"
+              :disabled="!selectedGroupId"
+              @input="handleMinProfitInput"
+              @blur="handleMinProfitBlur"
+            />
           </div>
           <div class="threshold-item">
             <label for="max-volume-input">Max Transport Volume (m³):</label>
-            <input id="max-volume-input" type="text" v-model="maxTransportVolumeDisplay" placeholder="Unlimited"
-              :disabled="!selectedGroupId" @input="handleMaxVolumeInput" @blur="handleMaxVolumeBlur" />
+            <input
+              id="max-volume-input"
+              v-model="maxTransportVolumeDisplay"
+              type="text"
+              placeholder="Unlimited"
+              :disabled="!selectedGroupId"
+              @input="handleMaxVolumeInput"
+              @blur="handleMaxVolumeBlur"
+            />
           </div>
           <div class="threshold-item">
             <label for="max-buy-cost-input">Max Purchase Amount (ISK):</label>
-            <input id="max-buy-cost-input" type="text" v-model="maxBuyCostDisplay" placeholder="Unlimited"
-              :disabled="!selectedGroupId" @input="handleMaxBuyCostInput" @blur="handleMaxBuyCostBlur" />
+            <input
+              id="max-buy-cost-input"
+              v-model="maxBuyCostDisplay"
+              type="text"
+              placeholder="Unlimited"
+              :disabled="!selectedGroupId"
+              @input="handleMaxBuyCostInput"
+              @blur="handleMaxBuyCostBlur"
+            />
           </div>
         </div>
 
         <div class="form-group">
-          <button type="button" class="btn-add-regions" @click="toggleAdjacentRegionsPanel"
-            :disabled="!selectedRegionId">
+          <button
+            type="button"
+            class="btn-add-regions"
+            :disabled="!selectedRegionId"
+            @click="toggleAdjacentRegionsPanel"
+          >
             {{ showAdjacentRegionsPanel ? 'Hide' : 'Add Adjacent Regions' }}
           </button>
 
-          <div v-if="showAdjacentRegionsPanel && adjacentRegions.length > 0" class="adjacent-regions-panel">
+          <div
+            v-if="showAdjacentRegionsPanel && adjacentRegions.length > 0"
+            class="adjacent-regions-panel"
+          >
             <label class="panel-label">Select adjacent regions to include:</label>
             <div class="regions-checkboxes">
-              <label v-for="region in adjacentRegions" :key="region.region_id" class="region-checkbox-label">
-                <input type="checkbox" :value="region.region_id" v-model="selectedAdjacentRegions"
-                  :disabled="loadingAdjacentRegions" @change="saveSettings" />
+              <label
+                v-for="region in adjacentRegions"
+                :key="region.region_id"
+                class="region-checkbox-label"
+              >
+                <input
+                  v-model="selectedAdjacentRegions"
+                  type="checkbox"
+                  :value="region.region_id"
+                  :disabled="loadingAdjacentRegions"
+                  @change="saveSettings"
+                />
                 <span>{{ region.name }}</span>
               </label>
             </div>
@@ -56,16 +100,25 @@
               {{ selectedAdjacentRegions.length }} additional region(s) selected
             </small>
           </div>
-          <div v-else-if="showAdjacentRegionsPanel && loadingAdjacentRegions" class="adjacent-regions-panel">
+          <div
+            v-else-if="showAdjacentRegionsPanel && loadingAdjacentRegions"
+            class="adjacent-regions-panel"
+          >
             <div class="loading-small">Loading adjacent regions...</div>
           </div>
-          <div v-else-if="showAdjacentRegionsPanel && !loadingAdjacentRegions" class="adjacent-regions-panel">
+          <div
+            v-else-if="showAdjacentRegionsPanel && !loadingAdjacentRegions"
+            class="adjacent-regions-panel"
+          >
             <p class="no-adjacent-regions">No adjacent regions found</p>
           </div>
         </div>
 
-        <button class="search-button" @click="searchDeals"
-          :disabled="!selectedRegionId || !selectedGroupId || searching">
+        <button
+          class="search-button"
+          :disabled="!selectedRegionId || !selectedGroupId || searching"
+          @click="searchDeals"
+        >
           {{ searching ? 'Searching...' : 'Search for Deals' }}
         </button>
       </div>
@@ -86,18 +139,23 @@
               across <strong>{{ searchResults.total_types }}</strong> analyzed type(s)
             </p>
             <p>
-              Total potential profit: <strong>{{ formatPrice(searchResults.total_profit_isk || 0) }} ISK</strong>
+              Total potential profit:
+              <strong>{{ formatPrice(searchResults.total_profit_isk || 0) }} ISK</strong>
             </p>
             <p>
-              Profit threshold: <strong>{{ formatPrice(searchResults.min_profit_isk || 0) }} ISK</strong> |
+              Profit threshold:
+              <strong>{{ formatPrice(searchResults.min_profit_isk || 0) }} ISK</strong> |
               <span v-if="searchResults.max_transport_volume">
-                Max volume: <strong>{{ formatVolume(searchResults.max_transport_volume) }} m³</strong> |
+                Max volume:
+                <strong>{{ formatVolume(searchResults.max_transport_volume) }} m³</strong> |
               </span>
               <span v-if="searchResults.max_buy_cost">
-                Max purchase amount: <strong>{{ formatPrice(searchResults.max_buy_cost) }} ISK</strong> |
+                Max purchase amount:
+                <strong>{{ formatPrice(searchResults.max_buy_cost) }} ISK</strong> |
               </span>
               <span v-if="selectedAdjacentRegions.length > 0">
-                Regions: <strong>{{ regionName }}</strong> + {{ selectedAdjacentRegions.length }} other(s) |
+                Regions: <strong>{{ regionName }}</strong> +
+                {{ selectedAdjacentRegions.length }} other(s) |
               </span>
               <span v-else>
                 Region: <strong>{{ regionName }}</strong> |
@@ -108,10 +166,8 @@
         </div>
 
         <div v-if="filteredDealsCount === 0" class="no-results">
-          <p>
-            No deals found with the following criteria:
-          </p>
-          <ul style="text-align: left; display: inline-block;">
+          <p>No deals found with the following criteria:</p>
+          <ul style="text-align: left; display: inline-block">
             <li>Profit threshold: {{ formatPrice(searchResults.min_profit_isk || 0) }} ISK</li>
             <li v-if="searchResults.max_transport_volume">
               Max volume: {{ formatVolume(searchResults.max_transport_volume) }} m³
@@ -120,7 +176,10 @@
               Max purchase amount: {{ formatPrice(searchResults.max_buy_cost) }} ISK
             </li>
           </ul>
-          <p>Try reducing the profit threshold, increasing the max volume or max purchase amount, or selecting another group.</p>
+          <p>
+            Try reducing the profit threshold, increasing the max volume or max purchase amount, or
+            selecting another group.
+          </p>
         </div>
 
         <div v-else class="deals-list">
@@ -132,11 +191,18 @@
               <option value="profit_isk">Profit (ISK)</option>
             </select>
           </div>
-          <div v-for="deal in sortedDeals" :key="`${deal.type_id}-${getDealRegionId(deal)}`" class="deal-item">
+          <div
+            v-for="deal in sortedDeals"
+            :key="`${deal.type_id}-${getDealRegionId(deal)}`"
+            class="deal-item"
+          >
             <div class="deal-header">
               <h3>{{ deal.type_name }}</h3>
               <div class="deal-header-right">
-                <span v-if="getDealRegionName(deal) && getDealRegionName(deal) !== regionName" class="region-badge">
+                <span
+                  v-if="getDealRegionName(deal) && getDealRegionName(deal) !== regionName"
+                  class="region-badge"
+                >
                   {{ getDealRegionName(deal) }}
                 </span>
                 <div class="profit-badge" :class="getProfitBadgeClass(deal.profit_percent)">
@@ -159,7 +225,9 @@
                   <span class="equals">=</span>
                   <span class="total-sell">{{ formatPrice(deal.total_sell_revenue) }} ISK</span>
                   <span class="arrow">=></span>
-                  <span class="profit-total">{{ formatPrice(deal.profit_isk) }} ISK ({{ deal.profit_percent }}%)</span>
+                  <span class="profit-total"
+                    >{{ formatPrice(deal.profit_isk) }} ISK ({{ deal.profit_percent }}%)</span
+                  >
                 </span>
               </div>
 
@@ -171,17 +239,26 @@
                   <span class="operator">×</span>
                   <span class="volume-unit">{{ formatVolume(deal.item_volume) }} m³</span>
                   <span class="equals">=</span>
-                  <span class="total-volume">{{ formatVolume(deal.total_transport_volume) }} m³</span>
+                  <span class="total-volume"
+                    >{{ formatVolume(deal.total_transport_volume) }} m³</span
+                  >
                   <span class="separator">•</span>
                   <span class="jumps-label">Jumps:</span>
                   <span class="jumps-value">
-                    <span v-if="deal.jumps !== null && deal.jumps !== undefined">{{ deal.jumps }}</span>
+                    <span v-if="deal.jumps !== null && deal.jumps !== undefined">{{
+                      deal.jumps
+                    }}</span>
                     <span v-else>Unknown</span>
                   </span>
                   <span class="separator">•</span>
                   <span class="time-label">Time:</span>
                   <span class="time-value">
-                    <span v-if="deal.estimated_time_minutes !== null && deal.estimated_time_minutes !== undefined">
+                    <span
+                      v-if="
+                        deal.estimated_time_minutes !== null &&
+                        deal.estimated_time_minutes !== undefined
+                      "
+                    >
                       {{ formatTime(deal.estimated_time_minutes) }}
                     </span>
                     <span v-else>Unknown</span>
@@ -190,17 +267,31 @@
               </div>
 
               <!-- Line 3: Route -->
-              <div v-if="deal.route_details && deal.route_details.length > 0" class="detail-line route-line">
+              <div
+                v-if="deal.route_details && deal.route_details.length > 0"
+                class="detail-line route-line"
+              >
                 <span class="detail-label">Route:</span>
                 <span class="detail-content route-content">
                   <span class="route-start-container">
-                    <router-link v-if="deal.buy_system_id" :to="`/markets/system/${deal.buy_system_id}?type_id=${deal.type_id}`" class="route-system-link">
+                    <router-link
+                      v-if="deal.buy_system_id"
+                      :to="`/markets/system/${deal.buy_system_id}?type_id=${deal.type_id}`"
+                      class="route-system-link"
+                    >
                       {{ deal.route_details[0].name }}
                     </router-link>
                     <span v-else class="route-start">{{ deal.route_details[0].name }}</span>
-                    <span v-if="isSystemNotInCurrentRegion(deal.buy_system_id, deal.buy_region_id)" class="region-indicator">
+                    <span
+                      v-if="isSystemNotInCurrentRegion(deal.buy_system_id, deal.buy_region_id)"
+                      class="region-indicator"
+                    >
                       (
-                      <router-link v-if="deal.buy_region_id" :to="`/markets/region/${deal.buy_region_id}?type_id=${deal.type_id}`" class="region-link">
+                      <router-link
+                        v-if="deal.buy_region_id"
+                        :to="`/markets/region/${deal.buy_region_id}?type_id=${deal.type_id}`"
+                        class="region-link"
+                      >
                         {{ getRegionName(deal.buy_region_id) }}
                       </router-link>
                       <span v-else>{{ getRegionName(deal.buy_region_id) }}</span>
@@ -209,25 +300,48 @@
                   </span>
                   <span class="route-separator">[</span>
                   <div class="route-systems-inline">
-                    <div v-for="(system, index) in deal.route_details" :key="system.system_id"
-                      class="route-system-inline">
-                      <div class="danger-indicator-small" :class="getDangerClass(system.security_status)"
-                        :title="`${system.name}\nSecurity: ${system.security_status.toFixed(1)}`">
-                        <span class="tooltip-text-small">{{ system.name }}<br>Security: {{
-                          system.security_status.toFixed(1) }}</span>
+                    <div
+                      v-for="(system, index) in deal.route_details"
+                      :key="system.system_id"
+                      class="route-system-inline"
+                    >
+                      <div
+                        class="danger-indicator-small"
+                        :class="getDangerClass(system.security_status)"
+                        :title="`${system.name}\nSecurity: ${system.security_status.toFixed(1)}`"
+                      >
+                        <span class="tooltip-text-small"
+                          >{{ system.name }}<br />Security:
+                          {{ system.security_status.toFixed(1) }}</span
+                        >
                       </div>
-                      <span v-if="index < deal.route_details.length - 1" class="route-arrow-small">→</span>
+                      <span v-if="index < deal.route_details.length - 1" class="route-arrow-small"
+                        >→</span
+                      >
                     </div>
                   </div>
                   <span class="route-separator">]</span>
                   <span class="route-end-container">
-                    <router-link v-if="deal.sell_system_id" :to="`/markets/system/${deal.sell_system_id}?type_id=${deal.type_id}`" class="route-system-link">
+                    <router-link
+                      v-if="deal.sell_system_id"
+                      :to="`/markets/system/${deal.sell_system_id}?type_id=${deal.type_id}`"
+                      class="route-system-link"
+                    >
                       {{ deal.route_details[deal.route_details.length - 1].name }}
                     </router-link>
-                    <span v-else class="route-end">{{ deal.route_details[deal.route_details.length - 1].name }}</span>
-                    <span v-if="isSystemNotInCurrentRegion(deal.sell_system_id, deal.sell_region_id)" class="region-indicator">
+                    <span v-else class="route-end">{{
+                      deal.route_details[deal.route_details.length - 1].name
+                    }}</span>
+                    <span
+                      v-if="isSystemNotInCurrentRegion(deal.sell_system_id, deal.sell_region_id)"
+                      class="region-indicator"
+                    >
                       (
-                      <router-link v-if="deal.sell_region_id" :to="`/markets/region/${deal.sell_region_id}?type_id=${deal.type_id}`" class="region-link">
+                      <router-link
+                        v-if="deal.sell_region_id"
+                        :to="`/markets/region/${deal.sell_region_id}?type_id=${deal.type_id}`"
+                        class="region-link"
+                      >
                         {{ getRegionName(deal.sell_region_id) }}
                       </router-link>
                       <span v-else>{{ getRegionName(deal.sell_region_id) }}</span>
@@ -245,8 +359,10 @@
                   <span class="orders-separator">-</span>
                   <span class="orders-sell">{{ deal.sell_order_count }} sell</span>
                   <span class="separator">•</span>
-                  <router-link :to="`/markets/region/${getDealRegionId(deal)}?type_id=${deal.type_id}`"
-                    class="market-link-inline">
+                  <router-link
+                    :to="`/markets/region/${getDealRegionId(deal)}?type_id=${deal.type_id}`"
+                    class="market-link-inline"
+                  >
                     📊 Market Details
                   </router-link>
                 </span>
@@ -420,7 +536,10 @@ export default {
             this.maxBuyCost = settings.maxBuyCost
             this.maxBuyCostDisplay = this.formatNumberInput(this.maxBuyCost)
           }
-          if (settings.selectedAdjacentRegions !== undefined && Array.isArray(settings.selectedAdjacentRegions)) {
+          if (
+            settings.selectedAdjacentRegions !== undefined &&
+            Array.isArray(settings.selectedAdjacentRegions)
+          ) {
             this.selectedAdjacentRegions = settings.selectedAdjacentRegions
           }
           if (settings.showAdjacentRegionsPanel !== undefined) {
@@ -434,7 +553,10 @@ export default {
       if (!this.minProfitIskDisplay || this.minProfitIskDisplay === '') {
         this.minProfitIskDisplay = this.formatNumberInput(this.minProfitIsk)
       }
-      if ((!this.maxTransportVolumeDisplay || this.maxTransportVolumeDisplay === '') && this.maxTransportVolume !== null) {
+      if (
+        (!this.maxTransportVolumeDisplay || this.maxTransportVolumeDisplay === '') &&
+        this.maxTransportVolume !== null
+      ) {
         this.maxTransportVolumeDisplay = this.formatNumberInput(this.maxTransportVolume)
       }
       if ((!this.maxBuyCostDisplay || this.maxBuyCostDisplay === '') && this.maxBuyCost !== null) {
@@ -510,7 +632,11 @@ export default {
     },
     async toggleAdjacentRegionsPanel() {
       this.showAdjacentRegionsPanel = !this.showAdjacentRegionsPanel
-      if (this.showAdjacentRegionsPanel && this.adjacentRegions.length === 0 && this.selectedRegionId) {
+      if (
+        this.showAdjacentRegionsPanel &&
+        this.adjacentRegions.length === 0 &&
+        this.selectedRegionId
+      ) {
         await this.fetchAdjacentRegions()
       }
       this.saveSettings() // Save panel state
@@ -607,7 +733,7 @@ export default {
       })
 
       // Sort nodes and their children recursively
-      const sortNodes = (nodes) => {
+      const sortNodes = nodes => {
         nodes.sort((a, b) => a.name.localeCompare(b.name))
         nodes.forEach(node => {
           if (node.children.length > 0) {
@@ -904,7 +1030,6 @@ export default {
   color: #333;
 }
 
-
 .card {
   background: white;
   border-radius: 12px;
@@ -1022,7 +1147,7 @@ export default {
   background: #e8e8e8;
 }
 
-.region-checkbox-label input[type="checkbox"] {
+.region-checkbox-label input[type='checkbox'] {
   width: 18px;
   height: 18px;
   cursor: pointer;
@@ -1457,7 +1582,9 @@ export default {
   font-size: 0.85em;
   white-space: nowrap;
   z-index: 1000;
-  transition: opacity 0.3s, visibility 0.3s;
+  transition:
+    opacity 0.3s,
+    visibility 0.3s;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   line-height: 1.4;
 }
@@ -1468,7 +1595,7 @@ export default {
 }
 
 .danger-indicator-small .tooltip-text-small::after {
-  content: "";
+  content: '';
   position: absolute;
   top: 100%;
   left: 50%;
@@ -1553,7 +1680,9 @@ export default {
   white-space: normal;
   z-index: 1000;
   pointer-events: none;
-  transition: opacity 0.3s, visibility 0.3s;
+  transition:
+    opacity 0.3s,
+    visibility 0.3s;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   min-width: 120px;
   line-height: 1.4;
@@ -1565,7 +1694,7 @@ export default {
 }
 
 .danger-indicator .tooltip-text::after {
-  content: "";
+  content: '';
   position: absolute;
   top: 100%;
   left: 50%;
@@ -1609,7 +1738,6 @@ export default {
   font-size: 1.2em;
   font-weight: 600;
 }
-
 
 .sort-controls {
   display: flex;

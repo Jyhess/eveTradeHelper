@@ -10,19 +10,18 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
-# Import utility functions
-from unittests.test_utils import (
-    load_reference,
-    normalize_for_comparison,
-    save_reference,
-)
-
 from domain.constants import DEFAULT_API_MAX_RETRIES
 from domain.region_service import RegionService
 from eve.eve_api_client import EveAPIClient
 from eve.eve_repository_impl import EveRepositoryImpl
 from utils.cache import CacheManager, SimpleCache
 from utils.cache.fake_cache import FakeCache
+
+from .test_utils import (
+    load_reference,
+    normalize_for_comparison,
+    save_reference,
+)
 
 
 class TestEveAPIClientRegions:
@@ -69,9 +68,7 @@ class TestEveAPIClientRegions:
         # Basic checks
         assert isinstance(result, dict), "Result must be a dictionary"
         assert "name" in result, "Result must contain 'name'"
-        assert (
-            "region_id" not in result or result.get("name") is not None
-        ), "Name must be defined"
+        assert "region_id" not in result or result.get("name") is not None, "Name must be defined"
 
         # Compare with reference
         ref_key = f"region_details_{region_id}"
@@ -91,9 +88,7 @@ class TestEveAPIClientRegions:
 
             # Verify constellations are present
             if "constellations" in ref_normalized:
-                assert (
-                    "constellations" in result_normalized
-                ), "Constellations must be present"
+                assert "constellations" in result_normalized, "Constellations must be present"
                 assert len(result_normalized["constellations"]) == len(
                     ref_normalized["constellations"]
                 ), (
@@ -245,9 +240,7 @@ class TestEveAPIClientStructure:
 
         if result:
             # Verify element types
-            assert all(
-                isinstance(item, int) for item in result
-            ), "All elements must be integers"
+            assert all(isinstance(item, int) for item in result), "All elements must be integers"
 
             # Verify there are no duplicates
             assert len(result) == len(set(result)), "There must be no duplicates"

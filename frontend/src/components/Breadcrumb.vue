@@ -1,13 +1,17 @@
 <template>
-  <nav class="breadcrumb" v-if="items.length > 0">
+  <nav v-if="items.length > 0" class="breadcrumb">
     <ol class="breadcrumb-list">
-      <li 
-        v-for="(item, index) in items" 
+      <li
+        v-for="(item, index) in items"
         :key="index"
         class="breadcrumb-item"
-        :class="{ 'active': index === items.length - 1 }"
+        :class="{ active: index === items.length - 1 }"
       >
-        <router-link v-if="item.path && index < items.length - 1" :to="item.path" class="breadcrumb-link">
+        <router-link
+          v-if="item.path && index < items.length - 1"
+          :to="item.path"
+          class="breadcrumb-link"
+        >
           {{ item.label || item.name }}
         </router-link>
         <span v-else class="breadcrumb-current">{{ item.label || item.name }}</span>
@@ -79,4 +83,3 @@ export default {
   display: none;
 }
 </style>
-

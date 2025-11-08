@@ -1,29 +1,42 @@
 <template>
   <div class="tree-node-item">
-    <div class="tree-node-header" :style="indentStyle" :class="{ 'has-children': hasChildren, 'expanded': expanded }">
+    <div
+      class="tree-node-header"
+      :style="indentStyle"
+      :class="{ 'has-children': hasChildren, expanded: expanded }"
+    >
       <span v-if="hasChildren" class="expand-icon" @click.stop="toggleExpand">
         {{ expanded ? '▼' : '▶' }}
       </span>
       <span v-else class="expand-icon-spacer"></span>
       <span class="node-name" :class="{ 'type-node': isType }" @click="selectNode">
-        <span v-if="isType && typeDetailsForNode && typeDetailsForNode.name">{{ typeDetailsForNode.name }}</span>
+        <span v-if="isType && typeDetailsForNode && typeDetailsForNode.name">{{
+          typeDetailsForNode.name
+        }}</span>
         <span v-else>{{ node.name }}</span>
       </span>
       <span class="node-badge">{{ badgeValue }}</span>
-      <router-link 
-        v-if="!isType && regionId" 
-        :to="dealsLink" 
+      <router-link
+        v-if="!isType && regionId"
+        :to="dealsLink"
         class="deals-link"
-        @click.stop
         title="Find deals in this group"
+        @click.stop
       >
         💰
       </router-link>
     </div>
     <div v-if="expanded && hasChildren" class="tree-children">
-      <TreeNode v-for="child in node.children" :key="child.is_type ? `type_${child.type_id}` : child.group_id"
-        :node="child" :level="level + 1" :type-details="typeDetails" :region-id="regionId" :expanded-paths="expandedPaths"
-        @node-selected="$emit('node-selected', $event)" />
+      <TreeNode
+        v-for="child in node.children"
+        :key="child.is_type ? `type_${child.type_id}` : child.group_id"
+        :node="child"
+        :level="level + 1"
+        :type-details="typeDetails"
+        :region-id="regionId"
+        :expanded-paths="expandedPaths"
+        @node-selected="$emit('node-selected', $event)"
+      />
     </div>
   </div>
 </template>
@@ -67,14 +80,16 @@ export default {
     },
     shouldBeExpanded() {
       // Check if this node should be expanded according to expandedPaths
-      if (!this.expandedPaths || (this.expandedPaths instanceof Set && this.expandedPaths.size === 0)) {
+      if (
+        !this.expandedPaths ||
+        (this.expandedPaths instanceof Set && this.expandedPaths.size === 0)
+      ) {
         return false
       }
       const nodeId = this.node.group_id || this.node.type_id
       // Convert Set to Array if necessary for includes
-      const pathsArray = this.expandedPaths instanceof Set 
-        ? Array.from(this.expandedPaths) 
-        : this.expandedPaths
+      const pathsArray =
+        this.expandedPaths instanceof Set ? Array.from(this.expandedPaths) : this.expandedPaths
       return pathsArray.includes(nodeId)
     },
     indentStyle() {
@@ -113,6 +128,28 @@ export default {
       }
     }
   },
+  watch: {
+    shouldBeExpanded(newVal) {
+      if (newVal && this.hasChildren) {
+        this.expanded = true
+      }
+    },
+    expandedPaths: {
+      handler() {
+        if (this.shouldBeExpanded && this.hasChildren) {
+          this.expanded = true
+        }
+      },
+      deep: true,
+      immediate: true
+    }
+  },
+  mounted() {
+    // Check if we should be expanded on mount
+    if (this.shouldBeExpanded && this.hasChildren) {
+      this.expanded = true
+    }
+  },
   methods: {
     toggleExpand() {
       if (this.hasChildren) {
@@ -136,28 +173,6 @@ export default {
         })
       }
     }
-  },
-  watch: {
-    shouldBeExpanded(newVal) {
-      if (newVal && this.hasChildren) {
-        this.expanded = true
-      }
-    },
-    expandedPaths: {
-      handler() {
-        if (this.shouldBeExpanded && this.hasChildren) {
-          this.expanded = true
-        }
-      },
-      deep: true,
-      immediate: true
-    }
-  },
-  mounted() {
-    // Check if we should be expanded on mount
-    if (this.shouldBeExpanded && this.hasChildren) {
-      this.expanded = true
-    }
   }
 }
 </script>
@@ -175,7 +190,9 @@ export default {
   border: 1px solid #e0e0e0;
   border-radius: 6px;
   cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
   user-select: none;
 }
 

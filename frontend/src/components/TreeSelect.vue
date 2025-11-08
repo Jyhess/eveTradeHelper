@@ -1,22 +1,22 @@
 <template>
   <div class="tree-select" :class="{ 'is-open': isOpen, 'is-disabled': disabled }">
-    <div class="tree-select-trigger" @click="toggleDropdown" :class="{ 'has-value': selectedNode }">
+    <div class="tree-select-trigger" :class="{ 'has-value': selectedNode }" @click="toggleDropdown">
       <span v-if="selectedNode" class="selected-text">{{ selectedNode.name }}</span>
       <span v-else class="placeholder">{{ placeholder }}</span>
       <span class="arrow-icon">{{ isOpen ? '▲' : '▼' }}</span>
     </div>
-    
+
     <div v-if="isOpen" class="tree-select-dropdown">
-      <div class="tree-select-search" v-if="searchable">
-        <input 
-          type="text" 
-          v-model="searchText" 
-          placeholder="Search..." 
-          @click.stop
+      <div v-if="searchable" class="tree-select-search">
+        <input
+          v-model="searchText"
+          type="text"
+          placeholder="Search..."
           class="search-input"
+          @click.stop
         />
       </div>
-      
+
       <div class="tree-select-options" @click.stop>
         <TreeSelectNode
           v-for="node in filteredTree"
@@ -26,9 +26,7 @@
           :selected-id="selectedNodeId"
           @node-selected="handleNodeSelect"
         />
-        <div v-if="filteredTree.length === 0" class="no-results">
-          No results found
-        </div>
+        <div v-if="filteredTree.length === 0" class="no-results">No results found</div>
       </div>
     </div>
   </div>
@@ -82,14 +80,14 @@ export default {
       if (!this.searchText.trim()) {
         return this.tree
       }
-      
+
       const searchLower = this.searchText.toLowerCase()
-      const filterTree = (nodes) => {
+      const filterTree = nodes => {
         const result = []
         for (const node of nodes) {
           const matches = node.name.toLowerCase().includes(searchLower)
           const children = node.children ? filterTree(node.children) : []
-          
+
           if (matches || children.length > 0) {
             result.push({
               ...node,
@@ -99,7 +97,7 @@ export default {
         }
         return result
       }
-      
+
       return filterTree(this.tree)
     }
   },
@@ -161,7 +159,9 @@ export default {
   border-radius: 6px;
   background: white;
   cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
   min-height: 42px;
 }
 

@@ -119,9 +119,7 @@ class MarketService:
                         enriched_order["system_name"] = system_data.get("name", "Unknown System")
                         enriched_order["system_id"] = system_id
                 except Exception as e:
-                    logger.warning(
-                        f"Error retrieving station {location_id}: {e}"
-                    )
+                    logger.warning(f"Error retrieving station {location_id}: {e}")
                     enriched_order["station_name"] = f"Station {location_id}"
                     enriched_order["station_id"] = location_id
             else:

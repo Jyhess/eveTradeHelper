@@ -13,7 +13,7 @@ class EventBus {
 
   off(event, callback) {
     if (!this.events[event]) return
-    
+
     if (callback) {
       this.events[event] = this.events[event].filter(cb => cb !== callback)
     } else {
@@ -23,7 +23,7 @@ class EventBus {
 
   emit(event, data) {
     if (!this.events[event]) return
-    
+
     this.events[event].forEach(callback => {
       callback(data)
     })

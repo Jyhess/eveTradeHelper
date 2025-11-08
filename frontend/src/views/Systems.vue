@@ -1,28 +1,25 @@
 <template>
   <div class="systems-page">
     <div class="card">
-      <div v-if="loading" class="loading">
-        Loading systems...
-      </div>
+      <div v-if="loading" class="loading">Loading systems...</div>
       <div v-else-if="error" class="error">
         {{ error }}
       </div>
       <div v-else-if="systems.length > 0" class="systems-container">
         <div class="stats">
-          <p><strong>{{ total }} systems</strong> in constellation <strong>{{ constellationName }}</strong></p>
+          <p>
+            <strong>{{ total }} systems</strong> in constellation
+            <strong>{{ constellationName }}</strong>
+          </p>
           <p class="market-link">
             <router-link :to="`/markets/constellation/${constellationId}`" class="market-button">
               📊 View market for this constellation
             </router-link>
           </p>
         </div>
-        
+
         <div class="systems-grid">
-          <div 
-            v-for="system in systems" 
-            :key="system.system_id" 
-            class="system-card"
-          >
+          <div v-for="system in systems" :key="system.system_id" class="system-card">
             <h3>{{ system.name }}</h3>
             <div class="system-info">
               <p class="system-id">ID: {{ system.system_id }}</p>
@@ -35,22 +32,18 @@
               </p>
               <div v-if="system.position" class="position">
                 <small>
-                  Position: ({{ Math.round(system.position.x) }}, {{ Math.round(system.position.y) }}, {{ Math.round(system.position.z) }})
+                  Position: ({{ Math.round(system.position.x) }},
+                  {{ Math.round(system.position.y) }}, {{ Math.round(system.position.z) }})
                 </small>
               </div>
-              <router-link 
-                :to="`/systems/${system.system_id}`"
-                class="system-detail-link"
-              >
+              <router-link :to="`/systems/${system.system_id}`" class="system-detail-link">
                 View details and connections →
               </router-link>
             </div>
           </div>
         </div>
       </div>
-      <div v-else class="no-data">
-        No systems found for this constellation.
-      </div>
+      <div v-else class="no-data">No systems found for this constellation.</div>
     </div>
   </div>
 </template>
@@ -78,17 +71,25 @@ export default {
       regionName: ''
     }
   },
+  watch: {
+    constellationId() {
+      this.fetchSystems()
+    }
+  },
+  mounted() {
+    this.fetchSystems()
+  },
   methods: {
     async fetchSystems() {
       this.loading = true
       this.error = ''
       this.systems = []
-      
+
       try {
         const data = await api.constellations.getSystems(this.constellationId)
         this.systems = data.systems || []
         this.total = data.total || 0
-        
+
         // Retrieve constellation and region names
         if (this.systems.length > 0) {
           await this.fetchConstellationInfo()
@@ -104,13 +105,13 @@ export default {
         // Retrieve all regions to find the one containing this constellation
         const regionsData = await api.regions.getRegions()
         const regions = regionsData.regions || []
-        
+
         for (const region of regions) {
           const constellationsData = await api.regions.getConstellations(region.region_id)
           const constellation = constellationsData.constellations?.find(
             c => c.constellation_id === parseInt(this.constellationId)
           )
-          
+
           if (constellation) {
             this.constellationName = constellation.name
             this.regionId = region.region_id
@@ -138,14 +139,6 @@ export default {
       if (securityStatus <= 0.8) return 'sec-green' // Green also up to 0.8
       return 'sec-blue' // > 0.8
     }
-  },
-  mounted() {
-    this.fetchSystems()
-  },
-  watch: {
-    constellationId() {
-      this.fetchSystems()
-    }
   }
 }
 </script>
@@ -156,12 +149,11 @@ export default {
   padding: 20px;
 }
 
-
 .card {
   background: white;
   border-radius: 12px;
   padding: 30px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
 .loading {
@@ -207,7 +199,9 @@ export default {
   text-decoration: none;
   border-radius: 6px;
   font-weight: 500;
-  transition: background 0.2s, transform 0.2s;
+  transition:
+    background 0.2s,
+    transform 0.2s;
 }
 
 .market-button:hover {
@@ -234,7 +228,9 @@ export default {
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   padding: 15px;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
 }
 
 .system-card:hover {
@@ -338,4 +334,3 @@ export default {
   text-decoration: underline;
 }
 </style>
-

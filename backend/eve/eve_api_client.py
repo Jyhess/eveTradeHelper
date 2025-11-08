@@ -99,9 +99,7 @@ class EveAPIClient:
         if isinstance(error, httpx.TimeoutException):
             return Exception(f"Timeout calling API: {url}")
         elif isinstance(error, httpx.HTTPStatusError):
-            return Exception(
-                f"HTTP error {error.response.status_code} calling {url}: {error}"
-            )
+            return Exception(f"HTTP error {error.response.status_code} calling {url}: {error}")
         elif isinstance(error, httpx.RequestError):
             return Exception(f"Connection error to API {url}: {error}")
         else:
@@ -408,9 +406,7 @@ class EveAPIClient:
             # API returns a list of system IDs
             return route if isinstance(route, list) else []
         except Exception as e:
-            logger.warning(
-                f"Error calculating route between {origin} and {destination}: {e}"
-            )
+            logger.warning(f"Error calculating route between {origin} and {destination}: {e}")
             return []
 
     @cached()
