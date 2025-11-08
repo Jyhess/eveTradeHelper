@@ -6,10 +6,14 @@ Compare les réponses API avec des références
 import time
 import pytest
 import json
+import httpx
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
+from eve.eve_api_client import EveAPIClient
 from eve.eve_repository_impl import EveRepositoryImpl
 from domain.region_service import RegionService
+from domain.constants import DEFAULT_API_MAX_RETRIES
 from utils.cache import CacheManager, SimpleCache
 from utils.cache.fake_cache import FakeCache
 
@@ -259,3 +263,184 @@ class TestEveAPIClientStructure:
 
             # Vérifier qu'il n'y a pas de doublons
             assert len(result) == len(set(result)), "Il ne doit pas y avoir de doublons"
+
+
+@pytest.mark.unit
+class TestEveAPIClientRetry:
+    """Tests pour la fonctionnalité de retry des appels API"""
+
+    @pytest.mark.asyncio
+    async def test_retry_on_timeout_success(self):
+        """Test que le retry fonctionne avec une erreur temporaire qui se résout"""
+        client = EveAPIClient()
+        
+        # Mock du client HTTP pour simuler un timeout puis un succès
+        mock_response = AsyncMock()
+        mock_response.json = lambda: {"test": "data"}
+        mock_response.raise_for_status = lambda: None
+        
+        mock_http_client = AsyncMock()
+        call_count = {"value": 0}
+        
+        # Premier appel échoue (timeout), deuxième réussit
+        async def mock_get(*args, **kwargs):
+            if call_count["value"] == 0:
+                call_count["value"] += 1
+                raise httpx.TimeoutException("Timeout")
+            else:
+                call_count["value"] += 1
+                return mock_response
+        
+        mock_http_client.get = AsyncMock(side_effect=mock_get)
+        
+        with patch.object(client, '_get_client', return_value=mock_http_client):
+            with patch.object(client, '_wait_for_rate_limit', return_value=None):
+                result = await client._get("/test/endpoint")
+                
+                assert result == {"test": "data"}
+                assert call_count["value"] == 2
+
+    @pytest.mark.asyncio
+    async def test_retry_uses_constants(self):
+        """Test que le retry utilise les constantes définies"""
+        client = EveAPIClient()
+        
+        mock_http_client = AsyncMock()
+        mock_http_client.get = AsyncMock(side_effect=httpx.TimeoutException("Timeout"))
+        
+        with patch.object(client, '_get_client', return_value=mock_http_client):
+            with patch.object(client, '_wait_for_rate_limit', return_value=None):
+                with patch('asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
+                    try:
+                        await client._get("/test/endpoint")
+                    except Exception:
+                        pass
+                    
+                    # Vérifier que le nombre de tentatives correspond à la constante + 1
+                    expected_calls = DEFAULT_API_MAX_RETRIES + 1
+                    assert mock_http_client.get.call_count == expected_calls
+                    # Vérifier que sleep a été appelé pour chaque retry
+                    assert mock_sleep.call_count == DEFAULT_API_MAX_RETRIES
+
+    @pytest.mark.asyncio
+    async def test_retry_fails_after_max_attempts(self):
+        """Test que le retry échoue après toutes les tentatives"""
+        client = EveAPIClient()
+        
+        mock_http_client = AsyncMock()
+        mock_http_client.get = AsyncMock(side_effect=httpx.TimeoutException("Timeout"))
+        
+        with patch.object(client, '_get_client', return_value=mock_http_client):
+            with patch.object(client, '_wait_for_rate_limit', return_value=None):
+                with pytest.raises(Exception) as exc_info:
+                    await client._get("/test/endpoint")
+                
+                assert "Timeout" in str(exc_info.value)
+                # Vérifier que toutes les tentatives ont été faites
+                expected_calls = DEFAULT_API_MAX_RETRIES + 1
+                assert mock_http_client.get.call_count == expected_calls
+
+    @pytest.mark.asyncio
+    async def test_retry_on_http_error(self):
+        """Test que le retry fonctionne avec une erreur HTTP"""
+        client = EveAPIClient()
+        
+        mock_response = AsyncMock()
+        mock_response.json = lambda: {"success": True}
+        mock_response.raise_for_status = lambda: None
+        
+        mock_error_response = AsyncMock()
+        mock_error_response.status_code = 500
+        
+        mock_http_client = AsyncMock()
+        call_count = {"value": 0}
+        
+        async def mock_get(*args, **kwargs):
+            if call_count["value"] == 0:
+                call_count["value"] += 1
+                raise httpx.HTTPStatusError("Server Error", request=AsyncMock(), response=mock_error_response)
+            else:
+                call_count["value"] += 1
+                return mock_response
+        
+        mock_http_client.get = AsyncMock(side_effect=mock_get)
+        
+        with patch.object(client, '_get_client', return_value=mock_http_client):
+            with patch.object(client, '_wait_for_rate_limit', return_value=None):
+                result = await client._get("/test/endpoint")
+                
+                assert result == {"success": True}
+                assert call_count["value"] == 2
+
+    @pytest.mark.asyncio
+    async def test_retry_on_connection_error(self):
+        """Test que le retry fonctionne avec une erreur de connexion"""
+        client = EveAPIClient()
+        
+        mock_response = AsyncMock()
+        mock_response.json = lambda: {"connected": True}
+        mock_response.raise_for_status = lambda: None
+        
+        mock_http_client = AsyncMock()
+        call_count = {"value": 0}
+        
+        async def mock_get(*args, **kwargs):
+            if call_count["value"] == 0:
+                call_count["value"] += 1
+                raise httpx.RequestError("Connection failed")
+            else:
+                call_count["value"] += 1
+                return mock_response
+        
+        mock_http_client.get = AsyncMock(side_effect=mock_get)
+        
+        with patch.object(client, '_get_client', return_value=mock_http_client):
+            with patch.object(client, '_wait_for_rate_limit', return_value=None):
+                result = await client._get("/test/endpoint")
+                
+                assert result == {"connected": True}
+                assert call_count["value"] == 2
+
+    def test_create_exception_from_httpx_error(self):
+        """Test que la fonction helper crée les bonnes exceptions"""
+        client = EveAPIClient()
+        url = "https://test.com/api"
+        
+        timeout_error = httpx.TimeoutException("Timeout")
+        exception = client._create_exception_from_httpx_error(timeout_error, url)
+        assert "Timeout" in str(exception)
+        assert url in str(exception)
+        
+        mock_response = AsyncMock()
+        mock_response.status_code = 404
+        http_error = httpx.HTTPStatusError("Not Found", request=AsyncMock(), response=mock_response)
+        exception = client._create_exception_from_httpx_error(http_error, url)
+        assert "404" in str(exception)
+        assert url in str(exception)
+        
+        request_error = httpx.RequestError("Connection failed")
+        exception = client._create_exception_from_httpx_error(request_error, url)
+        assert "connexion" in str(exception).lower() or "connection" in str(exception).lower()
+        assert url in str(exception)
+
+    def test_get_error_message(self):
+        """Test que la fonction helper génère les bons messages d'erreur"""
+        client = EveAPIClient()
+        url = "https://test.com/api"
+        
+        timeout_error = httpx.TimeoutException("Timeout")
+        message = client._get_error_message(timeout_error, url)
+        assert "Timeout" in message
+        assert url in message
+        
+        mock_response = AsyncMock()
+        mock_response.status_code = 500
+        http_error = httpx.HTTPStatusError("Server Error", request=AsyncMock(), response=mock_response)
+        message = client._get_error_message(http_error, url)
+        assert "500" in message
+        assert url in message
+        
+        request_error = httpx.RequestError("Connection failed")
+        message = client._get_error_message(request_error, url)
+        assert "connexion" in message.lower() or "connection" in message.lower()
+        assert url in message

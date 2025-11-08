@@ -10,6 +10,7 @@ import time
 from typing import List, Dict, Any, Optional
 from collections import deque
 from utils.cache import cached
+from domain.constants import DEFAULT_API_MAX_RETRIES, DEFAULT_API_RETRY_DELAY_SECONDS
 
 logger = logging.getLogger(__name__)
 
@@ -85,41 +86,110 @@ class EveAPIClient:
             # Ajouter le timestamp de cette requête
             self._request_timestamps.append(time.time())
 
-    async def _get(
-        self, endpoint: str, params: Optional[Dict] = None
-    ) -> Dict[str, Any]:
+    def _create_exception_from_httpx_error(
+        self, error: Exception, url: str
+    ) -> Exception:
         """
-        Effectue une requête GET vers l'API (asynchrone)
-        Respecte automatiquement le rate limit configuré
+        Crée une exception appropriée à partir d'une erreur httpx
 
         Args:
-            endpoint: Chemin de l'endpoint (ex: "/universe/regions/")
+            error: Exception httpx
+            url: URL de la requête
+
+        Returns:
+            Exception formatée
+        """
+        if isinstance(error, httpx.TimeoutException):
+            return Exception(f"Timeout lors de l'appel à l'API: {url}")
+        elif isinstance(error, httpx.HTTPStatusError):
+            return Exception(
+                f"Erreur HTTP {error.response.status_code} lors de l'appel à {url}: {error}"
+            )
+        elif isinstance(error, httpx.RequestError):
+            return Exception(f"Erreur de connexion à l'API {url}: {error}")
+        else:
+            return Exception(f"Erreur inattendue lors de l'appel à {url}: {error}")
+
+    def _get_error_message(self, error: Exception, url: str) -> str:
+        """
+        Génère un message d'erreur formaté pour le logging
+
+        Args:
+            error: Exception httpx
+            url: URL de la requête
+
+        Returns:
+            Message d'erreur formaté
+        """
+        if isinstance(error, httpx.TimeoutException):
+            return f"Timeout lors de l'appel à {url}"
+        elif isinstance(error, httpx.HTTPStatusError):
+            return f"Erreur HTTP {error.response.status_code} lors de l'appel à {url}"
+        elif isinstance(error, httpx.RequestError):
+            return f"Erreur de connexion à {url}"
+        else:
+            return f"Erreur inattendue lors de l'appel à {url}"
+
+    async def _execute_request_with_retry(
+        self, url: str, params: Optional[Dict], max_retries: int
+    ) -> Dict[str, Any]:
+        """
+        Exécute une requête HTTP avec retry automatique
+
+        Args:
+            url: URL complète de la requête
             params: Paramètres de requête optionnels
+            max_retries: Nombre maximum de tentatives supplémentaires
 
         Returns:
             Réponse JSON de l'API
 
         Raises:
-            Exception: Si la requête échoue
+            Exception: Si la requête échoue après toutes les tentatives
         """
-        # Respecter le rate limit avant de faire la requête
-        await self._wait_for_rate_limit()
-
-        url = f"{self.base_url}{endpoint}"
         client = await self._get_client()
 
-        try:
-            response = await client.get(url, params=params)
-            response.raise_for_status()
-            return response.json()
-        except httpx.TimeoutException:
-            raise Exception(f"Timeout lors de l'appel à l'API: {url}")
-        except httpx.HTTPStatusError as e:
-            raise Exception(
-                f"Erreur HTTP {e.response.status_code} lors de l'appel à {url}: {e}"
-            )
-        except httpx.RequestError as e:
-            raise Exception(f"Erreur de connexion à l'API {url}: {e}")
+        for attempt in range(max_retries + 1):
+            try:
+                await self._wait_for_rate_limit()
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                return response.json()
+            except (httpx.TimeoutException, httpx.HTTPStatusError, httpx.RequestError) as e:
+                exception = self._create_exception_from_httpx_error(e, url)
+                
+                if attempt < max_retries:
+                    error_message = self._get_error_message(e, url)
+                    logger.warning(
+                        f"{error_message} (tentative {attempt + 1}/{max_retries + 1}). Nouvelle tentative..."
+                    )
+                    await asyncio.sleep(DEFAULT_API_RETRY_DELAY_SECONDS)
+                else:
+                    raise exception
+
+        raise Exception(f"Erreur inattendue lors de l'appel à {url}")
+
+    async def _get(
+        self, endpoint: str, params: Optional[Dict] = None, max_retries: int = DEFAULT_API_MAX_RETRIES
+    ) -> Dict[str, Any]:
+        """
+        Effectue une requête GET vers l'API (asynchrone)
+        Respecte automatiquement le rate limit configuré
+        Réessaie automatiquement en cas d'erreur
+
+        Args:
+            endpoint: Chemin de l'endpoint (ex: "/universe/regions/")
+            params: Paramètres de requête optionnels
+            max_retries: Nombre maximum de tentatives supplémentaires en cas d'erreur
+
+        Returns:
+            Réponse JSON de l'API
+
+        Raises:
+            Exception: Si la requête échoue après toutes les tentatives
+        """
+        url = f"{self.base_url}{endpoint}"
+        return await self._execute_request_with_retry(url, params, max_retries)
 
     @cached()
     async def get_regions_list(self) -> List[int]:
