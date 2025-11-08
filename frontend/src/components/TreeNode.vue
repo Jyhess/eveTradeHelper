@@ -15,7 +15,7 @@
         :to="dealsLink" 
         class="deals-link"
         @click.stop
-        title="Trouver les bonnes affaires dans ce groupe"
+        title="Find deals in this group"
       >
         💰
       </router-link>
@@ -55,7 +55,7 @@ export default {
   },
   data() {
     return {
-      expanded: false // Par défaut, tous les nœuds sont repliés
+      expanded: false // By default, all nodes are collapsed
     }
   },
   computed: {
@@ -66,12 +66,12 @@ export default {
       return this.node.is_type === true
     },
     shouldBeExpanded() {
-      // Vérifier si ce nœud doit être développé selon expandedPaths
+      // Check if this node should be expanded according to expandedPaths
       if (!this.expandedPaths || (this.expandedPaths instanceof Set && this.expandedPaths.size === 0)) {
         return false
       }
       const nodeId = this.node.group_id || this.node.type_id
-      // Convertir Set en Array si nécessaire pour includes
+      // Convert Set to Array if necessary for includes
       const pathsArray = this.expandedPaths instanceof Set 
         ? Array.from(this.expandedPaths) 
         : this.expandedPaths
@@ -83,12 +83,12 @@ export default {
       }
     },
     badgeValue() {
-      // Les types n'ont pas de badge
+      // Types don't have a badge
       if (this.isType) {
         return ''
       }
-      // Si la catégorie a des enfants, afficher le nombre d'enfants
-      // Sinon, afficher le nombre de types d'items
+      // If category has children, display number of children
+      // Otherwise, display number of item types
       if (this.hasChildren) {
         return this.node.children.length
       }
@@ -120,7 +120,7 @@ export default {
       }
     },
     selectNode() {
-      // Émettre l'événement pour sélectionner ce nœud (catégorie ou type d'item)
+      // Emit event to select this node (category or item type)
       if (this.isType) {
         this.$emit('node-selected', {
           type_id: this.node.type_id,
@@ -154,7 +154,7 @@ export default {
     }
   },
   mounted() {
-    // Vérifier si on doit être développé au montage
+    // Check if we should be expanded on mount
     if (this.shouldBeExpanded && this.hasChildren) {
       this.expanded = true
     }

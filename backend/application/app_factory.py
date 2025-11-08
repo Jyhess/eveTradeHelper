@@ -13,7 +13,7 @@ class AppFactory:
     def make_app(cls, lifespan):
         app = FastAPI(
             title="Eve Trade Helper API",
-            description="API pour l'application Eve Trade Helper",
+            description="API for Eve Trade Helper application",
             version="1.0.0",
             lifespan=lifespan,
         )
@@ -26,7 +26,7 @@ class AppFactory:
     def configure_cors(app):
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],  # En production, spécifier les origines autorisées
+            allow_origins=["*"],  # In production, specify allowed origins
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],

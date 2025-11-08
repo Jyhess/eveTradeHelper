@@ -11,7 +11,7 @@
         <input 
           type="text" 
           v-model="searchText" 
-          placeholder="Rechercher..." 
+          placeholder="Search..." 
           @click.stop
           class="search-input"
         />
@@ -27,7 +27,7 @@
           @node-selected="handleNodeSelect"
         />
         <div v-if="filteredTree.length === 0" class="no-results">
-          Aucun résultat trouvé
+          No results found
         </div>
       </div>
     </div>
@@ -53,7 +53,7 @@ export default {
     },
     placeholder: {
       type: String,
-      default: 'Sélectionner...'
+      default: 'Select...'
     },
     disabled: {
       type: Boolean,
@@ -104,7 +104,7 @@ export default {
     }
   },
   mounted() {
-    // Fermer le dropdown si on clique ailleurs
+    // Close dropdown if clicking outside
     document.addEventListener('click', this.handleClickOutside)
   },
   beforeUnmount() {

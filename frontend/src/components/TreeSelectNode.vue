@@ -49,7 +49,7 @@ export default {
     },
     filteredChildren() {
       if (!this.node.children) return []
-      // Ne garder que les enfants qui sont des groupes (ont un group_id)
+      // Keep only children that are groups (have a group_id)
       return this.node.children.filter(child => child.group_id && !child.is_type)
     },
     isSelected() {
@@ -68,7 +68,7 @@ export default {
       }
     },
     handleClick() {
-      // Sélectionner le nœud s'il a un group_id (c'est un groupe)
+      // Select node if it has a group_id (it's a group)
       if (this.node.group_id) {
         this.$emit('node-selected', this.node)
       }

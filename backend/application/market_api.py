@@ -1,6 +1,6 @@
 """
-API pour la gestion des marchés et des types d'items
-Endpoints FastAPI pour les marchés (asynchrone)
+API for market and item type management
+FastAPI endpoints for markets (async)
 """
 
 import logging
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 market_router = router
 
-# Cache LRU avec TTL pour les catégories de marché (en mémoire)
+# LRU cache with TTL for market categories (in memory)
 _market_categories_cache: TTLCache[Hashable, Any] = TTLCache(
     maxsize=1, ttl=MARKET_CATEGORIES_CACHE_TTL
 )
@@ -30,20 +30,20 @@ async def get_market_categories(
     market_service: MarketService = Depends(ServicesProvider.get_market_service),
 ):
     """
-    Récupère la liste des catégories du marché
-    Utilise un cache LRU avec TTL (1 heure) en mémoire pour améliorer les performances
+    Retrieves the list of market categories
+    Uses an LRU cache with TTL (1 hour) in memory to improve performance
 
     Returns:
-        Réponse JSON avec les catégories du marché
+        JSON response with market categories
     """
-    # Vérifier le cache LRU (clé fixe car pas de paramètres variables)
+    # Check LRU cache (fixed key as there are no variable parameters)
     cache_key = "market_categories"
     if cache_key in _market_categories_cache:
-        logger.info("Récupération des catégories depuis le cache LRU")
+        logger.info("Retrieving categories from LRU cache")
         return _market_categories_cache[cache_key]
 
     try:
-        logger.info("Récupération des catégories du marché (non caché)")
+        logger.info("Retrieving market categories (not cached)")
 
         categories = await market_service.get_market_categories()
 
@@ -52,16 +52,16 @@ async def get_market_categories(
             "categories": categories,
         }
 
-        # Mettre en cache LRU
+        # Store in LRU cache
         _market_categories_cache[cache_key] = result
 
         return result
 
     except Exception as e:
-        logger.error(f"Erreur lors de la récupération des catégories: {e}")
+        logger.error(f"Error retrieving categories: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Erreur de connexion à l'API ESI: {str(e)}",
+            detail=f"ESI API connection error: {str(e)}",
         ) from None
 
 
@@ -71,26 +71,26 @@ async def get_item_type(
     market_service: MarketService = Depends(ServicesProvider.get_market_service),
 ):
     """
-    Récupère les détails d'un type d'item
-    Le cache est géré automatiquement par la couche infrastructure (EveAPIClient)
+    Retrieves details of an item type
+    Cache is automatically managed by the infrastructure layer (EveAPIClient)
 
     Args:
-        type_id: ID du type d'item
+        type_id: Item type ID
 
     Returns:
-        Réponse JSON avec les détails du type d'item
+        JSON response with item type details
     """
     try:
-        logger.info(f"Récupération des détails du type {type_id}")
+        logger.info(f"Retrieving type details for {type_id}")
         type_data = await market_service.get_item_type(type_id)
 
         return type_data
 
     except Exception as e:
-        logger.error(f"Erreur lors de la récupération du type: {e}")
+        logger.error(f"Error retrieving type: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Erreur de connexion à l'API ESI: {str(e)}",
+            detail=f"ESI API connection error: {str(e)}",
         ) from None
 
 
@@ -101,21 +101,21 @@ async def get_market_orders(
     market_service: MarketService = Depends(ServicesProvider.get_market_service),
 ):
     """
-    Récupère les ordres de marché pour une région, optionnellement filtrés par type
-    Le cache est géré automatiquement par la couche infrastructure (EveAPIClient)
-    Enrichit les ordres avec les noms des systèmes et stations
+    Retrieves market orders for a region, optionally filtered by type
+    Cache is automatically managed by the infrastructure layer (EveAPIClient)
+    Enriches orders with system and station names
 
     Args:
-        region_id: ID de la région
-        type_id: Optionnel, ID du type d'item pour filtrer les ordres
+        region_id: Region ID
+        type_id: Optional, item type ID to filter orders
 
     Returns:
-        Réponse JSON avec les ordres de marché enrichis
+        JSON response with enriched market orders
     """
     try:
         logger.info(
-            f"Récupération des ordres de marché pour la région {region_id}"
-            + (f" et le type {type_id}" if type_id else "")
+            f"Retrieving market orders for region {region_id}"
+            + (f" and type {type_id}" if type_id else "")
         )
 
         enriched_orders = await market_service.get_enriched_market_orders(region_id, type_id)
@@ -127,8 +127,8 @@ async def get_market_orders(
         }
 
     except Exception as e:
-        logger.error(f"Erreur lors de la récupération des ordres: {e}")
+        logger.error(f"Error retrieving orders: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Erreur de connexion à l'API ESI: {str(e)}",
+            detail=f"ESI API connection error: {str(e)}",
         ) from None

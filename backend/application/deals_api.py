@@ -1,6 +1,6 @@
 """
-API pour la recherche de bonnes affaires
-Endpoints FastAPI pour les deals (version asynchrone)
+API for finding deals
+FastAPI endpoints for deals (async version)
 """
 
 import logging
@@ -20,30 +20,30 @@ deals_router = router
 async def get_market_deals(
     region_id: int,
     group_id: int,
-    min_profit_isk: float = 100000.0,  # Utilise DEFAULT_MIN_PROFIT_ISK du service
+    min_profit_isk: float = 100000.0,  # Uses DEFAULT_MIN_PROFIT_ISK from service
     max_transport_volume: float | None = None,
     max_buy_cost: float | None = None,
     additional_regions: str | None = None,
     deals_service: DealsService = Depends(ServicesProvider.get_deals_service),
 ):
     """
-    Trouve les bonnes affaires dans un groupe de marché pour une région
-    Parcourt tous les types d'items du groupe (y compris les sous-groupes) et calcule
-    le bénéfice potentiel entre les meilleurs ordres d'achat et de vente dans toutes les régions spécifiées
+    Finds deals in a market group for a region
+    Iterates through all item types in the group (including subgroups) and calculates
+    potential profit between best buy and sell orders in all specified regions
 
     Args:
-        region_id: ID de la région principale
-        group_id: ID du groupe de marché
-        min_profit_isk: Seuil de bénéfice minimum en ISK (défaut: 100000.0)
-        max_transport_volume: Volume de transport maximum autorisé en m³ (None = illimité)
-        max_buy_cost: Montant d'achat maximum en ISK (None = illimité)
-        additional_regions: Liste d'IDs de régions supplémentaires séparés par des virgules (ex: "123,456,789")
+        region_id: Main region ID
+        group_id: Market group ID
+        min_profit_isk: Minimum profit threshold in ISK (default: 100000.0)
+        max_transport_volume: Maximum transport volume allowed in m³ (None = unlimited)
+        max_buy_cost: Maximum purchase amount in ISK (None = unlimited)
+        additional_regions: List of additional region IDs separated by commas (e.g., "123,456,789")
 
     Returns:
-        Réponse JSON avec les items permettant un bénéfice supérieur au seuil
+        JSON response with items allowing profit above the threshold
     """
     try:
-        # Parser les régions supplémentaires
+        # Parse additional regions
         additional_region_ids = []
         if additional_regions:
             try:
@@ -51,7 +51,7 @@ async def get_market_deals(
                     int(rid.strip()) for rid in additional_regions.split(",") if rid.strip()
                 ]
             except ValueError:
-                logger.warning(f"Format invalide pour additional_regions: {additional_regions}")
+                logger.warning(f"Invalid format for additional_regions: {additional_regions}")
                 additional_region_ids = []
 
         result = await deals_service.find_market_deals(
@@ -65,8 +65,8 @@ async def get_market_deals(
         return result
 
     except Exception as e:
-        logger.error(f"Erreur lors de la recherche de bonnes affaires: {e}")
+        logger.error(f"Error searching for deals: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Erreur de connexion à l'API ESI: {str(e)}",
+            detail=f"ESI API connection error: {str(e)}",
         ) from None

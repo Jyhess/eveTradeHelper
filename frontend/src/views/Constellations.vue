@@ -2,23 +2,23 @@
   <div class="constellations-page">
     <div class="card">
       <div v-if="loading" class="loading">
-        Chargement des constellations...
+        Loading constellations...
       </div>
       <div v-else-if="error" class="error">
         {{ error }}
       </div>
       <div v-else-if="constellations.length > 0" class="constellations-container">
         <div class="stats">
-          <p><strong>{{ total }} constellations</strong> dans la région <strong>{{ regionName }}</strong></p>
+          <p><strong>{{ total }} constellations</strong> in region <strong>{{ regionName }}</strong></p>
           <div class="action-links">
             <p class="market-link">
               <router-link :to="`/markets/region/${regionId}`" class="market-button">
-                📊 Voir le marché de cette région
+                📊 View market for this region
               </router-link>
             </p>
             <p class="deals-link">
               <router-link :to="`/deals/region/${regionId}`" class="deals-button">
-                💰 Trouver les bonnes affaires
+                💰 Find deals
               </router-link>
             </p>
           </div>
@@ -38,7 +38,7 @@
                   :to="`/constellations/${constellation.constellation_id}/systems`"
                   class="systems-link"
                 >
-                  <strong>{{ constellation.systems?.length || 0 }}</strong> système(s)
+                  <strong>{{ constellation.systems?.length || 0 }}</strong> system(s)
                 </router-link>
               </p>
               <div v-if="constellation.position" class="position">
@@ -51,7 +51,7 @@
         </div>
       </div>
       <div v-else class="no-data">
-        Aucune constellation trouvée pour cette région.
+        No constellations found for this region.
       </div>
     </div>
   </div>
@@ -89,12 +89,12 @@ export default {
         this.constellations = data.constellations || []
         this.total = data.total || 0
         
-        // Récupérer le nom de la région depuis les régions
+        // Retrieve region name from regions
         if (this.constellations.length > 0) {
           await this.fetchRegionName()
         }
         
-        // Mettre à jour le breadcrumb dans le header
+        // Update breadcrumb in header
         if (this.regionName) {
           eventBus.emit('breadcrumb-update', {
             regionName: this.regionName,
@@ -102,7 +102,7 @@ export default {
           })
         }
       } catch (error) {
-        this.error = 'Erreur: ' + error.message
+        this.error = 'Error: ' + error.message
       } finally {
         this.loading = false
       }
@@ -115,7 +115,7 @@ export default {
           this.regionName = region.name
         }
       } catch (error) {
-        console.error('Erreur lors de la récupération du nom de la région:', error)
+        console.error('Error retrieving region name:', error)
       }
     }
   },

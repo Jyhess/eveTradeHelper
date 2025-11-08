@@ -1,17 +1,17 @@
-# Architecture du Backend
+# Backend Architecture
 
-Ce document décrit l'architecture détaillée du backend selon les principes de **Clean Architecture**.
+This document describes the detailed backend architecture following **Clean Architecture** principles.
 
-## Vue d'ensemble
+## Overview
 
-Le backend est organisé en couches selon les principes de Clean Architecture, permettant une séparation claire des responsabilités et une meilleure maintenabilité.
+The backend is organized in layers following Clean Architecture principles, allowing clear separation of responsibilities and better maintainability.
 
 ```
 ┌─────────────────────────────────────────┐
-│         Application Layer               │  ← Endpoints FastAPI, Cas d'usage
+│         Application Layer               │  ← FastAPI Endpoints, Use Cases
 │   (application/)                        │
 ├─────────────────────────────────────────┤
-│         Domain Layer                    │  ← Logique métier pure
+│         Domain Layer                    │  ← Pure Business Logic
 │   (domain/)                             │
 ├─────────────────────────────────────────┤
 │         Infrastructure Layer            │  ← Repository, Cache, API Client
@@ -19,116 +19,97 @@ Le backend est organisé en couches selon les principes de Clean Architecture, p
 └─────────────────────────────────────────┘
 ```
 
-## Structure des modules
+## Module Structure
 
 ### 1. Domain Layer (`domain/`)
 
-**Responsabilité** : Contient la logique métier pure, indépendante de toute infrastructure.
+**Responsibility**: Contains pure business logic, independent of any infrastructure.
 
-#### Fichiers principaux
+#### Principles
 
-- `repository.py` : Interface abstraite `EveRepository` définissant le contrat
-- `region_service.py` : Service de domaine pour les régions
-- `market_service.py` : Service de domaine pour les marchés
-- `deals_service.py` : Service de domaine pour les opportunités de trading
-- `constants.py` : Constantes du domaine (pas de nombres magiques)
-- `helpers.py` : Fonctions utilitaires du domaine
-
-#### Principes
-
-- ✅ Indépendant des frameworks (FastAPI, etc.)
-- ✅ Indépendant de la base de données et des APIs externes
-- ✅ Contient uniquement la logique métier
-- ✅ Définit les interfaces que l'infrastructure doit implémenter
+- ✅ Independent of frameworks (FastAPI, etc.)
+- ✅ Independent of databases and external APIs
+- ✅ Contains only business logic
+- ✅ Defines interfaces that infrastructure must implement
 
 ### 2. Infrastructure Layer
 
-#### `eve/` - Client API et Repository
+#### `eve/` - API Client and Repository
 
-**Responsabilité** : Implémentation concrète des interfaces définies dans le Domain, gestion de l'accès aux données.
+**Responsibility**: Concrete implementation of interfaces defined in Domain, data access management.
 
-##### Composants
+##### Components
 
-- **Repository** (`eve_repository_impl.py`) : Implémentation de `EveRepository` utilisant `EveAPIClient`
-- **API Client** (`eve_api_client.py`) : Client HTTP pour l'API ESI d'Eve Online avec retry automatique
-- **Factory** (`eve_repository_factory.py`) : Factory pour créer les instances de repository
+- **Repository** (`eve_repository_impl.py`): Implementation of `EveRepository` using `EveAPIClient`
+- **API Client** (`eve_api_client.py`): HTTP client for Eve Online ESI API with automatic retry
+- **Factory** (`eve_repository_factory.py`): Factory to create repository instances
 
-##### Principes
+##### Principles
 
-- ✅ Implémente les interfaces définies dans le Domain
-- ✅ Gère les détails techniques (HTTP, retry, etc.)
-- ✅ Peut être remplacé sans modifier le Domain
+- ✅ Implements interfaces defined in Domain
+- ✅ Handles technical details (HTTP, retry, etc.)
+- ✅ Can be replaced without modifying Domain
 
-#### `utils/` - Utilitaires
+#### `utils/` - Utilities
 
 ##### Cache
 
-Utilitaire simplifiant l'utilisation d'un cache Redis avec expiration.
+Utility simplifying the use of a Redis cache with expiration.
 
 ### 3. Application Layer (`application/`)
 
-**Responsabilité** : Cas d'usage, orchestration, endpoints HTTP.
+**Responsibility**: Use cases, orchestration, HTTP endpoints.
 
-#### Fichiers
+#### Principles
 
-- `app_factory.py` : Factory pour créer l'application FastAPI
-- `region_api.py` : Endpoints FastAPI pour les régions (`/api/v1/regions`)
-- `market_api.py` : Endpoints FastAPI pour les marchés (`/api/v1/markets/*`)
-- `deals_api.py` : Endpoints FastAPI pour les opportunités (`/api/v1/deals`)
-- `health_api.py` : Endpoints de santé (`/api/health`, `/api/hello`)
-- `services_provider.py` : Provider pour l'injection de dépendances FastAPI
-- `utils.py` : Utilitaires de l'application (cache LRU, etc.)
+- ✅ Uses Domain services
+- ✅ Handles HTTP requests (FastAPI Routers)
+- ✅ Manages application-level cache (if necessary)
+- ✅ Transforms data for API
 
-#### Principes
+## Data Flow
 
-- ✅ Utilise les services du Domain
-- ✅ Gère les requêtes HTTP (FastAPI Routers)
-- ✅ Gère le cache au niveau application (si nécessaire)
-- ✅ Transforme les données pour l'API
-
-## Flux de données
-
-### Requête API typique
+### Typical API Request
 
 ```
-1. Client HTTP
+1. HTTP Client
    ↓
 2. Application Layer (RegionAPI)
-   ├─ Injection de dépendances (ServicesProvider)
-   ├─ Appelle Domain Service
-   └─ Retourne réponse JSON
+   ├─ Dependency injection (ServicesProvider)
+   ├─ Calls Domain Service
+   └─ Returns JSON response
    ↓
 3. Domain Layer (RegionService)
-   ├─ Appelle Repository
-   ├─ Applique la logique métier
-   └─ Transforme les données
+   ├─ Calls Repository
+   ├─ Applies business logic
+   └─ Transforms data
    ↓
 4. Infrastructure Layer (EveRepositoryImpl)
-   ├─ Utilise EveAPIClient
-   ├─ Gère le cache (via @cached)
-   └─ Retourne les données brutes
+   ├─ Uses EveAPIClient
+   ├─ Manages cache (via @cached)
+   └─ Returns raw data
    ↓
-5. API ESI d'Eve Online
+5. Eve Online ESI API
 ```
 
-### Exemple : Récupération des régions
+### Example: Retrieving Regions
 
-1. **Requête** : `GET /api/v1/regions`
+1. **Request**: `GET /api/v1/regions`
 2. **Application** (`region_api.py`)
-   - Injection de `RegionService` via `ServicesProvider`
-   - Appelle `RegionService.get_regions_with_details()`
+   - Injects `RegionService` via `ServicesProvider`
+   - Calls `RegionService.get_regions_with_details()`
 3. **Domain** (`RegionService`)
-   - Récupère les IDs via `repository.get_regions_list()`
-   - Récupère les détails via `repository.get_region_details()`
-   - Applique la limite et transforme les données
+   - Retrieves IDs via `repository.get_regions_list()`
+   - Retrieves details via `repository.get_region_details()`
+   - Applies limit and transforms data
 4. **Infrastructure** (`EveRepositoryImpl`)
-   - Appelle `EveAPIClient.get_regions_list()` (avec cache via `@cached`)
-   - Appelle `EveAPIClient.get_region_details()` (avec cache via `@cached`)
-5. **Cache** : Résultat mis en cache automatiquement par le décorateur `@cached`
+   - Calls `EveAPIClient.get_regions_list()` (with cache via `@cached`)
+   - Calls `EveAPIClient.get_region_details()` (with cache via `@cached`)
+5. **Cache**: Result automatically cached by the `@cached` decorator
 
-## Principes de Clean Architecture
+## Clean Architecture Principles
 
-### Dépendances
+### Dependencies
 
 ```
 Application → Domain ← Infrastructure
@@ -136,20 +117,20 @@ Application → Domain ← Infrastructure
      └───────────────────┘
 ```
 
-- Le **Domain** ne dépend de rien
-- L'**Infrastructure** implémente les interfaces du Domain
-- L'**Application** dépend du Domain et utilise l'Infrastructure via les interfaces
+- **Domain** depends on nothing
+- **Infrastructure** implements Domain interfaces
+- **Application** depends on Domain and uses Infrastructure via interfaces
 
-### Avantages
+### Advantages
 
-1. **Testabilité** : Facile de mocker le repository pour tester le Domain
-2. **Flexibilité** : Changer de source de données sans modifier le Domain
-3. **Maintenabilité** : Séparation claire des responsabilités
-4. **Évolutivité** : Ajout de nouvelles fonctionnalités simplifié
+1. **Testability**: Easy to mock repository to test Domain
+2. **Flexibility**: Change data source without modifying Domain
+3. **Maintainability**: Clear separation of responsibilities
+4. **Scalability**: Simplified addition of new features
 
-## Configuration et Initialisation
+## Configuration and Initialization
 
-L'initialisation se fait dans `app.py` et `app_factory.py` :
+Initialization is done in `app.py` and `app_factory.py`:
 
 ```python
 # Infrastructure Layer
@@ -166,52 +147,52 @@ deals_service = DealsService(eve_repository)
 app = create_app(region_service, market_service, deals_service)
 ```
 
-Cette configuration suit le pattern **Dependency Injection** : chaque couche reçoit ses dépendances via le constructeur.
+This configuration follows the **Dependency Injection** pattern: each layer receives its dependencies via the constructor.
 
 ## Cache
 
-Le cache est géré à plusieurs niveaux :
+Cache is managed at multiple levels:
 
-### Cache au niveau Infrastructure (via `@cached`)
+### Infrastructure-Level Cache (via `@cached`)
 
-Le décorateur `@cached` est appliqué aux méthodes du repository pour mettre en cache automatiquement les résultats :
+The `@cached` decorator is applied to repository methods to automatically cache results:
 
 ```python
 @cached(expiry_hours=24)
 async def get_regions_list(self) -> list[int]:
-    """Récupère la liste des IDs de régions"""
+    """Retrieves the list of region IDs"""
     return await self._get("/universe/regions/")
 ```
 
-### Cache au niveau Application (LRU)
+### Application-Level Cache (LRU)
 
-Pour certains cas spécifiques (ex: régions adjacentes), un cache LRU en mémoire est utilisé dans l'application layer.
+For specific cases (e.g., adjacent regions), an in-memory LRU cache is used in the application layer.
 
-### Types de cache
+### Cache Types
 
-- **SimpleCache** : Cache Redis avec expiration (production et tests d'intégration)
-- **FakeCache** : Cache en mémoire pour les tests unitaires (pas de dépendance Redis)
+- **SimpleCache**: Redis cache with expiration (production and integration tests)
+- **FakeCache**: In-memory cache for unit tests (no Redis dependency)
 
 ## Tests
 
-Les tests sont organisés dans :
+Tests are organized in:
 
-- `unit_tests/` : Tests unitaires avec `FakeCache` (pas de Redis)
-- `integration_tests/` : Tests d'intégration avec `SimpleCache` (vrai Redis)
+- `unit_tests/`: Unit tests with `FakeCache` (no Redis)
+- `integration_tests/`: Integration tests with `SimpleCache` (real Redis)
 
-Les tests utilisent des données de référence stockées dans `unit_tests/reference/` pour comparer les résultats API.
+Tests use reference data stored in `unit_tests/reference/` to compare API results.
 
-## Évolutions futures
+## Future Evolutions
 
-Cette architecture permet facilement :
+This architecture easily allows:
 
-- Ajout de nouveaux services de domaine (ex: `SystemService`, `StationService`)
-- Ajout de nouvelles APIs (ex: `SystemAPI`, `StationAPI`)
-- Remplacement du repository (ex: base de données locale au lieu de l'API)
-- Ajout de nouveaux endpoints sans modifier la logique métier
-- Changement de framework (ex: Django au lieu de FastAPI) sans toucher au Domain
+- Adding new domain services (e.g., `SystemService`, `StationService`)
+- Adding new APIs (e.g., `SystemAPI`, `StationAPI`)
+- Replacing repository (e.g., local database instead of API)
+- Adding new endpoints without modifying business logic
+- Changing framework (e.g., Django instead of FastAPI) without touching Domain
 
-## Références
+## References
 
 - [Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html) - Robert C. Martin
-- [The Clean Architecture](https://www.youtube.com/watch?v=CnailTcJV_U) - Conférence
+- [The Clean Architecture](https://www.youtube.com/watch?v=CnailTcJV_U) - Conference

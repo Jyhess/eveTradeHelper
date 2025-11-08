@@ -9,37 +9,37 @@ logger = logging.getLogger(__name__)
 
 def create_cache() -> SimpleCache:
     """
-    Factory pour créer et configurer le cache Redis
+    Factory to create and configure Redis cache
 
-    Utilise les variables d'environnement suivantes (avec valeurs par défaut):
-    - REDIS_URL: URL de connexion Redis (optionnel, prioritaire)
-    - REDIS_HOST: Host Redis (défaut: "localhost")
-    - REDIS_PORT: Port Redis (défaut: 6379)
-    - REDIS_DB: Base de données Redis (défaut: 0)
-    - CACHE_EXPIRY_HOURS: Durée de vie du cache en heures (défaut: 720)
+    Uses the following environment variables (with default values):
+    - REDIS_URL: Redis connection URL (optional, takes priority)
+    - REDIS_HOST: Redis host (default: "localhost")
+    - REDIS_PORT: Redis port (default: 6379)
+    - REDIS_DB: Redis database (default: 0)
+    - CACHE_EXPIRY_HOURS: Cache lifetime in hours (default: 720)
 
     Returns:
-        Instance de SimpleCache configurée
+        Configured SimpleCache instance
 
     Raises:
-        ConnectionError: Si la connexion à Redis échoue
+        ConnectionError: If connection to Redis fails
     """
-    # Configuration du cache Redis (obligatoire)
+    # Redis cache configuration (required)
     cache_expiry_hours = int(os.getenv("CACHE_EXPIRY_HOURS", str(24 * 30)))
 
-    # Vérifier si Redis est configuré (valeurs par défaut pour développement local)
+    # Check if Redis is configured (default values for local development)
     redis_url = os.getenv("REDIS_URL")
     redis_host = os.getenv("REDIS_HOST", "localhost")
 
     try:
         if redis_url:
-            logger.info(f"Connexion à Redis via URL: {redis_url}")
+            logger.info(f"Connecting to Redis via URL: {redis_url}")
             cache = SimpleCache(expiry_hours=cache_expiry_hours, redis_url=redis_url)
         else:
-            # Utiliser les valeurs par défaut si redis_host n'est pas défini
+            # Use default values if redis_host is not defined
             redis_port = int(os.getenv("REDIS_PORT", "6379"))
             redis_db = int(os.getenv("REDIS_DB", "0"))
-            logger.info(f"Connexion à Redis: {redis_host}:{redis_port}/{redis_db}")
+            logger.info(f"Connecting to Redis: {redis_host}:{redis_port}/{redis_db}")
             cache = SimpleCache(
                 expiry_hours=cache_expiry_hours,
                 redis_host=redis_host,

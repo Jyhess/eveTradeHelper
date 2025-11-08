@@ -1,5 +1,5 @@
 """
-Configuration des tests et fixtures partagées
+Test configuration and shared fixtures
 """
 
 import json
@@ -14,39 +14,39 @@ from domain import Services
 from eve.eve_repository_factory import make_eve_repository
 from utils.cache import CacheManager, create_cache
 
-# Chemin vers le dossier de tests
+# Path to tests directory
 TESTS_DIR = Path(__file__).parent
 REFERENCE_DIR = TESTS_DIR / "reference"
 
 
-# Cache Redis partagé pour la session (initialisé une seule fois)
+# Shared Redis cache for session (initialized once)
 _cache_instance = None
 
 
 @pytest.fixture(scope="session")
 def _shared_cache():
     """
-    Cache Redis partagé initialisé une seule fois pour toute la session de tests.
-    Utilisé uniquement pour les tests d'intégration.
+    Shared Redis cache initialized once for the entire test session.
+    Used only for integration tests.
     """
     global _cache_instance
     if _cache_instance is None:
         try:
             _cache_instance = create_cache()
         except Exception as e:
-            pytest.skip(f"Redis n'est pas disponible pour les tests: {e}")
+            pytest.skip(f"Redis is not available for tests: {e}")
     return _cache_instance
 
 
 @pytest.fixture(scope="function")
 def cache(request, _shared_cache):
     """
-    Fixture pour gérer le cache selon le type de test.
-    - Pour les tests d'intégration: utilise le cache Redis partagé
-    - Pour les tests unitaires: désactive le cache (évite les conflits avec les mocks)
+    Fixture to manage cache according to test type.
+    - For integration tests: uses shared Redis cache
+    - For unit tests: disables cache (avoids conflicts with mocks)
     """
-    # Vérifier si c'est un test unitaire (marqué avec @pytest.mark.unit)
-    # Le marker peut être sur la classe ou sur la méthode
+    # Check if it's a unit test (marked with @pytest.mark.unit)
+    # Marker can be on class or method
     is_unit_test = request.node.get_closest_marker("unit") is not None or (
         hasattr(request.node, "parent")
         and request.node.parent is not None
@@ -54,27 +54,27 @@ def cache(request, _shared_cache):
     )
 
     if is_unit_test:
-        # Pour les tests unitaires, désactiver le cache
-        # Sauvegarder l'instance actuelle si elle existe
+        # For unit tests, disable cache
+        # Save current instance if it exists
         original_cache = CacheManager._instance
-        # Désactiver complètement le cache pour ce test
+        # Completely disable cache for this test
         CacheManager._instance = None
 
         try:
             yield None
         finally:
-            # Toujours restaurer le cache après le test (pour les autres tests)
+            # Always restore cache after test (for other tests)
             CacheManager._instance = original_cache
     else:
-        # Pour les tests d'intégration, utiliser le cache Redis partagé
+        # For integration tests, use shared Redis cache
         CacheManager.initialize(_shared_cache)
         yield _shared_cache
-        # Ne pas réinitialiser - le cache est partagé
+        # Don't reinitialize - cache is shared
 
 
 @pytest.fixture(scope="session")
 def reference_data():
-    """Charge les données de référence pour les tests"""
+    """Loads reference data for tests"""
     reference_data = {}
 
     if REFERENCE_DIR.exists():
@@ -88,19 +88,19 @@ def reference_data():
 
 @pytest.fixture
 def eve_repository(cache):
-    """Fixture pour créer un repository Eve avec cache de test"""
+    """Fixture to create an Eve repository with test cache"""
     yield make_eve_repository()
 
 
 @pytest.fixture
 def services(eve_repository):
-    """Fixture pour créer les services avec cache de test"""
+    """Fixture to create services with test cache"""
     return Services(eve_repository)
 
 
 @pytest.fixture
 def test_app(services):
-    """Fixture pour créer une application FastAPI de test"""
+    """Fixture to create a test FastAPI application"""
     app = FastAPI()
     AppFactory.register_routers(app)
     AppFactory.set_services(app, services)
@@ -109,5 +109,5 @@ def test_app(services):
 
 @pytest.fixture
 def client(test_app):
-    """Fixture pour créer un client de test"""
+    """Fixture to create a test client"""
     return TestClient(test_app)

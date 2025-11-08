@@ -2,14 +2,14 @@
   <div class="market-page">
     <div class="card">
       <div v-if="loading" class="loading">
-        Chargement des catégories du marché...
+        Loading market categories...
       </div>
       <div v-else-if="error" class="error">
         {{ error }}
       </div>
       <div v-else-if="treeData.length > 0" class="categories-container">
         <div class="stats">
-          <p><strong>{{ total }}</strong> catégorie(s) de marché</p>
+          <p><strong>{{ total }}</strong> market category(ies)</p>
         </div>
 
         <div class="main-content">
@@ -19,7 +19,7 @@
               @node-selected="handleNodeSelected" />
           </div>
 
-          <!-- Panneau latéral -->
+          <!-- Side panel -->
           <div v-if="selectedCategory || selectedTypeId" class="details-panel">
             <div class="panel-header">
               <h3>{{ selectedCategory ? selectedCategory.name : (typeDetails[selectedTypeId]?.name || `Type
@@ -27,11 +27,11 @@
               <button class="close-button" @click="closePanel">×</button>
             </div>
             <div class="panel-content">
-              <!-- Affichage si c'est une catégorie -->
+              <!-- Display if it's a category -->
               <template v-if="selectedCategory">
                 <div class="category-info">
-                  <h4>Informations</h4>
-                  <p><strong>ID de la catégorie:</strong> {{ selectedCategory.group_id }}</p>
+                  <h4>Information</h4>
+                  <p><strong>Category ID:</strong> {{ selectedCategory.group_id }}</p>
                 </div>
 
                 <div v-if="selectedCategory.description" class="description">
@@ -40,7 +40,7 @@
                 </div>
 
                 <div v-if="selectedCategory.types && selectedCategory.types.length > 0" class="types-section">
-                  <h4>{{ selectedCategory.types.length }} type(s) d'item</h4>
+                  <h4>{{ selectedCategory.types.length }} item type(s)</h4>
                   <div class="types-list">
                     <div v-for="typeId in selectedCategory.types" :key="typeId" class="type-item"
                       @click="selectType(typeId)">
@@ -48,37 +48,37 @@
                       <span v-if="typeDetails[typeId]" class="type-name">
                         - {{ typeDetails[typeId].name }}
                       </span>
-                      <span v-else class="loading-small">Chargement...</span>
+                      <span v-else class="loading-small">Loading...</span>
                     </div>
                   </div>
                 </div>
               </template>
 
-              <!-- Détails du type sélectionné (si sélectionné depuis l'arbre ou le panneau) -->
+              <!-- Selected type details (if selected from tree or panel) -->
               <div v-if="selectedTypeId && typeDetails[selectedTypeId]" class="type-details">
                 <h4>{{ typeDetails[selectedTypeId].name }}</h4>
                 <div v-if="typeDetails[selectedTypeId].description" class="type-description">
                   <p>{{ typeDetails[selectedTypeId].description }}</p>
                 </div>
 
-                <!-- Ordres de marché (si on est sur une page de région) -->
+                <!-- Market orders (if on a region page) -->
                 <div v-if="regionId" class="market-orders">
-                  <h4>Offres de marché ({{ regionName }})</h4>
+                  <h4>Market Orders ({{ regionName }})</h4>
 
                   <div v-if="marketOrdersLoading" class="loading-small">
-                    Chargement des offres...
+                    Loading orders...
                   </div>
                   <div v-else-if="marketOrdersError" class="error-small">
                     {{ marketOrdersError }}
                   </div>
                   <div v-else>
-                    <!-- Ordres d'achat -->
+                    <!-- Buy orders -->
                     <div v-if="marketOrders.buy_orders && marketOrders.buy_orders.length > 0" class="orders-section">
-                      <h5>Ordres d'achat ({{ marketOrders.buy_orders.length }})</h5>
+                      <h5>Buy Orders ({{ marketOrders.buy_orders.length }})</h5>
                       <div class="orders-list">
                         <div v-for="order in marketOrders.buy_orders.slice(0, 10)" :key="order.order_id"
                           class="order-item buy-order">
-                          <div class="order-quantity">Qté: {{ order.volume_remain || order.volume_total }}</div>
+                          <div class="order-quantity">Qty: {{ order.volume_remain || order.volume_total }}</div>
                           <div class="order-price">{{ formatPrice(order.price) }} ISK</div>
                           <div class="order-location">
                             <span v-if="order.station_name && order.system_name">
@@ -88,20 +88,20 @@
                               {{ order.system_name }}
                             </span>
                             <span v-else>
-                              Système: {{ order.location_id }}
+                              System: {{ order.location_id }}
                             </span>
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    <!-- Ordres de vente -->
+                    <!-- Sell orders -->
                     <div v-if="marketOrders.sell_orders && marketOrders.sell_orders.length > 0" class="orders-section">
-                      <h5>Ordres de vente ({{ marketOrders.sell_orders.length }})</h5>
+                      <h5>Sell Orders ({{ marketOrders.sell_orders.length }})</h5>
                       <div class="orders-list">
                         <div v-for="order in marketOrders.sell_orders.slice(0, 10)" :key="order.order_id"
                           class="order-item sell-order">
-                          <div class="order-quantity">Qté: {{ order.volume_remain || order.volume_total }}</div>
+                          <div class="order-quantity">Qty: {{ order.volume_remain || order.volume_total }}</div>
                           <div class="order-price">{{ formatPrice(order.price) }} ISK</div>
                           <div class="order-location">
                             <span v-if="order.station_name && order.system_name">
@@ -111,7 +111,7 @@
                               {{ order.system_name }}
                             </span>
                             <span v-else>
-                              Système: {{ order.location_id }}
+                              System: {{ order.location_id }}
                             </span>
                           </div>
                         </div>
@@ -119,15 +119,15 @@
                     </div>
 
                     <div v-if="marketOrders.total === 0" class="no-orders">
-                      Aucune offre disponible
+                      No orders available
                     </div>
                   </div>
                 </div>
                 <div v-else-if="!regionId" class="no-region-warning">
-                  Sélectionnez une région pour voir les offres de marché
+                  Select a region to view market orders
                 </div>
                 <div v-else-if="regionId && !marketOrders" class="no-region-warning">
-                  Cliquez sur un type d'item pour voir les offres
+                  Click on an item type to view orders
                 </div>
               </div>
             </div>
@@ -135,7 +135,7 @@
         </div>
       </div>
       <div v-else class="no-data">
-        Aucune catégorie trouvée.
+        No categories found.
       </div>
     </div>
   </div>
@@ -180,7 +180,7 @@ export default {
       marketOrders: null,
       marketOrdersLoading: false,
       marketOrdersError: '',
-      expandedPaths: new Set() // Chemins (group_id) à développer pour atteindre un type
+      expandedPaths: new Set() // Paths (group_id) to expand to reach a type
     }
   },
   computed: {
@@ -199,10 +199,10 @@ export default {
         this.categories = data.categories || []
         this.total = data.total || 0
 
-        console.log('Catégories reçues:', this.categories.length)
-        console.log('TreeData construit:', this.treeData.length)
+        console.log('Categories received:', this.categories.length)
+        console.log('TreeData built:', this.treeData.length)
 
-        // Récupérer les noms pour le breadcrumb si nécessaire
+        // Retrieve names for breadcrumb if necessary
         if (this.regionId) {
           await this.fetchRegionName()
         }
@@ -213,14 +213,14 @@ export default {
           await this.fetchSystemName()
         }
 
-        // Vérifier si on doit aller directement sur un type depuis l'URL
+        // Check if we should go directly to a type from URL
         await this.$nextTick()
         const typeIdFromQuery = this.$route.query.type_id
         if (typeIdFromQuery) {
           await this.navigateToType(parseInt(typeIdFromQuery))
         }
       } catch (error) {
-        this.error = 'Erreur: ' + error.message
+        this.error = 'Error: ' + error.message
       } finally {
         this.loading = false
       }
@@ -230,11 +230,11 @@ export default {
         return []
       }
 
-      // Créer un map pour accès rapide
+      // Create a map for fast access
       const categoryMap = new Map()
       const rootNodes = []
 
-      // Première passe : créer tous les nœuds
+      // First pass: create all nodes
       categories.forEach(category => {
         categoryMap.set(category.group_id, {
           ...category,
@@ -242,33 +242,33 @@ export default {
         })
       })
 
-      // Deuxième passe : construire l'arbre
+      // Second pass: build tree
       categories.forEach(category => {
         const node = categoryMap.get(category.group_id)
 
         if (category.parent_group_id && categoryMap.has(category.parent_group_id)) {
-          // Ajouter ce nœud comme enfant de son parent
+          // Add this node as child of its parent
           const parent = categoryMap.get(category.parent_group_id)
           parent.children.push(node)
         } else {
-          // C'est un nœud racine
+          // It's a root node
           rootNodes.push(node)
         }
       })
 
-      // Troisième passe : ajouter les types d'items comme nœuds enfants
+      // Third pass: add item types as child nodes
       const addTypesAsChildren = (node) => {
         if (node.types && node.types.length > 0) {
           node.types.forEach(typeId => {
             node.children.push({
               type_id: typeId,
-              name: `Type ${typeId}`, // Sera remplacé par le vrai nom une fois chargé
+              name: `Type ${typeId}`, // Will be replaced by real name once loaded
               is_type: true,
               children: []
             })
           })
         }
-        // Appliquer récursivement aux enfants
+        // Apply recursively to children
         node.children.forEach(child => {
           if (!child.is_type) {
             addTypesAsChildren(child)
@@ -278,10 +278,10 @@ export default {
 
       rootNodes.forEach(node => addTypesAsChildren(node))
 
-      // Trier les nœuds et leurs enfants récursivement
+      // Sort nodes and their children recursively
       const sortNodes = (nodes) => {
         nodes.sort((a, b) => {
-          // Les types après les catégories
+          // Types after categories
           if (a.is_type && !b.is_type) return 1
           if (!a.is_type && b.is_type) return -1
           return a.name.localeCompare(b.name)
@@ -303,14 +303,14 @@ export default {
         const region = data.regions?.find(r => r.region_id === parseInt(this.regionId))
         if (region) {
           this.regionName = region.name
-          // Mettre à jour le breadcrumb
+          // Update breadcrumb
           eventBus.emit('breadcrumb-update', {
             regionName: this.regionName,
             regionId: this.regionId
           })
         }
       } catch (error) {
-        console.error('Erreur lors de la récupération du nom de la région:', error)
+        console.error('Error retrieving region name:', error)
       }
     },
     async fetchConstellationName() {
@@ -322,14 +322,14 @@ export default {
         )
         if (constellation) {
           this.constellationName = constellation.name
-          // Mettre à jour le breadcrumb
+          // Update breadcrumb
           eventBus.emit('breadcrumb-update', {
             constellationName: this.constellationName,
             constellationId: this.constellationId
           })
         }
       } catch (error) {
-        console.error('Erreur lors de la récupération du nom de la constellation:', error)
+        console.error('Error retrieving constellation name:', error)
       }
     },
     async fetchSystemName() {
@@ -337,14 +337,14 @@ export default {
         const data = await api.systems.getSystem(this.systemId)
         if (data.system) {
           this.systemName = data.system.name
-          // Mettre à jour le breadcrumb
+          // Update breadcrumb
           eventBus.emit('breadcrumb-update', {
             systemName: this.systemName,
             systemId: this.systemId
           })
         }
       } catch (error) {
-        console.error('Erreur lors de la récupération du nom du système:', error)
+        console.error('Error retrieving system name:', error)
       }
     },
     getMarketPath() {
@@ -358,28 +358,28 @@ export default {
       return '/markets'
     },
     handleNodeSelected(node) {
-      // Si c'est un type d'item, sélectionner le type
+      // If it's an item type, select the type
       if (node.is_type && node.type_id) {
         this.selectedTypeId = node.type_id
         this.selectedCategory = null
         this.marketOrders = null
 
-        // Charger les détails du type
+        // Load type details
         if (!this.typeDetails[node.type_id]) {
           this.fetchTypeDetails(node.type_id)
         }
 
-        // Charger les ordres si on a une région
+        // Load orders if we have a region
         if (this.regionId) {
           this.fetchMarketOrders(node.type_id)
         }
       } else {
-        // C'est une catégorie
+        // It's a category
         this.selectedCategory = node
         this.selectedTypeId = null
         this.marketOrders = null
 
-        // Charger les détails des types si disponibles
+        // Load type details if available
         if (node.types && node.types.length > 0) {
           node.types.forEach(typeId => {
             if (!this.typeDetails[typeId]) {
@@ -394,7 +394,7 @@ export default {
         const data = await api.universe.getType(typeId)
         this.typeDetails[typeId] = data
       } catch (error) {
-        console.error(`Erreur lors de la récupération du type ${typeId}:`, error)
+        console.error(`Error retrieving type ${typeId}:`, error)
         this.typeDetails[typeId] = { name: `Type ${typeId}`, description: '' }
       }
     },
@@ -403,7 +403,7 @@ export default {
       this.marketOrders = null
       this.marketOrdersError = ''
 
-      // Charger les ordres de marché si on est sur une page de région
+      // Load market orders if on a region page
       if (this.regionId) {
         this.fetchMarketOrders(typeId)
       }
@@ -418,7 +418,7 @@ export default {
         const data = await api.markets.getOrders(this.regionId, { type_id: typeId })
         this.marketOrders = data
       } catch (error) {
-        this.marketOrdersError = 'Erreur: ' + error.message
+        this.marketOrdersError = 'Error: ' + error.message
       } finally {
         this.marketOrdersLoading = false
       }
@@ -428,21 +428,21 @@ export default {
       this.selectedTypeId = null
       this.marketOrders = null
     },
-    // Trouve un type dans l'arbre et retourne le chemin (group_id des parents) jusqu'à lui
+    // Find a type in the tree and return the path (parent group_ids) to it
     findTypePath(tree, typeId, currentPath = []) {
       for (const node of tree) {
-        // Si c'est le type qu'on cherche
+        // If it's the type we're looking for
         if (node.is_type && node.type_id === typeId) {
-          return currentPath // Retourne le chemin jusqu'aux parents (group_id seulement)
+          return currentPath // Return path to parents (group_id only)
         }
         
-        // Construire le nouveau chemin avec le group_id du parent (pas les types)
+        // Build new path with parent group_id (not types)
         let newPath = currentPath
         if (!node.is_type && node.group_id) {
           newPath = [...currentPath, node.group_id]
         }
         
-        // Si ce nœud a des enfants, chercher récursivement
+        // If this node has children, search recursively
         if (node.children && node.children.length > 0) {
           const found = this.findTypePath(node.children, typeId, newPath)
           if (found !== null) {
@@ -452,43 +452,43 @@ export default {
       }
       return null
     },
-    // Navigue jusqu'à un type spécifique dans l'arbre
+    // Navigate to a specific type in the tree
     async navigateToType(typeId) {
-      // Trouver le chemin jusqu'à ce type
+      // Find path to this type
       const path = this.findTypePath(this.treeData, typeId)
       
       if (path) {
-        // Développer tous les parents dans le chemin
+        // Expand all parents in the path
         this.expandedPaths = new Set(path)
         
-        // Attendre un tick pour que les composants TreeNode se mettent à jour
+        // Wait a tick for TreeNode components to update
         await this.$nextTick()
         
-        // Sélectionner le type
+        // Select type
         this.selectedTypeId = typeId
         this.selectedCategory = null
         this.marketOrders = null
         
-        // Charger les détails du type
+        // Load type details
         if (!this.typeDetails[typeId]) {
           await this.fetchTypeDetails(typeId)
         }
         
-        // Charger les ordres de marché si on a une région
+        // Load market orders if we have a region
         if (this.regionId) {
           await this.fetchMarketOrders(typeId)
         }
         
-        // Scroller jusqu'à l'élément si possible (optionnel)
+        // Scroll to element if possible (optional)
         await this.$nextTick()
         this.scrollToSelectedType()
       } else {
-        console.warn(`Type ${typeId} non trouvé dans l'arbre`)
+        console.warn(`Type ${typeId} not found in tree`)
       }
     },
     scrollToSelectedType() {
-      // Trouver l'élément sélectionné dans le DOM et scroller vers lui
-      // Cette fonction peut être améliorée si nécessaire
+      // Find selected element in DOM and scroll to it
+      // This function can be improved if necessary
       const selectedElements = document.querySelectorAll('.type-node')
       selectedElements.forEach(el => {
         if (el.textContent && this.typeDetails[this.selectedTypeId] && 
@@ -499,14 +499,14 @@ export default {
     },
     formatPrice(price) {
       if (price >= 1000) {
-        // Pour les prix >= 1000, pas de décimales
-        return new Intl.NumberFormat('fr-FR', {
+        // For prices >= 1000, no decimals
+        return new Intl.NumberFormat('en-US', {
           minimumFractionDigits: 0,
           maximumFractionDigits: 0
         }).format(price)
       } else {
-        // Pour les prix < 1000, avec décimales
-        return new Intl.NumberFormat('fr-FR', {
+        // For prices < 1000, with decimals
+        return new Intl.NumberFormat('en-US', {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2
         }).format(price)

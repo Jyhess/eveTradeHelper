@@ -1,5 +1,5 @@
 """
-Configuration des tests et fixtures partagées
+Test configuration and shared fixtures
 """
 
 import json
@@ -13,46 +13,46 @@ from utils.cache import CacheManager, create_cache
 from utils.cache.fake_cache import FakeCache
 from utils.cache.simple_cache import SimpleCache
 
-# Chemin vers le dossier de tests
+# Path to tests directory
 TESTS_DIR = Path(__file__).parent
 REFERENCE_DIR = TESTS_DIR / "reference"
 
 
-# Cache Redis partagé pour la session (initialisé une seule fois)
+# Shared Redis cache for session (initialized once)
 _cache_instance: SimpleCache | None = None
 
 
 @pytest.fixture(scope="session")
 def _shared_cache():
     """
-    Cache Redis partagé initialisé une seule fois pour toute la session de tests.
-    Utilisé uniquement pour les tests d'intégration.
+    Shared Redis cache initialized once for the entire test session.
+    Used only for integration tests.
     """
     global _cache_instance
     if _cache_instance is None:
         try:
             _cache_instance = create_cache()
         except Exception as e:
-            pytest.skip(f"Redis n'est pas disponible pour les tests: {e}")
+            pytest.skip(f"Redis is not available for tests: {e}")
     return _cache_instance
 
 
 @pytest.fixture(scope="function")
 def cache(request, _shared_cache):
     """
-    Fixture pour gérer le cache selon le type de test.
-    - Pour les tests d'intégration: utilise le cache Redis partagé
-    - Pour les tests unitaires (dans unittests/): utilise un fake cache en mémoire
+    Fixture to manage cache according to test type.
+    - For integration tests: uses shared Redis cache
+    - For unit tests (in unittests/): uses in-memory fake cache
     """
-    # Vérifier si c'est un test unitaire
-    # Soit marqué avec @pytest.mark.unit, soit dans le dossier unittests
+    # Check if it's a unit test
+    # Either marked with @pytest.mark.unit, or in unittests directory
     is_unit_test = request.node.get_closest_marker("unit") is not None or (
         hasattr(request.node, "parent")
         and request.node.parent is not None
         and request.node.parent.get_closest_marker("unit") is not None
     )
 
-    # Si le test est dans le dossier unittests, utiliser le fake cache
+    # If test is in unittests directory, use fake cache
     if not is_unit_test:
         test_file = getattr(request.node, "fspath", None)
         if test_file:
@@ -61,36 +61,36 @@ def cache(request, _shared_cache):
                 is_unit_test = True
 
     if is_unit_test:
-        # Pour les tests unitaires, utiliser un fake cache en mémoire
-        # Sauvegarder l'instance actuelle si elle existe
+        # For unit tests, use in-memory fake cache
+        # Save current instance if it exists
         original_cache = CacheManager._instance
-        # Créer un fake cache avec la même durée d'expiration que le cache Redis
+        # Create fake cache with same expiry duration as Redis cache
         fake_cache = FakeCache(expiry_hours=24 * 30)
         CacheManager.initialize(fake_cache)
 
         try:
             yield fake_cache
         finally:
-            # Nettoyer le cache après chaque test unitaire
+            # Clear cache after each unit test
             fake_cache.clear()
-            # Restaurer le cache original après le test
+            # Restore original cache after test
             CacheManager._instance = original_cache
     else:
-        # Pour les tests d'intégration, utiliser le cache Redis partagé
+        # For integration tests, use shared Redis cache
         CacheManager.initialize(_shared_cache)
         yield _shared_cache
-        # Ne pas réinitialiser - le cache est partagé
+        # Don't reinitialize - cache is shared
 
 
 @pytest.fixture(scope="function")
 def eve_client(cache):
-    """Fixture pour créer un client API Eve avec cache de test"""
+    """Fixture to create an Eve API client with test cache"""
     return EveAPIClient()
 
 
 @pytest.fixture(scope="session")
 def reference_data():
-    """Charge les données de référence pour les tests"""
+    """Loads reference data for tests"""
     reference_data = {}
 
     if REFERENCE_DIR.exists():
