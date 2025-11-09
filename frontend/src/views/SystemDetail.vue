@@ -1,7 +1,7 @@
 <template>
   <div class="system-detail-page">
     <div class="card">
-      <div v-if="loading" class="loading">Loading system information...</div>
+      <Loader v-if="loading" message="Loading system information..." variant="overlay" />
       <div v-else-if="error" class="error">
         {{ error }}
       </div>
@@ -38,7 +38,7 @@
         <!-- Connected systems -->
         <div class="connections-section">
           <h3>Connected Systems</h3>
-          <div v-if="connectionsLoading" class="loading-small">Loading connections...</div>
+          <Loader v-if="connectionsLoading" message="Loading connections..." size="small" />
           <div v-else-if="connectionsError" class="error-small">
             {{ connectionsError }}
           </div>
@@ -92,10 +92,14 @@
 
 <script>
 import api from '../services/api'
+import Loader from '../components/Loader.vue'
 import eventBus from '../utils/eventBus'
 
 export default {
   name: 'SystemDetail',
+  components: {
+    Loader
+  },
   props: {
     systemId: {
       type: [String, Number],
@@ -216,12 +220,6 @@ export default {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
-.loading {
-  text-align: center;
-  padding: 40px;
-  color: #667eea;
-  font-size: 1.1em;
-}
 
 .error {
   margin-top: 20px;
@@ -358,11 +356,6 @@ export default {
   padding-bottom: 10px;
 }
 
-.loading-small {
-  text-align: center;
-  padding: 20px;
-  color: #667eea;
-}
 
 .error-small {
   padding: 15px;

@@ -19,7 +19,7 @@
         </div>
       </div>
 
-      <div v-if="loading" class="loading">Loading regions...</div>
+      <Loader v-if="loading" message="Loading regions..." variant="overlay" />
 
       <div v-else-if="filteredRegions.length > 0" class="regions-container">
         <div class="stats">
@@ -59,9 +59,13 @@
 
 <script>
 import api from '../services/api'
+import Loader from '../components/Loader.vue'
 
 export default {
   name: 'Regions',
+  components: {
+    Loader
+  },
   data() {
     return {
       regions: [],
@@ -157,12 +161,6 @@ export default {
   text-align: right;
 }
 
-.loading {
-  text-align: center;
-  padding: 40px;
-  color: #667eea;
-  font-size: 1.1em;
-}
 
 .no-results {
   text-align: center;

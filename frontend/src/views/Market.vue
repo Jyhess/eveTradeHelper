@@ -1,7 +1,7 @@
 <template>
   <div class="market-page">
     <div class="card">
-      <div v-if="loading" class="loading">Loading market categories...</div>
+      <Loader v-if="loading" message="Loading market categories..." variant="overlay" />
       <div v-else-if="error" class="error">
         {{ error }}
       </div>
@@ -69,7 +69,7 @@
                       <span v-if="typeDetails[typeId]" class="type-name">
                         - {{ typeDetails[typeId].name }}
                       </span>
-                      <span v-else class="loading-small">Loading...</span>
+                      <Loader v-else message="Loading..." size="small" />
                     </div>
                   </div>
                 </div>
@@ -86,7 +86,7 @@
                 <div v-if="regionId" class="market-orders">
                   <h4>Market Orders ({{ regionName }})</h4>
 
-                  <div v-if="marketOrdersLoading" class="loading-small">Loading orders...</div>
+                  <Loader v-if="marketOrdersLoading" message="Loading orders..." size="small" />
                   <div v-else-if="marketOrdersError" class="error-small">
                     {{ marketOrdersError }}
                   </div>
@@ -172,13 +172,15 @@
 <script>
 import api from '../services/api'
 import TreeNode from '../components/TreeNode.vue'
+import Loader from '../components/Loader.vue'
 import eventBus from '../utils/eventBus'
 import { formatPrice } from '../utils/numberFormatter'
 
 export default {
   name: 'Market',
   components: {
-    TreeNode
+    TreeNode,
+    Loader
   },
   props: {
     regionId: {
@@ -566,12 +568,6 @@ export default {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
-.loading {
-  text-align: center;
-  padding: 40px;
-  color: #667eea;
-  font-size: 1.1em;
-}
 
 .error {
   margin-top: 20px;
@@ -740,11 +736,6 @@ export default {
   font-weight: 500;
 }
 
-.loading-small {
-  color: #999;
-  font-size: 0.9em;
-  font-style: italic;
-}
 
 .type-details {
   margin-top: 20px;
