@@ -114,6 +114,33 @@ export default {
         this.isOpen = !this.isOpen
         if (this.isOpen) {
           this.searchText = ''
+          // Scroll to selected node after dropdown opens
+          this.$nextTick(() => {
+            this.scrollToSelectedNode()
+          })
+        }
+      }
+    },
+    scrollToSelectedNode() {
+      if (!this.selectedNodeId) return
+
+      // Find the selected node element
+      const selectedElement = this.$el.querySelector(
+        `.tree-select-option.is-selected`
+      )
+      if (selectedElement) {
+        const optionsContainer = this.$el.querySelector('.tree-select-options')
+        if (optionsContainer) {
+          // Scroll to center the selected element
+          const containerRect = optionsContainer.getBoundingClientRect()
+          const elementRect = selectedElement.getBoundingClientRect()
+          const scrollTop =
+            optionsContainer.scrollTop +
+            elementRect.top -
+            containerRect.top -
+            containerRect.height / 2 +
+            elementRect.height / 2
+          optionsContainer.scrollTop = Math.max(0, scrollTop)
         }
       }
     },

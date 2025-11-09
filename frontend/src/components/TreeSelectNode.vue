@@ -66,10 +66,33 @@ export default {
     isSelected() {
       return this.node.group_id === this.selectedId
     },
+    hasSelectedChild() {
+      if (!this.selectedId || !this.hasChildren) return false
+      return this.checkIfSelectedInChildren(this.filteredChildren, this.selectedId)
+    },
     indentStyle() {
       return {
         paddingLeft: `${this.level * 20 + 10}px`
       }
+    }
+  },
+  watch: {
+    selectedId: {
+      handler(newSelectedId) {
+        // Auto-expand if selected node is a child
+        if (newSelectedId && this.hasChildren) {
+          if (this.checkIfSelectedInChildren(this.filteredChildren, newSelectedId)) {
+            this.expanded = true
+          }
+        }
+      },
+      immediate: true
+    }
+  },
+  mounted() {
+    // Auto-expand on mount if selected node is a child
+    if (this.hasSelectedChild && this.hasChildren) {
+      this.expanded = true
     }
   },
   methods: {
@@ -83,6 +106,20 @@ export default {
       if (this.node.group_id) {
         this.$emit('node-selected', this.node)
       }
+    },
+    checkIfSelectedInChildren(children, groupId) {
+      for (const child of children) {
+        if (child.group_id === groupId) {
+          return true
+        }
+        if (child.children && child.children.length > 0) {
+          const filtered = child.children.filter(c => c.group_id && !c.is_type)
+          if (this.checkIfSelectedInChildren(filtered, groupId)) {
+            return true
+          }
+        }
+      }
+      return false
     }
   }
 }
