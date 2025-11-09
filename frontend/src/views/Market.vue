@@ -6,10 +6,21 @@
         {{ error }}
       </div>
       <div v-else-if="treeData.length > 0" class="categories-container">
-        <div class="stats">
-          <p>
-            <strong>{{ total }}</strong> market category(ies)
-          </p>
+        <div class="region-selector-section">
+          <div class="form-group">
+            <label for="region-select">Region:</label>
+            <select
+              id="region-select"
+              :value="currentRegionId"
+              class="region-select"
+              @change="onRegionChange"
+            >
+              <option value="">All regions</option>
+              <option v-for="region in regions" :key="region.region_id" :value="region.region_id">
+                {{ region.name }}
+              </option>
+            </select>
+          </div>
         </div>
 
         <div class="main-content">
@@ -50,7 +61,7 @@
 
                 <div v-if="selectedCategory.description" class="description">
                   <h4>Description</h4>
-                  <p>{{ selectedCategory.description }}</p>
+                  <p v-html="processDescription(selectedCategory.description)"></p>
                 </div>
 
                 <div
@@ -79,7 +90,7 @@
               <div v-if="selectedTypeId && typeDetails[selectedTypeId]" class="type-details">
                 <h4>{{ typeDetails[selectedTypeId].name }}</h4>
                 <div v-if="typeDetails[selectedTypeId].description" class="type-description">
-                  <p>{{ typeDetails[selectedTypeId].description }}</p>
+                  <p v-html="processDescription(typeDetails[selectedTypeId].description)"></p>
                 </div>
 
                 <!-- Market orders (if on a region page) -->
@@ -90,7 +101,7 @@
                   <div v-else-if="marketOrdersError" class="error-small">
                     {{ marketOrdersError }}
                   </div>
-                  <div v-else>
+                  <div v-else-if="marketOrders">
                     <!-- Buy orders -->
                     <div
                       v-if="marketOrders.buy_orders && marketOrders.buy_orders.length > 0"
@@ -151,12 +162,12 @@
 
                     <div v-if="marketOrders.total === 0" class="no-orders">No orders available</div>
                   </div>
+                  <div v-else class="no-region-warning">
+                    Click on an item type to view orders
+                  </div>
                 </div>
                 <div v-else-if="!regionId" class="no-region-warning">
                   Select a region to view market orders
-                </div>
-                <div v-else-if="!marketOrders" class="no-region-warning">
-                  Click on an item type to view orders
                 </div>
                 <div v-else class="no-region-warning">Loading market orders...</div>
               </div>
@@ -202,6 +213,7 @@ export default {
       total: 0,
       loading: false,
       error: '',
+      regions: [],
       regionName: '',
       constellationName: '',
       systemName: '',
@@ -217,6 +229,9 @@ export default {
   computed: {
     treeData() {
       return this.buildTree(this.categories)
+    },
+    currentRegionId() {
+      return this.regionId ? parseInt(this.regionId) : null
     }
   },
   watch: {
@@ -235,8 +250,19 @@ export default {
       }
     }
   },
-  mounted() {
+  async mounted() {
+    await this.fetchRegions()
     this.fetchCategories()
+    // Setup description links after initial render
+    this.$nextTick(() => {
+      this.setupDescriptionLinks()
+    })
+  },
+  updated() {
+    // Setup click handlers for description links after DOM update
+    this.$nextTick(() => {
+      this.setupDescriptionLinks()
+    })
   },
   methods: {
     async fetchCategories() {
@@ -255,6 +281,11 @@ export default {
         // Retrieve names for breadcrumb if necessary
         if (this.regionId) {
           await this.fetchRegionName()
+        } else {
+          // Ensure regions are loaded even if no regionId
+          if (this.regions.length === 0) {
+            await this.fetchRegions()
+          }
         }
         if (this.constellationId) {
           await this.fetchConstellationName()
@@ -347,20 +378,44 @@ export default {
 
       return rootNodes
     },
-    async fetchRegionName() {
+    async fetchRegions() {
       try {
         const data = await api.regions.getRegions()
-        const region = data.regions?.find(r => r.region_id === parseInt(this.regionId))
+        this.regions = data.regions || []
+        // Update region name if regionId is set
+        if (this.regionId) {
+          const region = this.regions.find(r => r.region_id === parseInt(this.regionId))
+          if (region) {
+            this.regionName = region.name
+          }
+        }
+      } catch (error) {
+        console.error('Error loading regions:', error)
+      }
+    },
+    async fetchRegionName() {
+      if (!this.regions || this.regions.length === 0) {
+        await this.fetchRegions()
+      }
+      if (this.regionId) {
+        const region = this.regions.find(r => r.region_id === parseInt(this.regionId))
         if (region) {
           this.regionName = region.name
-          // Update breadcrumb
           eventBus.emit('breadcrumb-update', {
             regionName: this.regionName,
             regionId: this.regionId
           })
         }
-      } catch (error) {
-        console.error('Error retrieving region name:', error)
+      }
+    },
+    onRegionChange(event) {
+      const selectedRegionId = event.target.value
+      if (selectedRegionId) {
+        // Navigate to the selected region's market page
+        this.$router.push(`/markets/region/${selectedRegionId}`)
+      } else {
+        // Navigate to the general market page (no region)
+        this.$router.push('/markets')
       }
     },
     async fetchConstellationName() {
@@ -478,6 +533,37 @@ export default {
       this.selectedTypeId = null
       this.marketOrders = null
     },
+    processDescription(description) {
+      if (!description) return ''
+      
+      // Replace showinfo links with clickable links
+      // Pattern: <a href=showinfo:1230>text</a>
+      const showInfoPattern = /<a\s+href=showinfo:(\d+)>(.*?)<\/a>/gi
+      
+      const processed = description.replace(showInfoPattern, (match, typeId, linkText) => {
+        // Return a clickable link with data attribute
+        return `<a href="#" class="description-link" data-type-id="${typeId}">${linkText}</a>`
+      })
+      
+      return processed
+    },
+    setupDescriptionLinks() {
+      // Find all description links and add click handlers
+      const links = this.$el.querySelectorAll('.description-link')
+      links.forEach(link => {
+        // Remove existing listener to avoid duplicates
+        const newLink = link.cloneNode(true)
+        link.parentNode.replaceChild(newLink, link)
+        
+        newLink.addEventListener('click', (e) => {
+          e.preventDefault()
+          const typeId = newLink.getAttribute('data-type-id')
+          if (typeId) {
+            this.navigateToType(parseInt(typeId))
+          }
+        })
+      })
+    },
     // Find a type in the tree and return the path (parent group_ids) to it
     findTypePath(tree, typeId, currentPath = []) {
       for (const node of tree) {
@@ -579,18 +665,43 @@ export default {
   font-size: 1.1em;
 }
 
-.stats {
-  margin: 20px 0;
+.region-selector-section {
+  margin-bottom: 20px;
   padding: 15px;
   background: #f8f9fa;
   border-radius: 6px;
-  text-align: center;
 }
 
-.stats p {
+.region-selector-section .form-group {
   margin: 0;
-  font-size: 1.1em;
-  color: #667eea;
+}
+
+.region-selector-section label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #333;
+}
+
+.region-select {
+  width: 100%;
+  max-width: 400px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 1em;
+  background: white;
+  cursor: pointer;
+}
+
+.region-select:hover {
+  border-color: #667eea;
+}
+
+.region-select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .no-data {
@@ -704,6 +815,18 @@ export default {
   margin: 0;
   color: #555;
   line-height: 1.6;
+}
+
+.description-link {
+  color: #667eea;
+  text-decoration: underline;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.description-link:hover {
+  color: #5568d3;
+  text-decoration: none;
 }
 
 .types-section {
