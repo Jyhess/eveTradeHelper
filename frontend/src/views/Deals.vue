@@ -280,6 +280,8 @@
                       v-if="deal.buy_system_id"
                       :to="`/markets/system/${deal.buy_system_id}?type_id=${deal.type_id}`"
                       class="route-system-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
                     >
                       {{ deal.route_details[0].name }}
                     </router-link>
@@ -293,6 +295,8 @@
                         v-if="deal.buy_region_id"
                         :to="`/markets/region/${deal.buy_region_id}?type_id=${deal.type_id}`"
                         class="region-link"
+                        target="_blank"
+                        rel="noopener noreferrer"
                       >
                         {{ getRegionName(deal.buy_region_id) }}
                       </router-link>
@@ -328,6 +332,8 @@
                       v-if="deal.sell_system_id"
                       :to="`/markets/system/${deal.sell_system_id}?type_id=${deal.type_id}`"
                       class="route-system-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
                     >
                       {{ deal.route_details[deal.route_details.length - 1].name }}
                     </router-link>
@@ -343,6 +349,8 @@
                         v-if="deal.sell_region_id"
                         :to="`/markets/region/${deal.sell_region_id}?type_id=${deal.type_id}`"
                         class="region-link"
+                        target="_blank"
+                        rel="noopener noreferrer"
                       >
                         {{ getRegionName(deal.sell_region_id) }}
                       </router-link>
@@ -364,6 +372,8 @@
                   <router-link
                     :to="`/markets/region/${getDealRegionId(deal)}?type_id=${deal.type_id}`"
                     class="market-link-inline"
+                    target="_blank"
+                    rel="noopener noreferrer"
                   >
                     📊 Market Details
                   </router-link>
