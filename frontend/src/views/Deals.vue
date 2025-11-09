@@ -215,7 +215,7 @@
               <div class="detail-line financial-line">
                 <span class="detail-label">Finance:</span>
                 <span class="detail-content">
-                  <span class="volume">{{ deal.tradable_volume.toLocaleString('en-US') }}</span>
+                  <span class="volume">{{ formatNumber(deal.tradable_volume) }}</span>
                   <span class="operator">×</span>
                   <span class="price">{{ formatPrice(deal.buy_price) }} ISK</span>
                   <span class="equals">=</span>
@@ -235,7 +235,7 @@
               <div class="detail-line transport-line">
                 <span class="detail-label">Transport:</span>
                 <span class="detail-content">
-                  <span class="volume">{{ deal.tradable_volume.toLocaleString('en-US') }}</span>
+                  <span class="volume">{{ formatNumber(deal.tradable_volume) }}</span>
                   <span class="operator">×</span>
                   <span class="volume-unit">{{ formatVolume(deal.item_volume) }} m³</span>
                   <span class="equals">=</span>
@@ -246,7 +246,7 @@
                   <span class="jumps-label">Jumps:</span>
                   <span class="jumps-value">
                     <span v-if="deal.jumps !== null && deal.jumps !== undefined">{{
-                      deal.jumps
+                      formatNumber(deal.jumps)
                     }}</span>
                     <span v-else>Unknown</span>
                   </span>
@@ -379,6 +379,13 @@
 import api from '../services/api'
 import TreeSelect from '../components/TreeSelect.vue'
 import eventBus from '../utils/eventBus'
+import {
+  formatPrice,
+  formatVolume,
+  formatNumber,
+  formatNumberInput,
+  parseNumberInput
+} from '../utils/numberFormatter'
 
 export default {
   name: 'Deals',
@@ -487,6 +494,11 @@ export default {
     this.isLoadingSettings = false
   },
   methods: {
+    formatPrice,
+    formatVolume,
+    formatNumber,
+    formatNumberInput,
+    parseNumberInput,
     saveSettings() {
       // Don't save during initial load
       if (this.isLoadingSettings) {
@@ -821,38 +833,6 @@ export default {
         this.searching = false
       }
     },
-    formatNumberInput(value) {
-      // Format a numeric value for display in an input with thousands separator
-      if (value === null || value === undefined || value === '') {
-        return ''
-      }
-      // Convert to number if necessary
-      let numValue = value
-      if (typeof value === 'string') {
-        numValue = parseFloat(value.replace(/\s/g, '').replace(',', '.'))
-      }
-      if (isNaN(numValue) || numValue < 0) {
-        return ''
-      }
-      // Format with space separator for thousands
-      // Use toLocaleString then replace non-breaking spaces with normal spaces
-      const formatted = numValue.toLocaleString('en-US', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: numValue % 1 === 0 ? 0 : 2, // No decimals if integer
-        useGrouping: true
-      })
-      return formatted.replace(/\u00A0/g, ' ') // Replace non-breaking spaces with normal spaces
-    },
-    parseNumberInput(inputValue) {
-      // Parse an input value to a number (removes spaces)
-      if (!inputValue || inputValue === '') {
-        return null
-      }
-      // Remove spaces and convert to number
-      const cleaned = inputValue.toString().replace(/\s/g, '').replace(',', '.')
-      const parsed = parseFloat(cleaned)
-      return isNaN(parsed) ? null : parsed
-    },
     handleMinProfitInput(event) {
       const inputValue = event.target.value
       // Keep value as is during input (allows free typing)
@@ -917,21 +897,6 @@ export default {
         this.maxBuyCostDisplay = ''
       }
       this.saveSettings()
-    },
-    formatPrice(price) {
-      if (!price && price !== 0) return 'N/A'
-      if (price >= 1000) {
-        return Math.round(price).toLocaleString('en-US')
-      }
-      return price.toFixed(2)
-    },
-    formatVolume(volume) {
-      if (!volume && volume !== 0) return 'N/A'
-      // Format with 2 decimals for small volumes, rounded for large ones
-      if (volume >= 1000) {
-        return Math.round(volume).toLocaleString('en-US')
-      }
-      return volume.toFixed(2)
     },
     formatTime(minutes) {
       if (!minutes && minutes !== 0) return 'N/A'

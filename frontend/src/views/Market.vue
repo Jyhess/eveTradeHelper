@@ -173,6 +173,7 @@
 import api from '../services/api'
 import TreeNode from '../components/TreeNode.vue'
 import eventBus from '../utils/eventBus'
+import { formatPrice } from '../utils/numberFormatter'
 
 export default {
   name: 'Market',
@@ -547,21 +548,7 @@ export default {
         }
       })
     },
-    formatPrice(price) {
-      if (price >= 1000) {
-        // For prices >= 1000, no decimals
-        return new Intl.NumberFormat('en-US', {
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0
-        }).format(price)
-      } else {
-        // For prices < 1000, with decimals
-        return new Intl.NumberFormat('en-US', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
-        }).format(price)
-      }
-    }
+    formatPrice
   }
 }
 </script>
