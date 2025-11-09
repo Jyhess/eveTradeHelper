@@ -5,7 +5,6 @@
 
 // API Configuration
 export const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://localhost:5001/api/v1'
-export const API_TIMEOUT_MS = 10000
 
 // Default Values
 export const DEFAULT_PAGE_SIZE = 50

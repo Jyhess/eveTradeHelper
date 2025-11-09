@@ -14,7 +14,7 @@
 
         <div class="form-group">
           <label for="group-select">Market Group:</label>
-          <div v-if="loadingGroups" class="loading-small">Loading groups...</div>
+          <Loader v-if="loadingGroups" message="Loading groups..." size="small" />
           <TreeSelect
             v-else
             :tree="marketGroupsTree"
@@ -104,7 +104,7 @@
             v-else-if="showAdjacentRegionsPanel && loadingAdjacentRegions"
             class="adjacent-regions-panel"
           >
-            <div class="loading-small">Loading adjacent regions...</div>
+            <Loader message="Loading adjacent regions..." size="small" />
           </div>
           <div
             v-else-if="showAdjacentRegionsPanel && !loadingAdjacentRegions"
@@ -126,6 +126,8 @@
       <div v-if="error" class="error">
         {{ error }}
       </div>
+
+      <Loader v-if="searching" message="Searching for deals..." variant="overlay" />
 
       <div v-if="searchResults" class="results-section">
         <div class="results-header">
@@ -378,6 +380,7 @@
 <script>
 import api from '../services/api'
 import TreeSelect from '../components/TreeSelect.vue'
+import Loader from '../components/Loader.vue'
 import eventBus from '../utils/eventBus'
 import {
   formatPrice,
@@ -390,7 +393,8 @@ import {
 export default {
   name: 'Deals',
   components: {
-    TreeSelect
+    TreeSelect,
+    Loader
   },
   data() {
     return {
@@ -1155,11 +1159,6 @@ export default {
   cursor: not-allowed;
 }
 
-.loading-small {
-  font-size: 0.9em;
-  color: #667eea;
-  font-style: italic;
-}
 
 .error {
   margin-top: 20px;

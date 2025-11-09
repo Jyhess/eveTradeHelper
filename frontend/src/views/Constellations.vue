@@ -1,7 +1,7 @@
 <template>
   <div class="constellations-page">
     <div class="card">
-      <div v-if="loading" class="loading">Loading constellations...</div>
+      <Loader v-if="loading" message="Loading constellations..." variant="overlay" />
       <div v-else-if="error" class="error">
         {{ error }}
       </div>
@@ -58,10 +58,14 @@
 
 <script>
 import api from '../services/api'
+import Loader from '../components/Loader.vue'
 import eventBus from '../utils/eventBus'
 
 export default {
   name: 'Constellations',
+  components: {
+    Loader
+  },
   props: {
     regionId: {
       type: [String, Number],
@@ -142,12 +146,6 @@ export default {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
-.loading {
-  text-align: center;
-  padding: 40px;
-  color: #667eea;
-  font-size: 1.1em;
-}
 
 .error {
   margin-top: 20px;
