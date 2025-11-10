@@ -5,12 +5,14 @@ Test configuration and shared fixtures
 import json
 from pathlib import Path
 
+import fakeredis
 import pytest
 
+from eve.etag_cache import EtagCache
 from eve.eve_api_client import EveAPIClient
 from eve.eve_repository_factory import make_eve_repository
+from eve.rate_limiter import RateLimiter
 from utils.cache import CacheManager, create_cache
-from utils.cache.fake_cache import FakeCache
 from utils.cache.simple_cache import SimpleCache
 
 # Path to tests directory
@@ -42,7 +44,7 @@ def cache(request, _shared_cache):
     """
     Fixture to manage cache according to test type.
     - For integration tests: uses shared Redis cache
-    - For unit tests (in unittests/): uses in-memory fake cache
+    - For unit tests (in unittests/): uses fakeredis with SimpleCache
     """
     # Check if it's a unit test
     # Either marked with @pytest.mark.unit, or in unittests directory
@@ -61,11 +63,15 @@ def cache(request, _shared_cache):
                 is_unit_test = True
 
     if is_unit_test:
-        # For unit tests, use in-memory fake cache
+        # For unit tests, use fakeredis with SimpleCache
         # Save current instance if it exists
         original_cache = CacheManager._instance
-        # Create fake cache with same expiry duration as Redis cache
-        fake_cache = FakeCache(expiry_hours=24 * 30)
+        # Create fakeredis client
+        fake_redis_client = fakeredis.FakeStrictRedis(decode_responses=True)
+        # Create SimpleCache with fakeredis client
+        fake_cache = SimpleCache.__new__(SimpleCache)
+        fake_cache.expiry_hours = 24 * 30
+        fake_cache.redis_client = fake_redis_client
         CacheManager.initialize(fake_cache)
 
         try:
@@ -85,7 +91,9 @@ def cache(request, _shared_cache):
 @pytest.fixture(scope="function")
 def eve_client(cache):
     """Fixture to create an Eve API client with test cache"""
-    return EveAPIClient()
+    rate_limiter = RateLimiter()
+    etag_cache = EtagCache(cache=cache)
+    return EveAPIClient(rate_limiter=rate_limiter, etag_cache=etag_cache)
 
 
 @pytest.fixture(scope="session")

@@ -39,33 +39,44 @@ class SimpleCache:
             ImportError: If redis-py is not installed
             ConnectionError: If connection to Redis fails
         """
+        self._validate_redis_available()
+        self.expiry_hours = expiry_hours
+        self._validate_redis_config(redis_url, redis_host)
+        self.redis_client = self._create_redis_client(redis_url, redis_host, redis_port, redis_db)
+
+    def _validate_redis_available(self) -> None:
+        """Validates that Redis is available"""
         if not REDIS_AVAILABLE:
             raise ImportError(
                 "Redis is required but redis-py is not installed. "
                 "Install it with: pip install redis"
             )
 
-        self.expiry_hours = expiry_hours
-
-        # Check that at least one Redis configuration is provided
+    def _validate_redis_config(self, redis_url: str | None, redis_host: str | None) -> None:
+        """Validates that at least one Redis configuration is provided"""
         if not redis_url and not redis_host:
             raise ValueError(
                 "Redis is required but no configuration is provided. "
                 "Please provide REDIS_URL or REDIS_HOST in environment variables."
             )
 
+    def _create_redis_client(
+        self, redis_url: str | None, redis_host: str | None, redis_port: int, redis_db: int
+    ) -> Any:
+        """Creates and tests Redis client connection"""
         try:
             if redis_url:
-                self.redis_client = redis.from_url(redis_url, decode_responses=True)
+                client = redis.from_url(redis_url, decode_responses=True)
             else:
-                self.redis_client = redis.Redis(
+                client = redis.Redis(
                     host=redis_host,
                     port=redis_port,
                     db=redis_db,
                     decode_responses=True,
                 )
             # Test connection
-            self.redis_client.ping()
+            client.ping()
+            return client
         except redis.ConnectionError as e:
             raise ConnectionError(
                 f"❌ Unable to connect to Redis.\n"
@@ -162,6 +173,34 @@ class SimpleCache:
         except Exception as e:
             raise Exception(f"Error writing to Redis cache: {e}") from e
 
+    def get_raw_value(self, key: str) -> str | None:
+        """
+        Retrieves a raw string value from cache (without expiration check)
+
+        Args:
+            key: Cache key
+
+        Returns:
+            Cached value as string or None if not found
+        """
+        try:
+            return self.redis_client.get(key)
+        except Exception:
+            return None
+
+    def set_raw_value(self, key: str, value: str) -> None:
+        """
+        Stores a raw string value in cache (without expiration)
+
+        Args:
+            key: Cache key
+            value: Value to store
+        """
+        try:
+            self.redis_client.set(key, value)
+        except Exception as e:
+            raise Exception(f"Error writing to Redis cache: {e}") from e
+
     def clear(self, key: str | None = None):
         """
         Clears cache for a specific key or all cache
@@ -173,12 +212,18 @@ class SimpleCache:
             if key:
                 cache_key = f"cache:{key}"
                 metadata_key = f"metadata:{key}"
-                self.redis_client.delete(cache_key, metadata_key)
+                # Also delete raw value if it exists (for ETag and response caching)
+                self.redis_client.delete(cache_key, metadata_key, key)
             else:
                 # Delete all cache keys
                 for cache_key in self.redis_client.scan_iter(match="cache:*"):
                     self.redis_client.delete(cache_key)
                 for metadata_key in self.redis_client.scan_iter(match="metadata:*"):
                     self.redis_client.delete(metadata_key)
+                # Delete all raw values (ETag and response keys)
+                for raw_key in self.redis_client.scan_iter(match="etag:*"):
+                    self.redis_client.delete(raw_key)
+                for raw_key in self.redis_client.scan_iter(match="response:*"):
+                    self.redis_client.delete(raw_key)
         except Exception as e:
             raise Exception(f"Error deleting Redis cache: {e}") from e
