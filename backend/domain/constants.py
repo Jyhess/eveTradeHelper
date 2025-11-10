@@ -21,3 +21,14 @@ MARKET_ORDERS_CACHE_EXPIRY_HOURS = 1
 # Retry configuration for API calls
 DEFAULT_API_MAX_RETRIES = 2
 DEFAULT_API_RETRY_DELAY_SECONDS = 0.5
+
+# EVE ESI API best practices configuration
+EVE_API_APP_NAME = "EveTradeHelper"
+EVE_API_APP_VERSION = "1.0.0"
+EVE_API_CONTACT_EMAIL = "julien.sagna@gmail.com"
+EVE_API_SOURCE_URL = "https://github.com/evetradehelper/eveTradeHelper"
+
+# Rate limiting thresholds
+RATE_LIMIT_PER_SECOND = 60  # Default rate limit: 60 requests per second
+RATE_LIMIT_SLOWDOWN_THRESHOLD = 10  # Slow down when remaining tokens < 10
+RATE_LIMIT_SLOWDOWN_DELAY_SECONDS = 0.1  # Additional delay when slowing down

@@ -105,6 +105,43 @@ class FakeCache:
             "metadata": metadata or {},
         }
 
+    def get_raw_value(self, key: str) -> str | None:
+        """
+        Retrieves a raw string value from cache (without expiration check)
+
+        Args:
+            key: Cache key
+
+        Returns:
+            Cached value as string or None if not found
+        """
+        # Check both cache_data and a simple _raw_values dict
+        if not hasattr(self, "_raw_values"):
+            self._raw_values: dict[str, str] = {}
+        return self._raw_values.get(key)
+
+    def set_raw_value(self, key: str, value: str) -> None:
+        """
+        Stores a raw string value in cache (without expiration)
+
+        Args:
+            key: Cache key
+            value: Value to store
+        """
+        if not hasattr(self, "_raw_values"):
+            self._raw_values: dict[str, str] = {}
+        self._raw_values[key] = value
+
+    def delete_raw_value(self, key: str) -> None:
+        """
+        Deletes a raw string value from cache
+
+        Args:
+            key: Cache key to delete
+        """
+        if hasattr(self, "_raw_values"):
+            self._raw_values.pop(key, None)
+
     def clear(self, key: str | None = None):
         """
         Clears cache for a specific key or all cache
@@ -117,6 +154,10 @@ class FakeCache:
             metadata_key = f"metadata:{key}"
             self._cache_data.pop(cache_key, None)
             self._metadata.pop(metadata_key, None)
+            if hasattr(self, "_raw_values"):
+                self._raw_values.pop(key, None)
         else:
             self._cache_data.clear()
             self._metadata.clear()
+            if hasattr(self, "_raw_values"):
+                self._raw_values.clear()
