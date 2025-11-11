@@ -8,7 +8,7 @@ import logging
 from typing import Any
 
 from .constants import DEFAULT_MARKET_ORDERS_LIMIT
-from .helpers import is_station
+from .location_validator import LocationValidator
 from .repository import EveRepository
 
 logger = logging.getLogger(__name__)
@@ -17,14 +17,16 @@ logger = logging.getLogger(__name__)
 class MarketService:
     """Domain service for market management (async)"""
 
-    def __init__(self, repository: EveRepository):
+    def __init__(self, repository: EveRepository, location_validator: LocationValidator):
         """
         Initialize the service with a repository
 
         Args:
             repository: Eve repository implementation
+            location_validator: LocationValidator instance
         """
         self.repository = repository
+        self.location_validator = location_validator
 
     async def get_market_categories(self) -> list[dict[str, Any]]:
         """
@@ -105,7 +107,7 @@ class MarketService:
             enriched_order = order.copy()
 
             # IDs >= STATION_ID_THRESHOLD are stations, otherwise they are systems
-            if is_station(location_id):
+            if await self.location_validator.is_station(location_id):
                 # It's a station
                 try:
                     station_data = await self.repository.get_station_details(location_id)

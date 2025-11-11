@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from application import AppFactory
 from domain import Services
 from eve import make_eve_repository
+from repositories.local_data import LocalDataRepository
 from utils.cache import create_cache
 
 # Logging configuration
@@ -27,11 +28,13 @@ async def lifespan(app: FastAPI):
     """
     logger.info("Initializing application...")
 
-    create_cache()
+    cache = create_cache()
+
+    local_data_repository = LocalDataRepository(cache)
 
     # Infrastructure Layer: Repository
-    eve_repository = make_eve_repository()
-    services = Services(eve_repository)
+    eve_repository = make_eve_repository(cache, local_data_repository)
+    services = Services(eve_repository, local_data_repository)
     AppFactory.set_services(app, services)
 
     logger.info("Application initialized")

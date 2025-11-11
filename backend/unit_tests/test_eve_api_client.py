@@ -12,6 +12,7 @@ import pytest
 from domain.constants import DEFAULT_API_MAX_RETRIES
 from eve.etag_cache import EtagCache
 from eve.eve_api_client import EveAPIClient
+from eve.exceptions import BadRequestError, NotFoundError
 from eve.rate_limiter import RateLimiter
 
 
@@ -226,10 +227,10 @@ class TestEveAPIClientRetry:
             patch.object(client, "client", mock_http_client),
             patch.object(client.rate_limiter, "wait", return_value=None),
         ):
-            with pytest.raises(Exception) as exc_info:
+            with pytest.raises(BadRequestError) as exc_info:
                 await client.get("/test/endpoint")
 
-            assert "400" in str(exc_info.value)
+            assert exc_info.value.status_code == 400
             # Verify only one attempt was made (no retry)
             assert mock_http_client.get.call_count == 1
 
@@ -296,10 +297,10 @@ class TestEveAPIClientRetry:
             patch.object(client, "client", mock_http_client),
             patch.object(client.rate_limiter, "wait", return_value=None),
         ):
-            with pytest.raises(Exception) as exc_info:
+            with pytest.raises(NotFoundError) as exc_info:
                 await client.get("/test/endpoint")
 
-            assert "404" in str(exc_info.value)
+            assert exc_info.value.status_code == 404
             # Verify only one attempt was made (no retry)
             assert mock_http_client.get.call_count == 1
 

@@ -4,7 +4,9 @@ from typing import Any
 import pytest
 
 from domain.deals_service import DealsService
+from domain.location_validator import LocationValidator
 from domain.repository import EveRepository
+from repositories.local_data import LocalDataRepository
 
 
 class MockRepository(EveRepository):
@@ -65,9 +67,10 @@ def mock_repository():
 
 
 @pytest.fixture
-def deals_service(mock_repository):
+def deals_service(mock_repository, local_data_repository):
     """Fixture pour créer un DealsService avec un repository mock"""
-    return DealsService(mock_repository)
+    location_validator = LocationValidator(local_data_repository, mock_repository)
+    return DealsService(mock_repository, location_validator)
 
 
 @pytest.mark.asyncio
@@ -280,8 +283,8 @@ class TestDealsServiceAnalyzeType:
 
         mock_repository.market_orders = {
             (region_id, type_id): [
-                {"is_buy_order": True, "price": 105},  # Bénéfice = 5%
-                {"is_buy_order": False, "price": 100},
+                {"is_buy_order": True, "price": 105, "location_id": 30000142},  # Bénéfice = 5%
+                {"is_buy_order": False, "price": 100, "location_id": 30000142},
             ]
         }
 
@@ -300,7 +303,7 @@ class TestDealsServiceAnalyzeType:
 
         mock_repository.market_orders = {
             (region_id, type_id): [
-                {"is_buy_order": False, "price": 100},
+                {"is_buy_order": False, "price": 100, "location_id": 30000142},
             ]
         }
 
@@ -317,7 +320,7 @@ class TestDealsServiceAnalyzeType:
 
         mock_repository.market_orders = {
             (region_id, type_id): [
-                {"is_buy_order": True, "price": 100},
+                {"is_buy_order": True, "price": 100, "location_id": 30000142},
             ]
         }
 
@@ -340,12 +343,14 @@ class TestDealsServiceAnalyzeType:
                     "price": 110,
                     "volume_remain": 10,
                     "volume_total": 10,
+                    "location_id": 30000142,
                 },  # Bénéfice = 10%
                 {
                     "is_buy_order": False,
                     "price": 100,
                     "volume_remain": 10,
                     "volume_total": 10,
+                    "location_id": 30000142,
                 },
             ]
         }
@@ -430,12 +435,14 @@ class TestDealsServiceFindDeals:
                     "price": 110,
                     "volume_remain": 10,
                     "volume_total": 10,
+                    "location_id": 30000142,
                 },
                 {
                     "is_buy_order": False,
                     "price": 100,
                     "volume_remain": 10,
                     "volume_total": 10,
+                    "location_id": 30000142,
                 },  # 10% profit, 100 ISK
             ],
             (region_id, 102): [
@@ -444,12 +451,14 @@ class TestDealsServiceFindDeals:
                     "price": 102,
                     "volume_remain": 10,
                     "volume_total": 10,
+                    "location_id": 30000142,
                 },
                 {
                     "is_buy_order": False,
                     "price": 100,
                     "volume_remain": 10,
                     "volume_total": 10,
+                    "location_id": 30000142,
                 },  # 2% profit, 20 ISK
             ],
             (region_id, 201): [
@@ -458,12 +467,14 @@ class TestDealsServiceFindDeals:
                     "price": 120,
                     "volume_remain": 10,
                     "volume_total": 10,
+                    "location_id": 30000142,
                 },
                 {
                     "is_buy_order": False,
                     "price": 100,
                     "volume_remain": 10,
                     "volume_total": 10,
+                    "location_id": 30000142,
                 },  # 20% profit, 200 ISK
             ],
         }
@@ -510,12 +521,14 @@ class TestDealsServiceFindDeals:
                     "price": 105,
                     "volume_remain": 10,
                     "volume_total": 10,
+                    "location_id": 30000142,
                 },  # 5%, 50 ISK
                 {
                     "is_buy_order": False,
                     "price": 100,
                     "volume_remain": 10,
                     "volume_total": 10,
+                    "location_id": 30000142,
                 },
             ],
             (region_id, 102): [
@@ -524,12 +537,14 @@ class TestDealsServiceFindDeals:
                     "price": 115,
                     "volume_remain": 10,
                     "volume_total": 10,
+                    "location_id": 30000142,
                 },  # 15%, 150 ISK
                 {
                     "is_buy_order": False,
                     "price": 100,
                     "volume_remain": 10,
                     "volume_total": 10,
+                    "location_id": 30000142,
                 },
             ],
             (region_id, 103): [
@@ -538,12 +553,14 @@ class TestDealsServiceFindDeals:
                     "price": 110,
                     "volume_remain": 10,
                     "volume_total": 10,
+                    "location_id": 30000142,
                 },  # 10%, 100 ISK
                 {
                     "is_buy_order": False,
                     "price": 100,
                     "volume_remain": 10,
                     "volume_total": 10,
+                    "location_id": 30000142,
                 },
             ],
         }

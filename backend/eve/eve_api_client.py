@@ -20,6 +20,7 @@ from domain.constants import (
 )
 
 from .etag_cache import EtagCache
+from .exceptions import BadRequestError, ClientError, NotFoundError, ServerError
 from .rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
@@ -124,6 +125,17 @@ class EveAPIClient:
             )
             await asyncio.sleep(DEFAULT_API_RETRY_DELAY_SECONDS)
         else:
+            # Raise typed exceptions based on HTTP status code
+            if isinstance(error, httpx.HTTPStatusError):
+                status_code = error.response.status_code
+                if status_code == 400:
+                    raise BadRequestError(error_message, url) from None
+                elif status_code == 404:
+                    raise NotFoundError(error_message, url) from None
+                elif 400 <= status_code < 500:
+                    raise ClientError(error_message, status_code, url) from None
+                elif 500 <= status_code < 600:
+                    raise ServerError(error_message, status_code, url) from None
             raise Exception(error_message) from None
 
     def _should_retry_error(self, error: Exception) -> bool:

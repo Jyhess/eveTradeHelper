@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+from domain.location_validator import LocationValidator
 from domain.market_service import MarketService
 from domain.repository import EveRepository
 
@@ -69,9 +70,10 @@ def mock_repository():
 
 
 @pytest.fixture
-def market_service(mock_repository):
+def market_service(mock_repository, local_data_repository):
     """Fixture to create a MarketService with a mock repository"""
-    return MarketService(mock_repository)
+    location_validator = LocationValidator(local_data_repository, mock_repository)
+    return MarketService(mock_repository, location_validator)
 
 
 @pytest.mark.asyncio
