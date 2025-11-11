@@ -95,7 +95,22 @@
 
                 <!-- Market orders (if on a region page) -->
                 <div v-if="regionId" class="market-orders">
-                  <h4>Market Orders ({{ regionName }})</h4>
+                  <div class="market-orders-header">
+                    <h4>Market Orders ({{ regionName }})</h4>
+                    <button
+                      class="refresh-orders-button"
+                      :disabled="marketOrdersLoading || refreshingOrders"
+                      :title="
+                        refreshingOrders
+                          ? 'Refreshing...'
+                          : 'Refresh orders (force cache update)'
+                      "
+                      @click="refreshMarketOrders"
+                    >
+                      <span v-if="refreshingOrders">⟳</span>
+                      <span v-else>↻</span>
+                    </button>
+                  </div>
 
                   <Loader v-if="marketOrdersLoading" message="Loading orders..." size="small" />
                   <div v-else-if="marketOrdersError" class="error-small">
@@ -223,7 +238,8 @@ export default {
       marketOrders: null,
       marketOrdersLoading: false,
       marketOrdersError: '',
-      expandedPaths: new Set() // Paths (group_id) to expand to reach a type
+      expandedPaths: new Set(), // Paths (group_id) to expand to reach a type
+      refreshingOrders: false
     }
   },
   computed: {
@@ -526,6 +542,23 @@ export default {
         this.marketOrdersError = 'Error: ' + error.message
       } finally {
         this.marketOrdersLoading = false
+      }
+    },
+    async refreshMarketOrders() {
+      if (!this.regionId || !this.selectedTypeId || this.refreshingOrders) {
+        return
+      }
+
+      this.refreshingOrders = true
+      this.marketOrdersError = ''
+
+      try {
+        const data = await api.markets.refreshOrders(this.regionId, this.selectedTypeId)
+        this.marketOrders = data
+      } catch (error) {
+        this.marketOrdersError = 'Error refreshing orders: ' + error.message
+      } finally {
+        this.refreshingOrders = false
       }
     },
     closePanel() {
@@ -870,6 +903,58 @@ export default {
   margin-top: 20px;
   padding-top: 20px;
   border-top: 2px solid #e0e0e0;
+}
+
+.market-orders-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.market-orders-header h4 {
+  margin: 0;
+}
+
+.refresh-orders-button {
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s, opacity 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+}
+
+.refresh-orders-button:hover:not(:disabled) {
+  background: #5568d3;
+}
+
+.refresh-orders-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.refresh-orders-button span {
+  display: inline-block;
+}
+
+.refresh-orders-button:disabled span {
+  animation: spin-orders 1s linear infinite;
+}
+
+@keyframes spin-orders {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .orders-section {

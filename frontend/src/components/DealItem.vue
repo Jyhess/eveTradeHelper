@@ -3,6 +3,15 @@
     <div class="deal-header">
       <h3>{{ deal.type_name || `Type ${deal.type_id}` }}</h3>
       <div class="deal-header-right">
+        <button
+          class="refresh-deal-button"
+          :disabled="refreshing"
+          :title="refreshing ? 'Refreshing...' : 'Refresh this deal (force cache update)'"
+          @click="refreshDeal"
+        >
+          <span v-if="refreshing">⟳</span>
+          <span v-else>↻</span>
+        </button>
         <span
           v-if="dealRegionName && dealRegionName !== currentRegionName"
           class="region-badge"
@@ -226,6 +235,7 @@
 
 <script>
 import { formatPrice, formatVolume, formatNumber } from '../utils/numberFormatter'
+import api from '../services/api'
 
 export default {
   name: 'DealItem',
@@ -249,6 +259,24 @@ export default {
     currentRegionName: {
       type: String,
       default: ''
+    },
+    minProfitIsk: {
+      type: Number,
+      default: null
+    },
+    maxTransportVolume: {
+      type: Number,
+      default: null
+    },
+    maxBuyCost: {
+      type: Number,
+      default: null
+    }
+  },
+  emits: ['deal-updated', 'deal-removed'],
+  data() {
+    return {
+      refreshing: false
     }
   },
   computed: {
@@ -322,6 +350,55 @@ export default {
         return adjacentRegion.name
       }
       return `Region ${regionId}`
+    },
+    async refreshDeal() {
+      if (this.refreshing) {
+        return
+      }
+
+      if (!this.deal.buy_region_id || !this.deal.sell_region_id) {
+        console.warn('Cannot refresh deal: missing region IDs')
+        return
+      }
+
+      this.refreshing = true
+      try {
+        const data = {
+          type_id: this.deal.type_id,
+          buy_region_id: this.deal.buy_region_id,
+          sell_region_id: this.deal.sell_region_id,
+          min_profit_isk: this.minProfitIsk !== null && this.minProfitIsk !== undefined
+            ? this.minProfitIsk
+            : this.deal.profit_isk || 100000.0
+        }
+
+        if (this.maxTransportVolume !== null && this.maxTransportVolume !== undefined) {
+          data.max_transport_volume = this.maxTransportVolume
+        }
+        if (this.maxBuyCost !== null && this.maxBuyCost !== undefined) {
+          data.max_buy_cost = this.maxBuyCost
+        }
+
+        const response = await api.markets.refreshDeal(data)
+        const refreshedDeal = response.deal
+
+        if (refreshedDeal) {
+          // Emit event to update the deal in the parent list
+          this.$emit('deal-updated', {
+            oldDeal: this.deal,
+            newDeal: refreshedDeal
+          })
+        } else {
+          // Deal no longer profitable, remove it
+          this.$emit('deal-removed', this.deal)
+        }
+      } catch (error) {
+        console.error('Error refreshing deal:', error)
+         
+        window.alert('Error refreshing deal: ' + error.message)
+      } finally {
+        this.refreshing = false
+      }
     }
   }
 }
@@ -347,6 +424,48 @@ export default {
   margin-bottom: 15px;
   padding-bottom: 10px;
   border-bottom: 1px solid #eee;
+}
+
+.refresh-deal-button {
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-right: 8px;
+  transition: background 0.2s, opacity 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+}
+
+.refresh-deal-button:hover:not(:disabled) {
+  background: #5568d3;
+}
+
+.refresh-deal-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.refresh-deal-button span {
+  display: inline-block;
+}
+
+.refresh-deal-button:disabled span {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .deal-header h3 {

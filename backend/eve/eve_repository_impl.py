@@ -64,7 +64,6 @@ class EveRepositoryImpl(EveRepository):
     async def get_market_group_details(self, group_id: int) -> dict[str, Any]:
         return await self.api_client.get(f"/markets/groups/{group_id}/")
 
-    @cached(expiry_hours=1)
     async def get_market_orders(
         self, region_id: int, type_id: int | None = None
     ) -> list[dict[str, Any]]:

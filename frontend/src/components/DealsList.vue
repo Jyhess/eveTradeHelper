@@ -75,6 +75,11 @@
         :adjacent-regions="adjacentRegions || []"
         :current-region-id="currentRegionId"
         :current-region-name="currentRegionName"
+        :min-profit-isk="minProfitIsk !== null && minProfitIsk !== undefined ? minProfitIsk : searchResults?.min_profit_isk"
+        :max-transport-volume="maxTransportVolume !== null && maxTransportVolume !== undefined ? maxTransportVolume : searchResults?.max_transport_volume"
+        :max-buy-cost="maxBuyCost !== null && maxBuyCost !== undefined ? maxBuyCost : searchResults?.max_buy_cost"
+        @deal-updated="handleDealUpdated"
+        @deal-removed="handleDealRemoved"
       />
     </div>
   </div>
@@ -133,9 +138,21 @@ export default {
     showSearchCriteria: {
       type: Boolean,
       default: true
+    },
+    minProfitIsk: {
+      type: Number,
+      default: null
+    },
+    maxTransportVolume: {
+      type: Number,
+      default: null
+    },
+    maxBuyCost: {
+      type: Number,
+      default: null
     }
   },
-  emits: ['update:sortBy'],
+  emits: ['update:sortBy', 'deal-updated', 'deal-removed'],
   computed: {
     dealsCount() {
       return this.deals.length
@@ -146,6 +163,12 @@ export default {
     formatVolume,
     getDealKey(deal) {
       return `${deal.type_id}-${deal.buy_region_id || deal.sell_region_id || 'default'}`
+    },
+    handleDealUpdated(event) {
+      this.$emit('deal-updated', event)
+    },
+    handleDealRemoved(deal) {
+      this.$emit('deal-removed', deal)
     }
   }
 }

@@ -132,3 +132,46 @@ async def get_market_orders(
             status_code=500,
             detail=f"ESI API connection error: {str(e)}",
         ) from None
+
+
+@router.post("/api/v1/markets/regions/{region_id}/orders/refresh")
+async def refresh_market_orders(
+    region_id: int,
+    type_id: int | None = None,
+    market_service: MarketService = Depends(ServicesProvider.get_market_service),
+):
+    """
+    Forces a refresh of market orders by invalidating cache and reloading
+    Clears cache for the specified region and type, then reloads orders
+
+    Args:
+        region_id: Region ID
+        type_id: Optional, item type ID to filter orders
+
+    Returns:
+        JSON response with refreshed enriched market orders
+    """
+    try:
+        logger.info(
+            f"Refreshing market orders for region {region_id}"
+            + (f" and type {type_id}" if type_id else "")
+        )
+
+        # Invalidate cache for this region and type
+        market_service.orders_service.clear_cache_for_region(region_id, type_id)
+
+        # Reload orders
+        enriched_orders = await market_service.get_enriched_market_orders(region_id, type_id)
+
+        return {
+            "region_id": region_id,
+            "type_id": type_id,
+            **enriched_orders,
+        }
+
+    except Exception as e:
+        logger.error(f"Error refreshing orders: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error refreshing orders: {str(e)}",
+        ) from None
