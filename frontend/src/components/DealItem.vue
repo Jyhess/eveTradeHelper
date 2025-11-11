@@ -1,7 +1,10 @@
 <template>
   <div class="deal-item">
     <div class="deal-header">
-      <h3>{{ deal.type_name || `Type ${deal.type_id}` }}</h3>
+      <h3>
+        {{ deal.type_name || `Type ${deal.type_id}` }}
+        <span class="profit-in-title">- {{ formatPrice(deal.profit_isk || 0) }} ISK</span>
+      </h3>
       <div class="deal-header-right">
         <button
           class="refresh-deal-button"
@@ -37,10 +40,9 @@
           <span class="price">{{ formatPrice(deal.sell_price) }} ISK</span>
           <span class="equals">=</span>
           <span class="total-sell">{{ formatPrice(deal.total_sell_revenue) }} ISK</span>
-          <span class="arrow">=></span>
-          <span class="profit-total"
-            >{{ formatPrice(deal.profit_isk) }} ISK ({{ deal.profit_percent || 0 }}%)</span
-          >
+          <span class="separator">•</span>
+          <span class="fee-label">Fee (8%):</span>
+          <span class="fee-amount">-{{ formatPrice(deal.total_sell_revenue * 0.08) }} ISK</span>
         </span>
       </div>
 
@@ -472,6 +474,16 @@ export default {
   margin: 0;
   color: #333;
   font-size: 1.3em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.profit-in-title {
+  color: #667eea;
+  font-weight: 600;
+  font-size: 0.9em;
 }
 
 .deal-header-right {
@@ -570,6 +582,16 @@ export default {
 .financial-line .total-sell {
   color: #28a745;
   font-weight: 600;
+}
+
+.financial-line .fee-label {
+  color: #999;
+  font-size: 0.9em;
+}
+
+.financial-line .fee-amount {
+  color: #f5222d;
+  font-weight: 500;
 }
 
 .financial-line .profit-total {
