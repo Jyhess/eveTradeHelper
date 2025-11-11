@@ -80,4 +80,29 @@ const router = createRouter({
   routes
 })
 
+// Update document title based on route
+router.beforeEach((to, from, next) => {
+  const baseTitle = 'Eve Trade Helper'
+  let pageTitle = baseTitle
+
+  if (to.name === 'Regions' || to.name === 'Home') {
+    pageTitle = 'Regions - ' + baseTitle
+  } else if (to.name === 'Constellations') {
+    pageTitle = 'Constellations - ' + baseTitle
+  } else if (to.name === 'Systems') {
+    pageTitle = 'Systems - ' + baseTitle
+  } else if (to.name === 'SystemDetail') {
+    pageTitle = 'System Details - ' + baseTitle
+  } else if (to.name === 'Market' || to.name === 'MarketRegion' || to.name === 'MarketConstellation' || to.name === 'MarketSystem') {
+    pageTitle = 'Market - ' + baseTitle
+  } else if (to.name === 'Deals' || to.name === 'DealsRegion') {
+    pageTitle = 'Deals - ' + baseTitle
+  } else if (to.name === 'SystemToSystemDeals') {
+    pageTitle = 'System to System Deals - ' + baseTitle
+  }
+
+  document.title = pageTitle
+  next()
+})
+
 export default router
