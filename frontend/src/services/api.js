@@ -123,6 +123,16 @@ export const marketsApi = {
       console.error('Error searching for deals:', error)
       throw new Error(extractErrorMessage(error))
     }
+  },
+
+  async searchSystemToSystemDeals(params) {
+    try {
+      const response = await apiClient.get('/markets/system-to-system-deals', { params })
+      return response.data
+    } catch (error) {
+      console.error('Error searching for system-to-system deals:', error)
+      throw new Error(extractErrorMessage(error))
+    }
   }
 }
 

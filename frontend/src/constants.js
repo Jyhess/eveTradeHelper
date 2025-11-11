@@ -22,7 +22,8 @@ export const ROUTES = {
   CONSTELLATIONS: '/constellations',
   SYSTEMS: '/systems',
   MARKET: '/market',
-  DEALS: '/deals'
+  DEALS: '/deals',
+  SYSTEM_TO_SYSTEM_DEALS: '/deals/system-to-system'
 }
 
 // Error Messages

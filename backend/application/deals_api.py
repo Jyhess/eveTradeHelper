@@ -70,3 +70,53 @@ async def get_market_deals(
             status_code=500,
             detail=f"ESI API connection error: {str(e)}",
         ) from None
+
+
+@router.get("/api/v1/markets/system-to-system-deals")
+async def get_system_to_system_deals(
+    from_system_id: int,
+    to_system_id: int,
+    min_profit_isk: float = 100000.0,
+    max_transport_volume: float | None = None,
+    max_buy_cost: float | None = None,
+    group_id: int | None = None,
+    deals_service: DealsService = Depends(ServicesProvider.get_deals_service),
+):
+    """
+    Finds profitable deals along a route between two systems
+    Calculates the route and searches for deals on all segments of the route
+
+    For a route [source, A, B, C, destination], searches deals for:
+    - source -> A, source -> B, source -> C, source -> destination
+    - A -> B, A -> C, A -> destination
+    - B -> C, B -> destination
+    - C -> destination
+
+    Args:
+        from_system_id: System ID where to start (source)
+        to_system_id: System ID where to end (destination)
+        min_profit_isk: Minimum profit threshold in ISK (default: 100000.0)
+        max_transport_volume: Maximum transport volume allowed in m³ (None = unlimited)
+        max_buy_cost: Maximum purchase amount in ISK (None = unlimited)
+        group_id: Market group ID to filter by (None = all groups)
+
+    Returns:
+        JSON response with deals from all route segments, including route and route_segments
+    """
+    try:
+        result = await deals_service.find_system_to_system_deals(
+            from_system_id=from_system_id,
+            to_system_id=to_system_id,
+            min_profit_isk=min_profit_isk,
+            max_transport_volume=max_transport_volume,
+            max_buy_cost=max_buy_cost,
+            group_id=group_id,
+        )
+        return result
+
+    except Exception as e:
+        logger.error(f"Error searching for system-to-system deals: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"ESI API connection error: {str(e)}",
+        ) from None

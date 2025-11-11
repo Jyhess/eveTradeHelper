@@ -12,19 +12,15 @@
           </select>
         </div>
 
-        <div class="form-group">
-          <label for="group-select">Market Group:</label>
-          <Loader v-if="loadingGroups" message="Loading groups..." size="small" />
-          <TreeSelect
-            v-else
-            :tree="marketGroupsTree"
-            :value="selectedGroupId"
-            placeholder="Select a group..."
-            :disabled="!selectedRegionId || loadingGroups"
-            @input="handleGroupSelect"
-            @change="handleGroupChange"
-          />
-        </div>
+        <MarketGroupSelector
+          id="group-select"
+          :selected-group-id="selectedGroupId"
+          :disabled="!selectedRegionId"
+          @update:selected-group-id="selectedGroupId = $event"
+          @group-select="handleGroupSelect"
+          @group-change="handleGroupChange"
+          @error="error = $event"
+        />
 
         <div class="form-group thresholds-row">
           <div class="threshold-item">
@@ -129,267 +125,26 @@
 
       <Loader v-if="searching" message="Searching for deals..." variant="overlay" />
 
-      <div v-if="searchResults" class="results-section">
-        <div class="results-header">
-          <h2>Results</h2>
-          <div class="results-stats">
-            <p>
-              <strong>{{ filteredDealsCount }}</strong> deal(s) found
-              <span v-if="selectedAdjacentRegions.length > 0">
-                across <strong>{{ 1 + selectedAdjacentRegions.length }}</strong> region(s)
-              </span>
-              across <strong>{{ searchResults.total_types }}</strong> analyzed type(s)
-            </p>
-            <p>
-              Total potential profit:
-              <strong>{{ formatPrice(searchResults.total_profit_isk || 0) }} ISK</strong>
-            </p>
-            <p>
-              Profit threshold:
-              <strong>{{ formatPrice(searchResults.min_profit_isk || 0) }} ISK</strong> |
-              <span v-if="searchResults.max_transport_volume">
-                Max volume:
-                <strong>{{ formatVolume(searchResults.max_transport_volume) }} m³</strong> |
-              </span>
-              <span v-if="searchResults.max_buy_cost">
-                Max purchase amount:
-                <strong>{{ formatPrice(searchResults.max_buy_cost) }} ISK</strong> |
-              </span>
-              <span v-if="selectedAdjacentRegions.length > 0">
-                Regions: <strong>{{ regionName }}</strong> +
-                {{ selectedAdjacentRegions.length }} other(s) |
-              </span>
-              <span v-else>
-                Region: <strong>{{ regionName }}</strong> |
-              </span>
-              Group: <strong>{{ groupName }}</strong>
-            </p>
-          </div>
-        </div>
-
-        <div v-if="filteredDealsCount === 0" class="no-results">
-          <p>No deals found with the following criteria:</p>
-          <ul style="text-align: left; display: inline-block">
-            <li>Profit threshold: {{ formatPrice(searchResults.min_profit_isk || 0) }} ISK</li>
-            <li v-if="searchResults.max_transport_volume">
-              Max volume: {{ formatVolume(searchResults.max_transport_volume) }} m³
-            </li>
-            <li v-if="searchResults.max_buy_cost">
-              Max purchase amount: {{ formatPrice(searchResults.max_buy_cost) }} ISK
-            </li>
-          </ul>
-          <p>
-            Try reducing the profit threshold, increasing the max volume or max purchase amount, or
-            selecting another group.
-          </p>
-        </div>
-
-        <div v-else class="deals-list">
-          <div class="sort-controls">
-            <label>Sort by:</label>
-            <select v-model="sortBy" class="sort-select">
-              <option value="profit">Profit (%)</option>
-              <option value="jumps">Number of jumps</option>
-              <option value="profit_isk">Profit (ISK)</option>
-            </select>
-          </div>
-          <div
-            v-for="deal in sortedDeals"
-            :key="`${deal.type_id}-${getDealRegionId(deal)}`"
-            class="deal-item"
-          >
-            <div class="deal-header">
-              <h3>{{ deal.type_name }}</h3>
-              <div class="deal-header-right">
-                <span
-                  v-if="getDealRegionName(deal) && getDealRegionName(deal) !== regionName"
-                  class="region-badge"
-                >
-                  {{ getDealRegionName(deal) }}
-                </span>
-                <div class="profit-badge" :class="getProfitBadgeClass(deal.profit_percent)">
-                  {{ deal.profit_percent }}% profit
-                </div>
-              </div>
-            </div>
-            <div class="deal-details">
-              <!-- Line 1: Financial calculation -->
-              <div class="detail-line financial-line">
-                <span class="detail-label">Finance:</span>
-                <span class="detail-content">
-                  <span class="volume">{{ formatNumber(deal.tradable_volume) }}</span>
-                  <span class="operator">×</span>
-                  <span class="price">{{ formatPrice(deal.buy_price) }} ISK</span>
-                  <span class="equals">=</span>
-                  <span class="total-buy">{{ formatPrice(deal.total_buy_cost) }} ISK</span>
-                  <span class="arrow">→</span>
-                  <span class="price">{{ formatPrice(deal.sell_price) }} ISK</span>
-                  <span class="equals">=</span>
-                  <span class="total-sell">{{ formatPrice(deal.total_sell_revenue) }} ISK</span>
-                  <span class="arrow">=></span>
-                  <span class="profit-total"
-                    >{{ formatPrice(deal.profit_isk) }} ISK ({{ deal.profit_percent }}%)</span
-                  >
-                </span>
-              </div>
-
-              <!-- Line 2: Transport -->
-              <div class="detail-line transport-line">
-                <span class="detail-label">Transport:</span>
-                <span class="detail-content">
-                  <span class="volume">{{ formatNumber(deal.tradable_volume) }}</span>
-                  <span class="operator">×</span>
-                  <span class="volume-unit">{{ formatVolume(deal.item_volume) }} m³</span>
-                  <span class="equals">=</span>
-                  <span class="total-volume"
-                    >{{ formatVolume(deal.total_transport_volume) }} m³</span
-                  >
-                  <span class="separator">•</span>
-                  <span class="jumps-label">Jumps:</span>
-                  <span class="jumps-value">
-                    <span v-if="deal.jumps !== null && deal.jumps !== undefined">{{
-                      formatNumber(deal.jumps)
-                    }}</span>
-                    <span v-else>Unknown</span>
-                  </span>
-                  <span class="separator">•</span>
-                  <span class="time-label">Time:</span>
-                  <span class="time-value">
-                    <span
-                      v-if="
-                        deal.estimated_time_minutes !== null &&
-                        deal.estimated_time_minutes !== undefined
-                      "
-                    >
-                      {{ formatTime(deal.estimated_time_minutes) }}
-                    </span>
-                    <span v-else>Unknown</span>
-                  </span>
-                </span>
-              </div>
-
-              <!-- Line 3: Route -->
-              <div
-                v-if="deal.route_details && deal.route_details.length > 0"
-                class="detail-line route-line"
-              >
-                <span class="detail-label">Route:</span>
-                <span class="detail-content route-content">
-                  <span class="route-start-container">
-                    <router-link
-                      v-if="deal.buy_system_id"
-                      :to="`/markets/system/${deal.buy_system_id}?type_id=${deal.type_id}`"
-                      class="route-system-link"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {{ deal.route_details[0].name }}
-                    </router-link>
-                    <span v-else class="route-start">{{ deal.route_details[0].name }}</span>
-                    <span
-                      v-if="isSystemNotInCurrentRegion(deal.buy_system_id, deal.buy_region_id)"
-                      class="region-indicator"
-                    >
-                      (
-                      <router-link
-                        v-if="deal.buy_region_id"
-                        :to="`/markets/region/${deal.buy_region_id}?type_id=${deal.type_id}`"
-                        class="region-link"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {{ getRegionName(deal.buy_region_id) }}
-                      </router-link>
-                      <span v-else>{{ getRegionName(deal.buy_region_id) }}</span>
-                      )
-                    </span>
-                  </span>
-                  <span class="route-separator">[</span>
-                  <div class="route-systems-inline">
-                    <div
-                      v-for="(system, index) in deal.route_details"
-                      :key="system.system_id"
-                      class="route-system-inline"
-                    >
-                      <div
-                        class="danger-indicator-small"
-                        :class="getDangerClass(system.security_status)"
-                        :title="`${system.name}\nSecurity: ${system.security_status.toFixed(1)}`"
-                      >
-                        <span class="tooltip-text-small"
-                          >{{ system.name }}<br />Security:
-                          {{ system.security_status.toFixed(1) }}</span
-                        >
-                      </div>
-                      <span v-if="index < deal.route_details.length - 1" class="route-arrow-small"
-                        >→</span
-                      >
-                    </div>
-                  </div>
-                  <span class="route-separator">]</span>
-                  <span class="route-end-container">
-                    <router-link
-                      v-if="deal.sell_system_id"
-                      :to="`/markets/system/${deal.sell_system_id}?type_id=${deal.type_id}`"
-                      class="route-system-link"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {{ deal.route_details[deal.route_details.length - 1].name }}
-                    </router-link>
-                    <span v-else class="route-end">{{
-                      deal.route_details[deal.route_details.length - 1].name
-                    }}</span>
-                    <span
-                      v-if="isSystemNotInCurrentRegion(deal.sell_system_id, deal.sell_region_id)"
-                      class="region-indicator"
-                    >
-                      (
-                      <router-link
-                        v-if="deal.sell_region_id"
-                        :to="`/markets/region/${deal.sell_region_id}?type_id=${deal.type_id}`"
-                        class="region-link"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {{ getRegionName(deal.sell_region_id) }}
-                      </router-link>
-                      <span v-else>{{ getRegionName(deal.sell_region_id) }}</span>
-                      )
-                    </span>
-                  </span>
-                </span>
-              </div>
-
-              <!-- Line 4: Orders -->
-              <div class="detail-line orders-line">
-                <span class="detail-label">Orders:</span>
-                <span class="detail-content">
-                  <span class="orders-buy">{{ deal.buy_order_count }} buy</span>
-                  <span class="orders-separator">-</span>
-                  <span class="orders-sell">{{ deal.sell_order_count }} sell</span>
-                  <span class="separator">•</span>
-                  <router-link
-                    :to="`/markets/region/${getDealRegionId(deal)}?type_id=${deal.type_id}`"
-                    class="market-link-inline"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    📊 Market Details
-                  </router-link>
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <DealsList
+        :search-results="searchResults"
+        :deals="sortedDeals"
+        :regions="regions"
+        :adjacent-regions="adjacentRegions"
+        :selected-adjacent-regions="selectedAdjacentRegions"
+        :current-region-id="selectedRegionId"
+        :current-region-name="regionName"
+        :group-name="groupName"
+        :sort-by="sortBy"
+        @update:sort-by="sortBy = $event"
+      />
     </div>
   </div>
 </template>
 
 <script>
 import api from '../services/api'
-import TreeSelect from '../components/TreeSelect.vue'
+import MarketGroupSelector from '../components/MarketGroupSelector.vue'
+import DealsList from '../components/DealsList.vue'
 import Loader from '../components/Loader.vue'
 import eventBus from '../utils/eventBus'
 import {
@@ -403,7 +158,8 @@ import {
 export default {
   name: 'Deals',
   components: {
-    TreeSelect,
+    MarketGroupSelector,
+    DealsList,
     Loader
   },
   data() {
@@ -411,11 +167,8 @@ export default {
       regions: [],
       selectedRegionId: null,
       regionName: '',
-      marketGroups: [],
-      marketGroupsTree: [],
       selectedGroupId: null,
       groupName: '',
-      loadingGroups: false,
       minProfitIsk: 100000, // Minimum profit threshold in ISK
       maxTransportVolume: null, // null = unlimited
       maxBuyCost: null, // null = unlimited - Maximum purchase amount in ISK
@@ -607,7 +360,6 @@ export default {
     },
     async onRegionChange() {
       if (!this.selectedRegionId) {
-        this.marketGroups = []
         this.selectedGroupId = null
         this.regionName = ''
         this.adjacentRegions = []
@@ -636,22 +388,6 @@ export default {
       }
       if (this.showAdjacentRegionsPanel) {
         await this.fetchAdjacentRegions()
-      }
-
-      await this.fetchMarketGroups()
-
-      // Restore selected group after loading groups
-      if (this.selectedGroupId) {
-        await this.$nextTick()
-        const group = this.findGroupInTree(this.marketGroupsTree, this.selectedGroupId)
-        if (group) {
-          this.groupName = group.name
-        } else {
-          const flatGroup = this.marketGroups.find(g => g.group_id === this.selectedGroupId)
-          if (flatGroup) {
-            this.groupName = flatGroup.name
-          }
-        }
       }
 
       this.saveSettings() // Save changes
@@ -688,90 +424,6 @@ export default {
         this.loadingAdjacentRegions = false
       }
     },
-    async fetchMarketGroups() {
-      if (!this.selectedRegionId) return
-
-      this.loadingGroups = true
-      this.error = ''
-      this.marketGroups = []
-      this.marketGroupsTree = []
-
-      try {
-        const data = await api.markets.getCategories()
-        const categories = data.categories || []
-
-        // Build hierarchical tree
-        this.marketGroupsTree = this.buildTree(categories)
-
-        // Also keep flat list for compatibility
-        this.marketGroups = categories.map(cat => ({
-          group_id: cat.group_id,
-          name: cat.name
-        }))
-
-        // Find group name if selectedGroupId is already defined
-        if (this.selectedGroupId) {
-          const group = this.findGroupInTree(this.marketGroupsTree, this.selectedGroupId)
-          if (group) {
-            this.groupName = group.name
-          } else {
-            const flatGroup = this.marketGroups.find(g => g.group_id === this.selectedGroupId)
-            if (flatGroup) {
-              this.groupName = flatGroup.name
-            }
-          }
-        }
-      } catch (error) {
-        this.error = 'Error loading market groups: ' + error.message
-      } finally {
-        this.loadingGroups = false
-      }
-    },
-    buildTree(categories) {
-      if (!categories || categories.length === 0) {
-        return []
-      }
-
-      // Create a map for fast access
-      const categoryMap = new Map()
-      const rootNodes = []
-
-      // First pass: create all nodes
-      categories.forEach(category => {
-        categoryMap.set(category.group_id, {
-          ...category,
-          children: []
-        })
-      })
-
-      // Second pass: build tree
-      categories.forEach(category => {
-        const node = categoryMap.get(category.group_id)
-
-        if (category.parent_group_id && categoryMap.has(category.parent_group_id)) {
-          // Add this node as child of its parent
-          const parent = categoryMap.get(category.parent_group_id)
-          parent.children.push(node)
-        } else {
-          // It's a root node
-          rootNodes.push(node)
-        }
-      })
-
-      // Sort nodes and their children recursively
-      const sortNodes = nodes => {
-        nodes.sort((a, b) => a.name.localeCompare(b.name))
-        nodes.forEach(node => {
-          if (node.children.length > 0) {
-            sortNodes(node.children)
-          }
-        })
-      }
-
-      sortNodes(rootNodes)
-
-      return rootNodes
-    },
     handleGroupSelect(groupId) {
       this.selectedGroupId = groupId
       this.saveSettings() // Save group change
@@ -780,21 +432,6 @@ export default {
       if (group) {
         this.groupName = group.name
       }
-    },
-    findGroupInTree(tree, groupId) {
-      // Recursive search in tree
-      for (const node of tree) {
-        if (node.group_id === groupId) {
-          return node
-        }
-        if (node.children && node.children.length > 0) {
-          const found = this.findGroupInTree(node.children, groupId)
-          if (found) {
-            return found
-          }
-        }
-      }
-      return null
     },
     async searchDeals() {
       if (!this.selectedRegionId || !this.selectedGroupId) {
@@ -805,18 +442,6 @@ export default {
       this.searching = true
       this.error = ''
       this.searchResults = null
-
-      if (this.selectedGroupId) {
-        const group = this.findGroupInTree(this.marketGroupsTree, this.selectedGroupId)
-        if (group) {
-          this.groupName = group.name
-        } else {
-          const flatGroup = this.marketGroups.find(g => g.group_id === this.selectedGroupId)
-          if (flatGroup) {
-            this.groupName = flatGroup.name
-          }
-        }
-      }
 
       try {
         // Prepare parameters
@@ -912,89 +537,6 @@ export default {
       }
       this.saveSettings()
     },
-    formatTime(minutes) {
-      if (!minutes && minutes !== 0) return 'N/A'
-      if (minutes < 60) {
-        return `${minutes} min`
-      }
-      const hours = Math.floor(minutes / 60)
-      const mins = minutes % 60
-      if (mins === 0) {
-        return `${hours}h`
-      }
-      return `${hours}h ${mins}min`
-    },
-    getProfitBadgeClass(profitPercent) {
-      if (profitPercent >= 20) return 'profit-excellent'
-      if (profitPercent >= 10) return 'profit-good'
-      if (profitPercent >= 5) return 'profit-medium'
-      return 'profit-low'
-    },
-    getDealRegionId(deal) {
-      // Returns main region if no region specified, otherwise the best region (buy or sell)
-      return deal.buy_region_id || deal.sell_region_id || this.selectedRegionId
-    },
-    getDealRegionName(deal) {
-      // Retrieves region name from the regions list
-      const regionId = deal.buy_region_id || deal.sell_region_id
-      if (!regionId || regionId === this.selectedRegionId) {
-        return null
-      }
-      // Search in loaded regions
-      const region = this.regions.find(r => r.region_id === regionId)
-      if (region) {
-        return region.name
-      }
-      // Search in adjacent regions
-      const adjacentRegion = this.adjacentRegions.find(r => r.region_id === regionId)
-      if (adjacentRegion) {
-        return adjacentRegion.name
-      }
-      return `Region ${regionId}`
-    },
-    getDangerClass(securityStatus) {
-      if (securityStatus < 0) return 'danger-negative'
-      if (securityStatus <= 0.2) return 'danger-red'
-      if (securityStatus <= 0.4) return 'danger-orange'
-      if (securityStatus <= 0.5) return 'danger-yellow'
-      if (securityStatus <= 0.6) return 'danger-green'
-      if (securityStatus <= 0.8) return 'danger-green' // Green also up to 0.8
-      return 'danger-blue' // > 0.8
-    },
-    isSystemNotInCurrentRegion(systemId, regionId) {
-      // Returns true if the system is not in the current region
-      // If we don't have a current region selected, we cannot determine
-      if (!this.selectedRegionId) {
-        return false
-      }
-      // If we don't have a regionId in the data, we cannot determine
-      if (!regionId) {
-        return false
-      }
-      // If we have a systemId but no regionId, we cannot determine
-      if (systemId && !regionId) {
-        return false
-      }
-      // Compare the system's region with the current region
-      return regionId !== this.selectedRegionId
-    },
-    getRegionName(regionId) {
-      // Retrieves a region name by its ID
-      if (!regionId) {
-        return 'Unknown region'
-      }
-      // Search in loaded regions
-      const region = this.regions.find(r => r.region_id === regionId)
-      if (region) {
-        return region.name
-      }
-      // Search in adjacent regions
-      const adjacentRegion = this.adjacentRegions.find(r => r.region_id === regionId)
-      if (adjacentRegion) {
-        return adjacentRegion.name
-      }
-      return `Region ${regionId}`
-    }
   }
 }
 </script>
