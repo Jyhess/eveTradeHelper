@@ -12,6 +12,7 @@ from utils.cache import cached
 from .constants import (
     DEFAULT_MAX_CONCURRENT_ANALYSES,
     DEFAULT_MIN_PROFIT_ISK,
+    MARKET_SALE_FEE_PERCENT,
 )
 from .helpers import (
     apply_buy_cost_limit,
@@ -171,15 +172,22 @@ class DealsService:
     ) -> tuple[float, float, float, float, float]:
         """
         Calculate financial values for a deal
+        Applies market sale fee (8%) on each sale
 
         Returns:
             Tuple of (profit_isk, total_buy_cost, total_sell_revenue, total_transport_volume, profit_percent)
         """
-        profit_isk = (sell_price - buy_price) * tradable_volume
         total_buy_cost = buy_price * tradable_volume
         total_sell_revenue = sell_price * tradable_volume
+        sale_fee = total_sell_revenue * MARKET_SALE_FEE_PERCENT
+        net_sell_revenue = total_sell_revenue - sale_fee
+        profit_isk = net_sell_revenue - total_buy_cost
         total_transport_volume = item_volume * tradable_volume
-        profit_percent = ((sell_price - buy_price) / buy_price) * 100 if buy_price > 0 else 0.0
+        profit_percent = (
+            ((net_sell_revenue - total_buy_cost) / total_buy_cost) * 100
+            if total_buy_cost > 0
+            else 0.0
+        )
         return (
             profit_isk,
             total_buy_cost,
