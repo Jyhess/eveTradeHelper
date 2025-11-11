@@ -9,6 +9,7 @@ import pytest
 
 from domain.location_validator import LocationValidator
 from domain.market_service import MarketService
+from domain.orders_service import OrdersService
 from domain.repository import EveRepository
 
 
@@ -73,7 +74,8 @@ def mock_repository():
 def market_service(mock_repository, local_data_repository):
     """Fixture to create a MarketService with a mock repository"""
     location_validator = LocationValidator(local_data_repository, mock_repository)
-    return MarketService(mock_repository, location_validator)
+    orders_service = OrdersService(mock_repository, location_validator)
+    return MarketService(mock_repository, location_validator, orders_service)
 
 
 @pytest.mark.asyncio
@@ -207,11 +209,12 @@ class TestMarketServiceEnrichedOrders:
     ):
         """Test that buy and sell orders are separated"""
         region_id = 10000002
+        valid_location_id = 30000142
         mock_repository.market_orders = {
             (region_id, None): [
-                {"is_buy_order": True, "price": 100, "location_id": None},
-                {"is_buy_order": False, "price": 90, "location_id": None},
-                {"is_buy_order": True, "price": 110, "location_id": None},
+                {"is_buy_order": True, "price": 100, "location_id": valid_location_id},
+                {"is_buy_order": False, "price": 90, "location_id": valid_location_id},
+                {"is_buy_order": True, "price": 110, "location_id": valid_location_id},
             ]
         }
 
@@ -228,14 +231,15 @@ class TestMarketServiceEnrichedOrders:
     ):
         """Test that orders are sorted by price"""
         region_id = 10000002
+        valid_location_id = 30000142
         mock_repository.market_orders = {
             (region_id, None): [
-                {"is_buy_order": True, "price": 100, "location_id": None},
-                {"is_buy_order": True, "price": 110, "location_id": None},
-                {"is_buy_order": True, "price": 105, "location_id": None},
-                {"is_buy_order": False, "price": 90, "location_id": None},
-                {"is_buy_order": False, "price": 95, "location_id": None},
-                {"is_buy_order": False, "price": 85, "location_id": None},
+                {"is_buy_order": True, "price": 100, "location_id": valid_location_id},
+                {"is_buy_order": True, "price": 110, "location_id": valid_location_id},
+                {"is_buy_order": True, "price": 105, "location_id": valid_location_id},
+                {"is_buy_order": False, "price": 90, "location_id": valid_location_id},
+                {"is_buy_order": False, "price": 95, "location_id": valid_location_id},
+                {"is_buy_order": False, "price": 85, "location_id": valid_location_id},
             ]
         }
 
@@ -252,12 +256,13 @@ class TestMarketServiceEnrichedOrders:
     async def test_get_enriched_market_orders_respects_limit(self, market_service, mock_repository):
         """Test that limit is respected"""
         region_id = 10000002
+        valid_location_id = 30000142
         # Create 100 buy orders and 100 sell orders
         buy_orders = [
-            {"is_buy_order": True, "price": 100 + i, "location_id": None} for i in range(100)
+            {"is_buy_order": True, "price": 100 + i, "location_id": valid_location_id} for i in range(100)
         ]
         sell_orders = [
-            {"is_buy_order": False, "price": 50 + i, "location_id": None} for i in range(100)
+            {"is_buy_order": False, "price": 50 + i, "location_id": valid_location_id} for i in range(100)
         ]
         mock_repository.market_orders = {(region_id, None): buy_orders + sell_orders}
 
@@ -327,19 +332,19 @@ class TestMarketServiceEnrichedOrders:
     async def test_get_enriched_market_orders_handles_missing_location(
         self, market_service, mock_repository
     ):
-        """Test that orders without location_id are handled"""
+        """Test that orders without location_id are filtered out by OrdersService"""
         region_id = 10000002
         mock_repository.market_orders = {
             (region_id, None): [
-                {"is_buy_order": True, "price": 100},  # No location_id
+                {"is_buy_order": True, "price": 100},  # No location_id - will be filtered
             ]
         }
 
         result = await market_service.get_enriched_market_orders(region_id)
 
-        assert len(result["buy_orders"]) == 1
-        # Order should be returned as is, without enrichment
-        assert "location_id" not in result["buy_orders"][0]
+        # Orders without location_id are filtered out by OrdersService
+        assert len(result["buy_orders"]) == 0
+        assert result["total"] == 0
 
     async def test_get_enriched_market_orders_handles_enrichment_error(
         self, market_service, mock_repository
@@ -381,10 +386,10 @@ class TestMarketServiceEnrichedOrders:
         type_id = 123
         mock_repository.market_orders = {
             (region_id, None): [
-                {"is_buy_order": True, "price": 100, "location_id": None},
+                {"is_buy_order": True, "price": 100, "location_id": 30000142},
             ],
             (region_id, type_id): [
-                {"is_buy_order": True, "price": 200, "location_id": None},
+                {"is_buy_order": True, "price": 200, "location_id": 30000142},
             ],
         }
 

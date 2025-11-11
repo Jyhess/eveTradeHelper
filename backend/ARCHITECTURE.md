@@ -132,22 +132,7 @@ Application → Domain ← Infrastructure
 
 Initialization is done in `app.py` and `app_factory.py`:
 
-```python
-# Infrastructure Layer
-api_client = EveAPIClient()
-eve_repository = EveRepositoryImpl(api_client)
-cache = SimpleCache(redis_client, expiry_hours=24)
-
-# Domain Layer
-region_service = RegionService(eve_repository)
-market_service = MarketService(eve_repository)
-deals_service = DealsService(eve_repository)
-
-# Application Layer
-app = create_app(region_service, market_service, deals_service)
-```
-
-This configuration follows the **Dependency Injection** pattern: each layer receives its dependencies via the constructor.
+This initialization follows the **Dependency Injection** pattern: each layer receives its dependencies via the constructor.
 
 ## Cache
 

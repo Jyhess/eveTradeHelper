@@ -9,6 +9,7 @@ from typing import Any
 
 from .constants import DEFAULT_MARKET_ORDERS_LIMIT
 from .location_validator import LocationValidator
+from .orders_service import OrdersService
 from .repository import EveRepository
 
 logger = logging.getLogger(__name__)
@@ -17,16 +18,23 @@ logger = logging.getLogger(__name__)
 class MarketService:
     """Domain service for market management (async)"""
 
-    def __init__(self, repository: EveRepository, location_validator: LocationValidator):
+    def __init__(
+        self,
+        repository: EveRepository,
+        location_validator: LocationValidator,
+        orders_service: OrdersService,
+    ):
         """
         Initialize the service with a repository
 
         Args:
             repository: Eve repository implementation
             location_validator: LocationValidator instance
+            orders_service: OrdersService instance
         """
         self.repository = repository
         self.location_validator = location_validator
+        self.orders_service = orders_service
 
     async def get_market_categories(self) -> list[dict[str, Any]]:
         """
@@ -82,12 +90,13 @@ class MarketService:
         Returns:
             Dictionary containing enriched buy and sell orders
         """
-        # Fetch orders from repository
-        orders = await self.repository.get_market_orders(region_id, type_id)
+        # Fetch orders from OrdersService (with caching)
+        buy_orders, sell_orders = await self.orders_service.get_orders_separated(
+            region_id, type_id
+        )
 
-        # Separate buy and sell orders
-        buy_orders = [o for o in orders if o.get("is_buy_order", False)]
-        sell_orders = [o for o in orders if not o.get("is_buy_order", False)]
+        # Store total before limiting
+        total_before_limit = len(buy_orders) + len(sell_orders)
 
         # Sort by price (best price first)
         buy_orders.sort(key=lambda x: x.get("price", 0), reverse=True)
@@ -156,7 +165,7 @@ class MarketService:
         ]
 
         return {
-            "total": len(orders),
+            "total": total_before_limit,
             "buy_orders": buy_orders_final,
             "sell_orders": sell_orders_final,
         }

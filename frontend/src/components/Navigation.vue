@@ -8,6 +8,13 @@
         <router-link to="/regions" class="nav-link" active-class="active"> Regions </router-link>
         <router-link to="/markets" class="nav-link" active-class="active"> Market </router-link>
         <router-link to="/deals" class="nav-link" active-class="active"> Deals </router-link>
+        <router-link
+          to="/deals/system-to-system"
+          class="nav-link"
+          active-class="active"
+        >
+          System to System
+        </router-link>
       </div>
     </div>
     <div v-if="breadcrumbItems.length > 0" class="breadcrumb-container">
@@ -127,6 +134,8 @@ export default {
             path: null
           })
         }
+      } else if (route.name === 'SystemToSystemDeals') {
+        items.push({ label: 'System to System Deals', path: '/deals/system-to-system' })
       }
 
       return items

@@ -67,6 +67,11 @@ const routes = [
     name: 'DealsRegion',
     component: Deals,
     props: route => ({ regionId: parseInt(route.params.regionId) })
+  },
+  {
+    path: '/deals/system-to-system',
+    name: 'SystemToSystemDeals',
+    component: () => import('../views/SystemToSystemDeals.vue')
   }
 ]
 
