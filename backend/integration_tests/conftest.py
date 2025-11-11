@@ -13,6 +13,7 @@ from application import AppFactory
 from domain import Services
 from eve.eve_repository_factory import make_eve_repository
 from utils.cache import CacheManager, create_cache
+from repositories.local_data import LocalDataRepository
 
 # Path to tests directory
 TESTS_DIR = Path(__file__).parent
@@ -87,20 +88,22 @@ def reference_data():
 
 
 @pytest.fixture
-def eve_repository(cache):
-    """Fixture to create an Eve repository with test cache"""
-    yield make_eve_repository()
+def local_data_repository(cache):
+    return LocalDataRepository(cache)
 
 
 @pytest.fixture
-def services(eve_repository):
-    """Fixture to create services with test cache"""
-    return Services(eve_repository)
+def eve_repository(cache, local_data_repository):
+    yield make_eve_repository(cache, local_data_repository)
+
+
+@pytest.fixture
+def services(eve_repository, local_data_repository):
+    return Services(eve_repository, local_data_repository)
 
 
 @pytest.fixture
 def test_app(services):
-    """Fixture to create a test FastAPI application"""
     app = FastAPI()
     AppFactory.register_routers(app)
     AppFactory.set_services(app, services)
@@ -109,5 +112,4 @@ def test_app(services):
 
 @pytest.fixture
 def client(test_app):
-    """Fixture to create a test client"""
     return TestClient(test_app)

@@ -18,6 +18,7 @@ from .helpers import (
     calculate_tradable_volume,
     get_system_id_from_location,
 )
+from .location_validator import LocationValidator
 from .repository import EveRepository
 
 logger = logging.getLogger(__name__)
@@ -26,14 +27,9 @@ logger = logging.getLogger(__name__)
 class DealsService:
     """Domain service for finding deals (async)"""
 
-    def __init__(self, repository: EveRepository):
-        """
-        Initialize the service with a repository
-
-        Args:
-            repository: Eve repository implementation
-        """
+    def __init__(self, repository: EveRepository, location_validator: LocationValidator):
         self.repository = repository
+        self.location_validator = location_validator
 
     async def _collect_orders_from_regions(
         self, region_ids: list[int], type_id: int
@@ -52,6 +48,15 @@ class DealsService:
             if isinstance(orders_result, list):
                 reg_id = region_ids[i]
                 for order in orders_result:
+                    location_id = order.get("location_id")
+                    if not await self.location_validator.is_valid_location_id(location_id):
+                        logger.error(
+                            f"Invalid location_id {location_id} in market order from "
+                            f"API call: get_market_orders(region_id={reg_id}, type_id={type_id}). "
+                            f"Order ignored: {order}"
+                        )
+                        continue
+
                     order_with_region = (order, reg_id)
                     if order.get("is_buy_order", False):
                         all_buy_orders.append(order_with_region)
@@ -67,8 +72,12 @@ class DealsService:
             return None, None, None, []
 
         try:
-            buy_system_id = await get_system_id_from_location(self.repository, buy_location_id)
-            sell_system_id = await get_system_id_from_location(self.repository, sell_location_id)
+            buy_system_id = await get_system_id_from_location(
+                buy_location_id, self.location_validator
+            )
+            sell_system_id = await get_system_id_from_location(
+                sell_location_id, self.location_validator
+            )
 
             if not buy_system_id or not sell_system_id:
                 return buy_system_id, sell_system_id, None, []
@@ -111,16 +120,6 @@ class DealsService:
 
     @cached(cache_key_prefix="collect_all_types_from_group2")
     async def collect_all_types_from_group(self, group_id: int) -> set[int]:
-        """
-        Recursively collects all item types from a market group and its subgroups
-
-        Args:
-            group_id: Market group ID
-
-        Returns:
-            Set of item type IDs in the group and its subgroups
-        """
-        # Fetch all groups to build the parent tree
         all_group_ids = await self.repository.get_market_groups_list()
         all_groups_data = await asyncio.gather(
             *[self.repository.get_market_group_details(gid) for gid in all_group_ids],
@@ -162,8 +161,6 @@ class DealsService:
 
         # Collect all types from the group (and subgroups)
         result_set = collect_all_types_recursive(group_id, set())
-        # The @cached decorator normalizes to a list, but we return a set
-        # The decorator will automatically convert it back to Set if needed via typing
         return result_set
 
     async def analyze_type_profitability(
@@ -175,22 +172,6 @@ class DealsService:
         max_buy_cost: float | None = None,
         additional_regions: list[int] | None = None,
     ) -> dict[str, Any] | None:
-        """
-        Analyzes an item type to find profit opportunities
-        Searches in the main region and additional regions to find the best profit
-
-        Args:
-            region_id: Main region ID
-            type_id: Item type ID
-            min_profit_isk: Minimum profit threshold in ISK
-            max_transport_volume: Maximum transport volume allowed in m³ (None = unlimited)
-            max_buy_cost: Maximum purchase amount in ISK (None = unlimited)
-            additional_regions: List of additional region IDs to search (None = none)
-
-        Returns:
-            Dictionary with opportunity details if profit >= threshold, volume <= limit and cost <= limit,
-            None otherwise
-        """
         try:
             # Build the complete list of regions to search
             all_regions = [region_id]
@@ -318,23 +299,6 @@ class DealsService:
         additional_regions: list[int] | None = None,
         max_concurrent: int = DEFAULT_MAX_CONCURRENT_ANALYSES,
     ) -> dict[str, Any]:
-        """
-        Finds deals in a market group for a region
-        Iterates through all item types in the group (including subgroups) and calculates
-        potential profit between best buy and sell orders in all specified regions
-
-        Args:
-            region_id: Main region ID
-            group_id: Market group ID
-            min_profit_isk: Minimum profit threshold in ISK (default: 100000.0)
-            max_transport_volume: Maximum transport volume allowed in m³ (None = unlimited)
-            max_buy_cost: Maximum purchase amount in ISK (None = unlimited)
-            additional_regions: List of additional region IDs to search (None = none)
-            max_concurrent: Maximum number of concurrent analyses (default: 20)
-
-        Returns:
-            Dictionary containing search results
-        """
         regions_str = str(region_id)
         if additional_regions:
             regions_str += f" + {len(additional_regions)} other(s)"

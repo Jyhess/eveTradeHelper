@@ -14,6 +14,8 @@ from eve.eve_repository_factory import make_eve_repository
 from eve.rate_limiter import RateLimiter
 from utils.cache import CacheManager, create_cache
 from utils.cache.simple_cache import SimpleCache
+from repositories.local_data import LocalDataRepository
+
 
 # Path to tests directory
 TESTS_DIR = Path(__file__).parent
@@ -111,5 +113,10 @@ def reference_data():
 
 
 @pytest.fixture
-def eve_repository(cache):
-    yield make_eve_repository()
+def local_data_repository(cache):
+    return LocalDataRepository(cache)
+
+
+@pytest.fixture
+def eve_repository(cache, local_data_repository):
+    yield make_eve_repository(cache, local_data_repository)

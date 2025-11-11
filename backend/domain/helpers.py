@@ -2,26 +2,20 @@
 Fonctions utilitaires pour le domaine
 """
 
-
-from .constants import STATION_ID_THRESHOLD
-
-
-def is_station(location_id: int) -> bool:
-    return location_id >= STATION_ID_THRESHOLD
+from .location_validator import LocationValidator
 
 
-async def get_system_id_from_location(repository, location_id: int) -> int | None:
+async def get_system_id_from_location(
+    location_id: int, location_validator: LocationValidator
+) -> int | None:
     if not location_id:
-        return None
+        raise ValueError("Location ID is required")
 
-    if is_station(location_id):
-        try:
-            station_data = await repository.get_station_details(location_id)
-            return station_data.get("system_id")
-        except Exception:
-            return None
+    if not await location_validator.is_station(location_id):
+        raise ValueError(f"Location {location_id} is not a station")
 
-    return location_id
+    station_data = await location_validator.repository.get_station_details(location_id)
+    return station_data.get("system_id")
 
 
 def calculate_tradable_volume(
