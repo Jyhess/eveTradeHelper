@@ -115,6 +115,20 @@ export const marketsApi = {
     }
   },
 
+  async refreshOrders(regionId, typeId = null) {
+    try {
+      let url = `/markets/regions/${regionId}/orders/refresh`
+      if (typeId) {
+        url += `?type_id=${typeId}`
+      }
+      const response = await apiClient.post(url)
+      return response.data
+    } catch (error) {
+      console.error(`Error refreshing orders for region ${regionId}:`, error)
+      throw new Error(extractErrorMessage(error))
+    }
+  },
+
   async searchDeals(params) {
     try {
       const response = await apiClient.get('/markets/deals', { params })
@@ -131,6 +145,16 @@ export const marketsApi = {
       return response.data
     } catch (error) {
       console.error('Error searching for system-to-system deals:', error)
+      throw new Error(extractErrorMessage(error))
+    }
+  },
+
+  async refreshDeal(data) {
+    try {
+      const response = await apiClient.post('/markets/deals/refresh', data)
+      return response.data
+    } catch (error) {
+      console.error('Error refreshing deal:', error)
       throw new Error(extractErrorMessage(error))
     }
   }

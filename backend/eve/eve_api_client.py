@@ -112,6 +112,9 @@ class EveAPIClient:
 
         if 200 <= response.status_code < 300:
             self.etag_cache.cache_response(url, response, result)
+            logger.info(f"{url} : {response.status_code}")
+        else:
+            logger.warning(f"{url} : {response.status_code}")
 
         return result
 

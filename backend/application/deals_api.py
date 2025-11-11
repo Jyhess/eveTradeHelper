@@ -6,10 +6,20 @@ FastAPI endpoints for deals (async version)
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from domain.deals_service import DealsService
 
 from .services_provider import ServicesProvider
+
+
+class RefreshDealRequest(BaseModel):
+    type_id: int
+    buy_region_id: int
+    sell_region_id: int
+    min_profit_isk: float = 100000.0
+    max_transport_volume: float | None = None
+    max_buy_cost: float | None = None
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -119,4 +129,55 @@ async def get_system_to_system_deals(
         raise HTTPException(
             status_code=500,
             detail=f"ESI API connection error: {str(e)}",
+        ) from None
+
+
+@router.post("/api/v1/markets/deals/refresh")
+async def refresh_deal(
+    request: RefreshDealRequest,
+    deals_service: DealsService = Depends(ServicesProvider.get_deals_service),
+):
+    """
+    Forces a refresh of a specific deal by invalidating cache and recalculating
+    Clears cache for the specified regions and type, then recalculates the deal
+
+    Args:
+        type_id: Item type ID
+        buy_region_id: Region ID where to buy
+        sell_region_id: Region ID where to sell
+        min_profit_isk: Minimum profit threshold in ISK (default: 100000.0)
+        max_transport_volume: Maximum transport volume allowed in m³ (None = unlimited)
+        max_buy_cost: Maximum purchase amount in ISK (None = unlimited)
+
+    Returns:
+        JSON response with the refreshed deal or None if no profitable deal found
+    """
+    try:
+        # Invalidate cache for both regions and this type
+        deals_service.orders_service.clear_cache_for_region(
+            request.buy_region_id, request.type_id
+        )
+        deals_service.orders_service.clear_cache_for_region(
+            request.sell_region_id, request.type_id
+        )
+
+        # Recalculate the deal
+        result = await deals_service.analyze_type_profitability(
+            region_id=request.buy_region_id,
+            type_id=request.type_id,
+            min_profit_isk=request.min_profit_isk,
+            max_transport_volume=request.max_transport_volume,
+            max_buy_cost=request.max_buy_cost,
+            additional_regions=[request.sell_region_id]
+            if request.sell_region_id != request.buy_region_id
+            else None,
+        )
+
+        return {"deal": result} if result else {"deal": None}
+
+    except Exception as e:
+        logger.error(f"Error refreshing deal: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error refreshing deal: {str(e)}",
         ) from None

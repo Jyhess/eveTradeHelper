@@ -135,7 +135,12 @@
         :current-region-name="regionName"
         :group-name="groupName"
         :sort-by="sortBy"
+        :min-profit-isk="minProfitIsk"
+        :max-transport-volume="maxTransportVolume"
+        :max-buy-cost="maxBuyCost"
         @update:sort-by="sortBy = $event"
+        @deal-updated="handleDealUpdated"
+        @deal-removed="handleDealRemoved"
       />
     </div>
   </div>
@@ -261,6 +266,34 @@ export default {
     this.isLoadingSettings = false
   },
   methods: {
+    handleDealUpdated(event) {
+      if (!this.searchResults || !this.searchResults.deals) {
+        return
+      }
+      const index = this.searchResults.deals.findIndex(
+        d =>
+          d.type_id === event.oldDeal.type_id &&
+          d.buy_region_id === event.oldDeal.buy_region_id &&
+          d.sell_region_id === event.oldDeal.sell_region_id
+      )
+      if (index !== -1) {
+        this.searchResults.deals[index] = event.newDeal
+      }
+    },
+    handleDealRemoved(deal) {
+      if (!this.searchResults || !this.searchResults.deals) {
+        return
+      }
+      const index = this.searchResults.deals.findIndex(
+        d =>
+          d.type_id === deal.type_id &&
+          d.buy_region_id === deal.buy_region_id &&
+          d.sell_region_id === deal.sell_region_id
+      )
+      if (index !== -1) {
+        this.searchResults.deals.splice(index, 1)
+      }
+    },
     formatPrice,
     formatVolume,
     formatNumber,
