@@ -23,6 +23,8 @@ class MockRepository(EveRepository):
         self.station_details = {}
         self.route_with_details = {}
         self.routes = {}
+        self.stargate_details = {}
+        self.system_connections = {}
 
     async def get_market_groups_list(self) -> list[int]:
         return self.market_groups_list
@@ -49,10 +51,13 @@ class MockRepository(EveRepository):
         return self.constellation_details.get(constellation_id, {})
 
     async def get_system_details(self, system_id: int) -> dict[str, Any]:
-        return self.system_details.get(system_id, {})
+        system_data = self.system_details.get(system_id, {}).copy()
+        if system_id in self.system_connections:
+            system_data["stargates"] = self.system_connections[system_id]
+        return system_data
 
     async def get_stargate_details(self, stargate_id: int) -> dict[str, Any]:
-        return {}
+        return self.stargate_details.get(stargate_id, {})
 
     async def get_station_details(self, station_id: int) -> dict[str, Any]:
         return self.station_details.get(station_id, {})
@@ -1017,6 +1022,192 @@ class TestDealsServiceSystemToSystem:
         # Should only find deals for type_id_in_group
         assert len(result["deals"]) == 1
         assert result["deals"][0]["type_id"] == type_id_in_group
+
+    async def test_find_system_to_system_deals_with_max_detour_jumps_zero(
+        self, deals_service, mock_repository
+    ):
+        """Test find_system_to_system_deals with max_detour_jumps=0 (default behavior)"""
+        from_system_id = 30000142
+        to_system_id = 30000143
+        detour_system_id = 30000144
+        from_region_id = 10000002
+        to_region_id = 10000003
+        type_id = 101
+
+        mock_repository.system_details = {
+            from_system_id: {
+                "system_id": from_system_id,
+                "name": "From System",
+                "constellation_id": 20000001,
+            },
+            to_system_id: {
+                "system_id": to_system_id,
+                "name": "To System",
+                "constellation_id": 20000002,
+            },
+            detour_system_id: {
+                "system_id": detour_system_id,
+                "name": "Detour System",
+                "constellation_id": 20000001,
+            },
+        }
+
+        mock_repository.constellation_details = {
+            20000001: {"constellation_id": 20000001, "region_id": from_region_id},
+            20000002: {"constellation_id": 20000002, "region_id": to_region_id},
+        }
+
+        from_station_id = 60008494
+        to_station_id = 60000004
+        detour_station_id = 60000005
+        mock_repository.station_details = {
+            from_station_id: {"station_id": from_station_id, "system_id": from_system_id},
+            to_station_id: {"station_id": to_station_id, "system_id": to_system_id},
+            detour_station_id: {"station_id": detour_station_id, "system_id": detour_system_id},
+        }
+
+        mock_repository.market_orders = {
+            (from_region_id, type_id): [
+                {
+                    "is_buy_order": False,
+                    "price": 100,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                    "location_id": from_station_id,
+                },
+            ],
+            (to_region_id, type_id): [
+                {
+                    "is_buy_order": True,
+                    "price": 110,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                    "location_id": to_station_id,
+                },
+            ],
+        }
+
+        mock_repository.item_types = {type_id: {"name": "Item 101", "volume": 1.0}}
+        mock_repository.routes = {
+            (from_system_id, to_system_id): [from_system_id, to_system_id]
+        }
+
+        stargate_id = 50000001
+        mock_repository.system_connections = {
+            from_system_id: [stargate_id],
+        }
+        mock_repository.stargate_details = {
+            stargate_id: {"destination": {"system_id": detour_system_id}},
+        }
+
+        mock_repository.market_groups_list = [1]
+        mock_repository.market_groups_details = {
+            1: {"types": [type_id], "parent_group_id": None}
+        }
+
+        result = await deals_service.find_system_to_system_deals(
+            from_system_id, to_system_id, min_profit_isk=5.0, max_detour_jumps=0
+        )
+
+        assert result["from_system_id"] == from_system_id
+        assert result["to_system_id"] == to_system_id
+        assert result["route"] == [from_system_id, to_system_id]
+        assert len(result["deals"]) == 1
+        assert result["deals"][0]["buy_system_id"] == from_system_id
+        assert result["deals"][0]["sell_system_id"] == to_system_id
+
+    async def test_find_system_to_system_deals_with_max_detour_jumps_one(
+        self, deals_service, mock_repository
+    ):
+        """Test find_system_to_system_deals with max_detour_jumps=1 includes detour systems"""
+        from_system_id = 30000142
+        to_system_id = 30000143
+        detour_system_id = 30000144
+        from_region_id = 10000002
+        to_region_id = 10000003
+        type_id = 101
+
+        mock_repository.system_details = {
+            from_system_id: {
+                "system_id": from_system_id,
+                "name": "From System",
+                "constellation_id": 20000001,
+            },
+            to_system_id: {
+                "system_id": to_system_id,
+                "name": "To System",
+                "constellation_id": 20000002,
+            },
+            detour_system_id: {
+                "system_id": detour_system_id,
+                "name": "Detour System",
+                "constellation_id": 20000001,
+            },
+        }
+
+        mock_repository.constellation_details = {
+            20000001: {"constellation_id": 20000001, "region_id": from_region_id},
+            20000002: {"constellation_id": 20000002, "region_id": to_region_id},
+        }
+
+        from_station_id = 60008494
+        detour_station_id = 60000005
+        mock_repository.station_details = {
+            from_station_id: {"station_id": from_station_id, "system_id": from_system_id},
+            detour_station_id: {"station_id": detour_station_id, "system_id": detour_system_id},
+        }
+
+        mock_repository.market_orders = {
+            (from_region_id, type_id): [
+                {
+                    "is_buy_order": False,
+                    "price": 100,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                    "location_id": from_station_id,
+                },
+            ],
+            (to_region_id, type_id): [
+                {
+                    "is_buy_order": True,
+                    "price": 110,
+                    "volume_remain": 10,
+                    "volume_total": 10,
+                    "location_id": detour_station_id,
+                },
+            ],
+        }
+
+        mock_repository.item_types = {type_id: {"name": "Item 101", "volume": 1.0}}
+        mock_repository.routes = {
+            (from_system_id, to_system_id): [from_system_id, to_system_id]
+        }
+
+        stargate_id = 50000001
+        mock_repository.system_connections = {
+            from_system_id: [stargate_id],
+        }
+        mock_repository.stargate_details = {
+            stargate_id: {"destination": {"system_id": detour_system_id}},
+        }
+
+        mock_repository.market_groups_list = [1]
+        mock_repository.market_groups_details = {
+            1: {"types": [type_id], "parent_group_id": None}
+        }
+
+        result = await deals_service.find_system_to_system_deals(
+            from_system_id, to_system_id, min_profit_isk=5.0, max_detour_jumps=1
+        )
+
+        assert result["from_system_id"] == from_system_id
+        assert result["to_system_id"] == to_system_id
+        assert result["route"] == [from_system_id, to_system_id]
+        assert detour_system_id in result["deals"][0].values() or any(
+            deal.get("buy_system_id") == detour_system_id
+            or deal.get("sell_system_id") == detour_system_id
+            for deal in result["deals"]
+        )
 
     async def test_find_system_to_system_deals_no_constellation(
         self, deals_service, mock_repository

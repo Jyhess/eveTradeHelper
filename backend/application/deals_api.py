@@ -90,6 +90,7 @@ async def get_system_to_system_deals(
     max_transport_volume: float | None = None,
     max_buy_cost: float | None = None,
     group_id: int | None = None,
+    max_detour_jumps: int = 0,
     deals_service: DealsService = Depends(ServicesProvider.get_deals_service),
 ):
     """
@@ -109,6 +110,7 @@ async def get_system_to_system_deals(
         max_transport_volume: Maximum transport volume allowed in m³ (None = unlimited)
         max_buy_cost: Maximum purchase amount in ISK (None = unlimited)
         group_id: Market group ID to filter by (None = all groups)
+        max_detour_jumps: Maximum number of jumps to consider systems connected to route systems (default: 0)
 
     Returns:
         JSON response with deals from all route segments, including route and route_segments
@@ -121,6 +123,7 @@ async def get_system_to_system_deals(
             max_transport_volume=max_transport_volume,
             max_buy_cost=max_buy_cost,
             group_id=group_id,
+            max_detour_jumps=max_detour_jumps,
         )
         return result
 

@@ -10,6 +10,7 @@ export const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://localhos
 export const DEFAULT_PAGE_SIZE = 50
 export const DEFAULT_DEBOUNCE_DELAY_MS = 300
 export const DEFAULT_SEARCH_MIN_LENGTH = 2
+export const DEFAULT_MAX_DETOUR_JUMPS = 0
 
 // UI Constants
 export const LOADING_DELAY_MS = 200 // Minimum time to show loading indicator

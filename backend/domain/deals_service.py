@@ -536,20 +536,27 @@ class DealsService:
         return segments
 
     def _filter_deals_by_route_order(
-        self, deals: list[dict[str, Any]], route: list[int]
+        self,
+        deals: list[dict[str, Any]],
+        expanded_route: list[int],
+        original_route: list[int] | None = None,
     ) -> list[dict[str, Any]]:
         """
         Filter deals to keep only those where buy_system_id and sell_system_id
-        are in the route and in the correct order (buy_system comes before sell_system)
+        are in the expanded route and respect the order of the original route
 
         Args:
             deals: List of deal dictionaries
-            route: List of system IDs forming the route
+            expanded_route: List of system IDs forming the expanded route (includes detour systems)
+            original_route: Optional original route for order checking (if None, uses expanded_route)
 
         Returns:
             Filtered list of deals
         """
-        route_set = set(route)
+        expanded_route_set = set(expanded_route)
+        route_for_order = original_route if original_route is not None else expanded_route
+        route_set_for_order = set(route_for_order)
+
         filtered_deals = []
 
         for deal in deals:
@@ -559,14 +566,19 @@ class DealsService:
             if buy_system_id is None or sell_system_id is None:
                 continue
 
-            if buy_system_id not in route_set or sell_system_id not in route_set:
+            if buy_system_id not in expanded_route_set or sell_system_id not in expanded_route_set:
                 continue
 
-            buy_index = route.index(buy_system_id)
-            sell_index = route.index(sell_system_id)
+            # If both systems are in the original route, check order
+            if buy_system_id in route_set_for_order and sell_system_id in route_set_for_order:
+                buy_index = route_for_order.index(buy_system_id)
+                sell_index = route_for_order.index(sell_system_id)
+                if buy_index >= sell_index:
+                    continue
+            # If at least one system is a detour system, accept the deal
+            # (we want to include deals involving detour systems)
 
-            if buy_index < sell_index:
-                filtered_deals.append(deal)
+            filtered_deals.append(deal)
 
         return filtered_deals
 
@@ -595,6 +607,281 @@ class DealsService:
 
         return all_types
 
+    async def _get_connected_system_ids(self, system_id: int) -> list[int]:
+        """
+        Get list of system IDs directly connected to a given system via stargates
+
+        Args:
+            system_id: System ID
+
+        Returns:
+            List of connected system IDs
+        """
+        try:
+            system_data = await self.repository.get_system_details(system_id)
+            stargate_ids = system_data.get("stargates", [])
+
+            if not stargate_ids:
+                return []
+
+            async def get_destination_system_id(stargate_id: int) -> int | None:
+                try:
+                    stargate_data = await self.repository.get_stargate_details(stargate_id)
+                    destination = stargate_data.get("destination", {})
+                    return destination.get("system_id")
+                except Exception as e:
+                    logger.warning(f"Error retrieving stargate {stargate_id}: {e}")
+                    return None
+
+            results = await asyncio.gather(
+                *[get_destination_system_id(sid) for sid in stargate_ids],
+                return_exceptions=True,
+            )
+
+            connected_systems = [
+                sid for sid in results if isinstance(sid, int) and sid != system_id
+            ]
+            return connected_systems
+        except Exception as e:
+            logger.warning(f"Error getting connected systems for {system_id}: {e}")
+            return []
+
+    async def _expand_route_with_detour_systems(
+        self, route: list[int], max_jumps: int
+    ) -> list[int]:
+        """
+        Expand route to include systems at N jumps distance from each route system
+
+        Uses BFS (breadth-first search) to find all systems within max_jumps
+        from each system in the route.
+
+        Args:
+            route: List of system IDs forming the original route
+            max_jumps: Maximum number of jumps to consider
+
+        Returns:
+            Expanded list of system IDs (route systems + detour systems)
+        """
+        if max_jumps <= 0:
+            return route
+
+        expanded_systems = set(route)
+
+        async def find_systems_at_jumps(system_id: int, max_depth: int) -> set[int]:
+            """
+            Find all systems within max_depth jumps from system_id using BFS
+            """
+            found_systems = set()
+            visited = set()
+            queue = [(system_id, 0)]
+
+            while queue:
+                current_system, depth = queue.pop(0)
+
+                if current_system in visited or depth > max_depth:
+                    continue
+
+                visited.add(current_system)
+                found_systems.add(current_system)
+
+                if depth < max_depth:
+                    connected = await self._get_connected_system_ids(current_system)
+                    for connected_system in connected:
+                        if connected_system not in visited:
+                            queue.append((connected_system, depth + 1))
+
+            return found_systems
+
+        for route_system in route:
+            detour_systems = await find_systems_at_jumps(route_system, max_jumps)
+            expanded_systems.update(detour_systems)
+
+        expanded_list = list(expanded_systems)
+        return expanded_list
+
+    async def _calculate_and_expand_route(
+        self, from_system_id: int, to_system_id: int, max_detour_jumps: int
+    ) -> tuple[list[int], list[int]]:
+        """
+        Calculate route between systems and expand it with detour systems if needed
+
+        Args:
+            from_system_id: System ID where to start
+            to_system_id: System ID where to end
+            max_detour_jumps: Maximum number of jumps to consider for detour systems
+
+        Returns:
+            Tuple of (original_route, expanded_route)
+        """
+        route = await self.repository.get_route(from_system_id, to_system_id)
+        if not route:
+            return [], []
+
+        original_route = route.copy()
+        expanded_route = route
+
+        if max_detour_jumps > 0:
+            expanded_route = await self._expand_route_with_detour_systems(
+                route, max_detour_jumps
+            )
+            logger.info(
+                f"Route expanded from {len(route)} to {len(expanded_route)} systems "
+                f"(max_detour_jumps={max_detour_jumps})"
+            )
+
+        return original_route, expanded_route
+
+    async def _get_route_regions(
+        self, expanded_route: list[int]
+    ) -> tuple[dict[int, int], int | None, list[int]]:
+        """
+        Get region mapping and region IDs for systems in the expanded route
+
+        Args:
+            expanded_route: List of system IDs in the expanded route
+
+        Returns:
+            Tuple of (system_to_region mapping, from_region_id, additional_region_ids)
+        """
+        route_systems_data = await asyncio.gather(
+            *[self.repository.get_system_details(system_id) for system_id in expanded_route],
+            return_exceptions=True,
+        )
+
+        system_to_region: dict[int, int] = {}
+        for i, system_data in enumerate(route_systems_data):
+            if isinstance(system_data, dict):
+                system_id = expanded_route[i]
+                constellation_id = system_data.get("constellation_id")
+                if constellation_id:
+                    try:
+                        constellation = await self.repository.get_constellation_details(
+                            constellation_id
+                        )
+                        region_id = constellation.get("region_id")
+                        if region_id:
+                            system_to_region[system_id] = region_id
+                    except Exception as e:
+                        logger.warning(f"Error getting region for system {system_id}: {e}")
+
+        if not system_to_region:
+            return {}, None, []
+
+        all_region_ids = list(set(system_to_region.values()))
+        first_system_id = expanded_route[0] if expanded_route else None
+        from_region_id = system_to_region.get(first_system_id) if first_system_id else None
+        additional_region_ids = [r for r in all_region_ids if r != from_region_id]
+
+        return system_to_region, from_region_id, additional_region_ids
+
+    async def _process_and_filter_deals(
+        self,
+        market_deals_result: dict[str, Any],
+        expanded_route: list[int],
+        original_route: list[int],
+        from_system_id: int,
+        to_system_id: int,
+        route_segments: list[tuple[int, int]],
+        min_profit_isk: float,
+        max_transport_volume: float | None,
+        max_buy_cost: float | None,
+    ) -> dict[str, Any]:
+        """
+        Process market deals result and filter by route order
+
+        Args:
+            market_deals_result: Result from find_market_deals
+            expanded_route: Expanded route including detour systems
+            original_route: Original route without detour systems
+            from_system_id: System ID where to start
+            to_system_id: System ID where to end
+            route_segments: Route segments
+            min_profit_isk: Minimum profit threshold
+            max_transport_volume: Maximum transport volume
+            max_buy_cost: Maximum buy cost
+
+        Returns:
+            Dictionary with filtered deals and statistics
+        """
+        all_deals = market_deals_result.get("deals", [])
+        filtered_deals = self._filter_deals_by_route_order(
+            all_deals, expanded_route, original_route
+        )
+        filtered_deals = self._sort_deals_by_profit(filtered_deals)
+        total_profit_isk = self._calculate_total_profit(filtered_deals)
+
+        logger.info(
+            f"Found {len(filtered_deals)} deals with profit >= {min_profit_isk} ISK "
+            f"along route from system {from_system_id} to system {to_system_id} "
+            f"({len(route_segments)} segments)"
+            f"{f', volume <= {max_transport_volume} m³' if max_transport_volume else ''}"
+            f"{f', buy amount <= {max_buy_cost} ISK' if max_buy_cost else ''}"
+        )
+
+        return {
+            "from_system_id": from_system_id,
+            "to_system_id": to_system_id,
+            "route": original_route,
+            "route_segments": route_segments,
+            "min_profit_isk": min_profit_isk,
+            "max_transport_volume": max_transport_volume,
+            "max_buy_cost": max_buy_cost,
+            "total_types": market_deals_result.get("total_types", 0),
+            "total_profit_isk": round(total_profit_isk, 2),
+            "deals": filtered_deals,
+        }
+
+    def _build_empty_result(
+        self,
+        from_system_id: int,
+        to_system_id: int,
+        route: list[int],
+        route_segments: list[tuple[int, int]],
+        min_profit_isk: float,
+    ) -> dict[str, Any]:
+        """
+        Build empty result dictionary for error cases
+
+        Args:
+            from_system_id: System ID where to start
+            to_system_id: System ID where to end
+            route: Original route
+            route_segments: Route segments
+            min_profit_isk: Minimum profit threshold
+
+        Returns:
+            Empty result dictionary
+        """
+        return {
+            "from_system_id": from_system_id,
+            "to_system_id": to_system_id,
+            "route": route,
+            "route_segments": route_segments,
+            "min_profit_isk": min_profit_isk,
+            "total_types": 0,
+            "deals": [],
+        }
+
+    def _log_search_start(
+        self,
+        from_system_id: int,
+        to_system_id: int,
+        min_profit_isk: float,
+        max_transport_volume: float | None,
+        max_buy_cost: float | None,
+        group_id: int | None,
+        max_detour_jumps: int,
+    ) -> None:
+        """Log the start of a system-to-system deals search"""
+        logger.info(
+            f"Searching for deals along route from system {from_system_id} to system {to_system_id} "
+            f"(threshold: {min_profit_isk} ISK"
+            f"{f', max volume: {max_transport_volume} m³' if max_transport_volume else ''}"
+            f"{f', max buy amount: {max_buy_cost} ISK' if max_buy_cost else ''}"
+            f"{f', group: {group_id}' if group_id else ''}"
+            f"{f', max detour jumps: {max_detour_jumps}' if max_detour_jumps > 0 else ''})"
+        )
+
     async def find_system_to_system_deals(
         self,
         from_system_id: int,
@@ -604,6 +891,7 @@ class DealsService:
         max_buy_cost: float | None = None,
         group_id: int | None = None,
         max_concurrent: int = DEFAULT_MAX_CONCURRENT_ANALYSES,
+        max_detour_jumps: int = 0,
     ) -> dict[str, Any]:
         """
         Finds profitable deals along a route between two systems
@@ -623,90 +911,90 @@ class DealsService:
             max_buy_cost: Maximum purchase amount in ISK (None = unlimited)
             group_id: Market group ID to filter by (None = all groups)
             max_concurrent: Maximum number of concurrent analyses (default: 20)
+            max_detour_jumps: Maximum number of jumps to consider systems connected to route systems (default: 0)
 
         Returns:
             Dictionary containing search results with deals from all route segments
         """
-        logger.info(
-            f"Searching for deals along route from system {from_system_id} to system {to_system_id} "
-            f"(threshold: {min_profit_isk} ISK"
-            f"{f', max volume: {max_transport_volume} m³' if max_transport_volume else ''}"
-            f"{f', max buy amount: {max_buy_cost} ISK' if max_buy_cost else ''}"
-            f"{f', group: {group_id}' if group_id else ''})"
+        self._log_search_start(
+            from_system_id,
+            to_system_id,
+            min_profit_isk,
+            max_transport_volume,
+            max_buy_cost,
+            group_id,
+            max_detour_jumps,
         )
 
-        # Step 1: Calculate route between systems
-        route = await self.repository.get_route(from_system_id, to_system_id)
+        original_route, expanded_route = await self._calculate_and_expand_route(
+            from_system_id, to_system_id, max_detour_jumps
+        )
 
-        if not route:
+        if not original_route:
             logger.warning(f"No route found between systems {from_system_id} and {to_system_id}")
-            return {
-                "from_system_id": from_system_id,
-                "to_system_id": to_system_id,
-                "route": [],
-                "route_segments": [],
-                "min_profit_isk": min_profit_isk,
-                "total_types": 0,
-                "deals": [],
-            }
+            return self._build_empty_result(
+                from_system_id, to_system_id, [], [], min_profit_isk
+            )
 
-        # Generate all route segments
-        route_segments = self._generate_route_segments(route)
-        logger.info(f"Route: {route} ({len(route)} systems, {len(route_segments)} segments)")
-
-        # Step 2: Find all regions present on the route
-        route_systems_data = await asyncio.gather(
-            *[self.repository.get_system_details(system_id) for system_id in route],
-            return_exceptions=True,
+        route_segments = self._generate_route_segments(original_route)
+        logger.info(
+            f"Route: {original_route} ({len(original_route)} systems, {len(route_segments)} segments)"
         )
 
-        # Build a map of system_id -> region_id
-        system_to_region: dict[int, int] = {}
-        for i, system_data in enumerate(route_systems_data):
-            if isinstance(system_data, dict):
-                system_id = route[i]
-                constellation_id = system_data.get("constellation_id")
-                if constellation_id:
-                    try:
-                        constellation = await self.repository.get_constellation_details(
-                            constellation_id
-                        )
-                        region_id = constellation.get("region_id")
-                        if region_id:
-                            system_to_region[system_id] = region_id
-                    except Exception as e:
-                        logger.warning(f"Error getting region for system {system_id}: {e}")
+        return await self._search_deals_for_route(
+            expanded_route,
+            original_route,
+            route_segments,
+            from_system_id,
+            to_system_id,
+            min_profit_isk,
+            max_transport_volume,
+            max_buy_cost,
+            group_id,
+            max_concurrent,
+        )
 
-        if not system_to_region:
-            logger.warning(f"Could not find regions for systems in route {route}")
-            return {
-                "from_system_id": from_system_id,
-                "to_system_id": to_system_id,
-                "route": route,
-                "route_segments": route_segments,
-                "min_profit_isk": min_profit_isk,
-                "total_types": 0,
-                "deals": [],
-            }
+    async def _search_deals_for_route(
+        self,
+        expanded_route: list[int],
+        original_route: list[int],
+        route_segments: list[tuple[int, int]],
+        from_system_id: int,
+        to_system_id: int,
+        min_profit_isk: float,
+        max_transport_volume: float | None,
+        max_buy_cost: float | None,
+        group_id: int | None,
+        max_concurrent: int,
+    ) -> dict[str, Any]:
+        """
+        Search for deals along the route
 
-        # Collect all unique region IDs from the route
-        all_region_ids = list(set(system_to_region.values()))
-        from_region_id = system_to_region.get(from_system_id)
-        additional_region_ids = [r for r in all_region_ids if r != from_region_id]
+        Args:
+            expanded_route: Expanded route including detour systems
+            original_route: Original route without detour systems
+            route_segments: Route segments
+            from_system_id: System ID where to start
+            to_system_id: System ID where to end
+            min_profit_isk: Minimum profit threshold
+            max_transport_volume: Maximum transport volume
+            max_buy_cost: Maximum buy cost
+            group_id: Market group ID
+            max_concurrent: Maximum concurrent analyses
 
-        if not from_region_id:
-            logger.warning(f"Could not find region for source system {from_system_id}")
-            return {
-                "from_system_id": from_system_id,
-                "to_system_id": to_system_id,
-                "route": route,
-                "route_segments": route_segments,
-                "min_profit_isk": min_profit_isk,
-                "total_types": 0,
-                "deals": [],
-            }
+        Returns:
+            Dictionary with search results
+        """
+        system_to_region, from_region_id, additional_region_ids = await self._get_route_regions(
+            expanded_route
+        )
 
-        # Step 3: Call find_market_deals with the route regions
+        if not system_to_region or not from_region_id:
+            logger.warning(f"Could not find regions for systems in route {original_route}")
+            return self._build_empty_result(
+                from_system_id, to_system_id, original_route, route_segments, min_profit_isk
+            )
+
         market_deals_result = await self.find_market_deals(
             region_id=from_region_id,
             group_id=group_id,
@@ -717,29 +1005,14 @@ class DealsService:
             max_concurrent=max_concurrent,
         )
 
-        # Step 4: Filter deals where buy_system_id and sell_system_id are in route and in correct order
-        all_deals = market_deals_result.get("deals", [])
-        filtered_deals = self._filter_deals_by_route_order(all_deals, route)
-        filtered_deals = self._sort_deals_by_profit(filtered_deals)
-        total_profit_isk = self._calculate_total_profit(filtered_deals)
-
-        logger.info(
-            f"Found {len(filtered_deals)} deals with profit >= {min_profit_isk} ISK "
-            f"along route from system {from_system_id} to system {to_system_id} "
-            f"({len(route_segments)} segments)"
-            f"{f', volume <= {max_transport_volume} m³' if max_transport_volume else ''}"
-            f"{f', buy amount <= {max_buy_cost} ISK' if max_buy_cost else ''}"
+        return await self._process_and_filter_deals(
+            market_deals_result,
+            expanded_route,
+            original_route,
+            from_system_id,
+            to_system_id,
+            route_segments,
+            min_profit_isk,
+            max_transport_volume,
+            max_buy_cost,
         )
-
-        return {
-            "from_system_id": from_system_id,
-            "to_system_id": to_system_id,
-            "route": route,
-            "route_segments": route_segments,
-            "min_profit_isk": min_profit_isk,
-            "max_transport_volume": max_transport_volume,
-            "max_buy_cost": max_buy_cost,
-            "total_types": market_deals_result.get("total_types", 0),
-            "total_profit_isk": round(total_profit_isk, 2),
-            "deals": filtered_deals,
-        }

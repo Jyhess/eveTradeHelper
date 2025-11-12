@@ -88,6 +88,20 @@
               :disabled="!fromSystemId || !toSystemId"
               @input="handleMaxBuyCostInput"
               @blur="handleMaxBuyCostBlur"
+              @keydown.enter="focusNextField('max-detour-jumps-input')"
+            />
+          </div>
+          <div class="threshold-item">
+            <label for="max-detour-jumps-input">Max Detour Jumps:</label>
+            <input
+              id="max-detour-jumps-input"
+              v-model="maxDetourJumpsDisplay"
+              type="number"
+              min="0"
+              placeholder="0"
+              :disabled="!fromSystemId || !toSystemId"
+              @input="handleMaxDetourJumpsInput"
+              @blur="handleMaxDetourJumpsBlur"
               @keydown.enter="searchDeals"
             />
           </div>
@@ -140,6 +154,7 @@ import {
   formatNumberInput,
   parseNumberInput
 } from '../utils/numberFormatter'
+import { DEFAULT_MAX_DETOUR_JUMPS } from '../constants'
 
 export default {
   name: 'SystemToSystemDeals',
@@ -166,6 +181,8 @@ export default {
       maxTransportVolumeDisplay: '',
       maxBuyCost: null,
       maxBuyCostDisplay: '',
+      maxDetourJumps: DEFAULT_MAX_DETOUR_JUMPS,
+      maxDetourJumpsDisplay: DEFAULT_MAX_DETOUR_JUMPS.toString(),
       isLoadingSettings: true,
       searching: false,
       error: '',
@@ -265,7 +282,8 @@ export default {
         selectedGroupId: this.selectedGroupId,
         minProfitIsk: this.minProfitIsk,
         maxTransportVolume: this.maxTransportVolume,
-        maxBuyCost: this.maxBuyCost
+        maxBuyCost: this.maxBuyCost,
+        maxDetourJumps: this.maxDetourJumps
       }
       try {
         localStorage.setItem('system_to_system_deals_settings', JSON.stringify(settings))
@@ -367,6 +385,10 @@ export default {
             this.maxBuyCost = settings.maxBuyCost
             this.maxBuyCostDisplay = formatNumberInput(settings.maxBuyCost.toString())
           }
+          if (settings.maxDetourJumps !== undefined && settings.maxDetourJumps !== null) {
+            this.maxDetourJumps = settings.maxDetourJumps
+            this.maxDetourJumpsDisplay = settings.maxDetourJumps.toString()
+          }
         }
       } catch (error) {
         console.warn('Unable to load settings from localStorage:', error)
@@ -432,6 +454,28 @@ export default {
       }
       this.saveSettings()
     },
+    handleMaxDetourJumpsInput(event) {
+      const inputValue = event.target.value
+      this.maxDetourJumpsDisplay = inputValue
+      const value = parseInt(inputValue, 10)
+      if (!isNaN(value) && value >= 0) {
+        this.maxDetourJumps = value
+      } else if (inputValue === '' || inputValue.trim() === '') {
+        this.maxDetourJumps = DEFAULT_MAX_DETOUR_JUMPS
+      }
+      this.saveSettings()
+    },
+    handleMaxDetourJumpsBlur() {
+      const parsed = parseInt(this.maxDetourJumpsDisplay, 10)
+      if (!isNaN(parsed) && parsed >= 0) {
+        this.maxDetourJumps = parsed
+        this.maxDetourJumpsDisplay = parsed.toString()
+      } else {
+        this.maxDetourJumps = DEFAULT_MAX_DETOUR_JUMPS
+        this.maxDetourJumpsDisplay = DEFAULT_MAX_DETOUR_JUMPS.toString()
+      }
+      this.saveSettings()
+    },
     handleDealUpdated(event) {
       if (!this.searchResults || !this.searchResults.deals) {
         return
@@ -484,6 +528,9 @@ export default {
         }
         if (this.maxBuyCost !== null && this.maxBuyCost !== undefined) {
           params.max_buy_cost = this.maxBuyCost
+        }
+        if (this.maxDetourJumps !== null && this.maxDetourJumps !== undefined && this.maxDetourJumps > 0) {
+          params.max_detour_jumps = this.maxDetourJumps
         }
 
         const data = await api.markets.searchSystemToSystemDeals(params)
