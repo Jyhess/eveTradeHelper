@@ -59,13 +59,23 @@
     </div>
 
     <div v-else class="deals-list">
-      <div v-if="showSortControls" class="sort-controls">
-        <label>Sort by:</label>
-        <select :value="sortBy" class="sort-select" @change="$emit('update:sortBy', $event.target.value)">
-          <option value="profit">Profit (%)</option>
-          <option value="jumps">Number of jumps</option>
-          <option value="profit_isk">Profit (ISK)</option>
-        </select>
+      <div v-if="showSortControls || dealsCount > 0" class="controls-row">
+        <div v-if="showSortControls" class="sort-controls">
+          <label>Sort by:</label>
+          <select :value="sortBy" class="sort-select" @change="$emit('update:sortBy', $event.target.value)">
+            <option value="profit">Profit (%)</option>
+            <option value="jumps">Number of jumps</option>
+            <option value="profit_isk">Profit (ISK)</option>
+          </select>
+        </div>
+        <button
+          v-if="dealsCount > 0"
+          class="refresh-all-button"
+          :disabled="refreshingAll"
+          @click="refreshAllDeals"
+        >
+          {{ refreshingAll ? 'Refreshing...' : '🔄 Refresh All Orders' }}
+        </button>
       </div>
       <DealItem
         v-for="deal in deals"
@@ -88,6 +98,7 @@
 <script>
 import DealItem from './DealItem.vue'
 import { formatPrice, formatVolume } from '../utils/numberFormatter'
+import api from '../services/api'
 
 export default {
   name: 'DealsList',
@@ -153,6 +164,11 @@ export default {
     }
   },
   emits: ['update:sortBy', 'deal-updated', 'deal-removed'],
+  data() {
+    return {
+      refreshingAll: false
+    }
+  },
   computed: {
     dealsCount() {
       return this.deals.length
@@ -169,6 +185,68 @@ export default {
     },
     handleDealRemoved(deal) {
       this.$emit('deal-removed', deal)
+    },
+    async refreshAllDeals() {
+      if (this.refreshingAll || this.dealsCount === 0) {
+        return
+      }
+
+      this.refreshingAll = true
+      const refreshPromises = []
+
+      for (const deal of this.deals) {
+        if (!deal.buy_region_id || !deal.sell_region_id) {
+          continue
+        }
+
+        const refreshData = {
+          type_id: deal.type_id,
+          buy_region_id: deal.buy_region_id,
+          sell_region_id: deal.sell_region_id,
+          min_profit_isk: this.minProfitIsk !== null && this.minProfitIsk !== undefined
+            ? this.minProfitIsk
+            : this.searchResults?.min_profit_isk || 100000.0
+        }
+
+        if (this.maxTransportVolume !== null && this.maxTransportVolume !== undefined) {
+          refreshData.max_transport_volume = this.maxTransportVolume
+        } else if (this.searchResults?.max_transport_volume) {
+          refreshData.max_transport_volume = this.searchResults.max_transport_volume
+        }
+
+        if (this.maxBuyCost !== null && this.maxBuyCost !== undefined) {
+          refreshData.max_buy_cost = this.maxBuyCost
+        } else if (this.searchResults?.max_buy_cost) {
+          refreshData.max_buy_cost = this.searchResults.max_buy_cost
+        }
+
+        const refreshPromise = api.markets.refreshDeal(refreshData)
+          .then(response => {
+            const refreshedDeal = response.deal
+            if (refreshedDeal) {
+              this.$emit('deal-updated', {
+                oldDeal: deal,
+                newDeal: refreshedDeal
+              })
+            } else {
+              this.$emit('deal-removed', deal)
+            }
+          })
+          .catch(error => {
+            console.error(`Error refreshing deal for type ${deal.type_id}:`, error)
+          })
+
+        refreshPromises.push(refreshPromise)
+      }
+
+      try {
+        await Promise.all(refreshPromises)
+      } catch (error) {
+        console.error('Error refreshing all deals:', error)
+        window.alert('Some deals could not be refreshed. Please check the console for details.')
+      } finally {
+        this.refreshingAll = false
+      }
     }
   }
 }
@@ -233,6 +311,39 @@ export default {
   border-radius: 4px;
   font-size: 0.95em;
   background: white;
+}
+
+.controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 15px;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.refresh-all-button {
+  padding: 8px 16px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.3s;
+  white-space: nowrap;
+}
+
+.refresh-all-button:hover:not(:disabled) {
+  background: #5568d3;
+}
+
+.refresh-all-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
 }
 </style>
 
