@@ -41,7 +41,20 @@
           @system-next="focusNextField('min-profit-input')"
         />
 
+        <div class="form-group">
+          <label>
+            <input
+              v-model="searchAllCategories"
+              type="checkbox"
+              :disabled="!fromSystemId || !toSystemId"
+              @change="handleSearchAllCategoriesChange"
+            />
+            <span>Search in all categories</span>
+          </label>
+        </div>
+
         <MarketGroupSelector
+          v-if="!searchAllCategories"
           id="market-group-select"
           :selected-group-id="selectedGroupId"
           :disabled="!fromSystemId || !toSystemId"
@@ -175,6 +188,7 @@ export default {
       toSystemId: null,
       selectedGroupId: null,
       groupName: '',
+      searchAllCategories: false,
       minProfitIsk: 100000.0,
       minProfitIskDisplay: '100 000',
       maxTransportVolume: null,
@@ -254,6 +268,13 @@ export default {
         this.groupName = group.name
       }
     },
+    handleSearchAllCategoriesChange() {
+      if (this.searchAllCategories) {
+        this.selectedGroupId = null
+        this.groupName = 'All Categories'
+      }
+      this.saveSettings()
+    },
     focusToSystemSelector() {
       // eslint-disable-next-line no-undef
       setTimeout(() => {
@@ -280,6 +301,7 @@ export default {
         toConstellationId: this.toConstellationId,
         toSystemId: this.toSystemId,
         selectedGroupId: this.selectedGroupId,
+        searchAllCategories: this.searchAllCategories,
         minProfitIsk: this.minProfitIsk,
         maxTransportVolume: this.maxTransportVolume,
         maxBuyCost: this.maxBuyCost,
@@ -370,6 +392,12 @@ export default {
             }
           }
 
+          if (settings.searchAllCategories !== undefined) {
+            this.searchAllCategories = settings.searchAllCategories
+            if (this.searchAllCategories) {
+              this.groupName = 'All Categories'
+            }
+          }
           if (settings.selectedGroupId !== undefined && settings.selectedGroupId !== null) {
             this.selectedGroupId = settings.selectedGroupId
           }
@@ -520,7 +548,11 @@ export default {
           to_system_id: this.toSystemId,
           min_profit_isk: this.minProfitIsk
         }
-        if (this.selectedGroupId !== null && this.selectedGroupId !== undefined) {
+        if (
+          !this.searchAllCategories &&
+          this.selectedGroupId !== null &&
+          this.selectedGroupId !== undefined
+        ) {
           params.group_id = this.selectedGroupId
         }
         if (this.maxTransportVolume !== null && this.maxTransportVolume !== undefined) {

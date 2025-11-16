@@ -126,12 +126,21 @@ class TestDealsAPI:
         )
         assert response.status_code == 422  # Validation error
 
-        # Test sans group_id
+    def test_get_market_deals_endpoint_without_group_id(self, client):
+        """Test that endpoint works without group_id (all categories)"""
         response = client.get(
             "/api/v1/markets/deals",
-            params={"region_id": 10000002},
+            params={"region_id": 10000002, "min_profit_isk": 1000000.0},
         )
-        assert response.status_code == 422  # Validation error
+        assert response.status_code == 200
+        data = response.json()
+        assert "region_id" in data
+        assert data["region_id"] == 10000002
+        assert "min_profit_isk" in data
+        assert "total_types" in data
+        assert "deals" in data
+        # group_id should not be in response when None
+        assert "group_id" not in data or data.get("group_id") is None
 
     def test_get_market_deals_endpoint_invalid_group(self, client):
         response = client.get(

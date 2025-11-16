@@ -29,7 +29,7 @@ deals_router = router
 @router.get("/api/v1/markets/deals")
 async def get_market_deals(
     region_id: int,
-    group_id: int,
+    group_id: int | None = None,
     min_profit_isk: float = 100000.0,  # Uses DEFAULT_MIN_PROFIT_ISK from service
     max_transport_volume: float | None = None,
     max_buy_cost: float | None = None,
@@ -43,7 +43,7 @@ async def get_market_deals(
 
     Args:
         region_id: Main region ID
-        group_id: Market group ID
+        group_id: Market group ID (None = all groups)
         min_profit_isk: Minimum profit threshold in ISK (default: 100000.0)
         max_transport_volume: Maximum transport volume allowed in m³ (None = unlimited)
         max_buy_cost: Maximum purchase amount in ISK (None = unlimited)

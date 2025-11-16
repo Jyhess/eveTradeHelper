@@ -12,7 +12,20 @@
           </select>
         </div>
 
+        <div class="form-group">
+          <label>
+            <input
+              v-model="searchAllCategories"
+              type="checkbox"
+              :disabled="!selectedRegionId"
+              @change="handleSearchAllCategoriesChange"
+            />
+            <span>Search in all categories</span>
+          </label>
+        </div>
+
         <MarketGroupSelector
+          v-if="!searchAllCategories"
           id="group-select"
           :selected-group-id="selectedGroupId"
           :disabled="!selectedRegionId"
@@ -30,7 +43,7 @@
               v-model="minProfitIskDisplay"
               type="text"
               placeholder="100 000"
-              :disabled="!selectedGroupId"
+              :disabled="!selectedRegionId || (!searchAllCategories && !selectedGroupId)"
               @input="handleMinProfitInput"
               @blur="handleMinProfitBlur"
             />
@@ -42,7 +55,7 @@
               v-model="maxTransportVolumeDisplay"
               type="text"
               placeholder="Unlimited"
-              :disabled="!selectedGroupId"
+              :disabled="!selectedRegionId || (!searchAllCategories && !selectedGroupId)"
               @input="handleMaxVolumeInput"
               @blur="handleMaxVolumeBlur"
             />
@@ -54,7 +67,7 @@
               v-model="maxBuyCostDisplay"
               type="text"
               placeholder="Unlimited"
-              :disabled="!selectedGroupId"
+              :disabled="!selectedRegionId || (!searchAllCategories && !selectedGroupId)"
               @input="handleMaxBuyCostInput"
               @blur="handleMaxBuyCostBlur"
             />
@@ -112,7 +125,7 @@
 
         <button
           class="search-button"
-          :disabled="!selectedRegionId || !selectedGroupId || searching"
+          :disabled="!selectedRegionId || (!searchAllCategories && !selectedGroupId) || searching"
           @click="searchDeals"
         >
           {{ searching ? 'Searching...' : 'Search for Deals' }}
@@ -181,6 +194,7 @@ export default {
       regionName: '',
       selectedGroupId: null,
       groupName: '',
+      searchAllCategories: false,
       minProfitIsk: 100000, // Minimum profit threshold in ISK
       maxTransportVolume: null, // null = unlimited
       maxBuyCost: null, // null = unlimited - Maximum purchase amount in ISK
@@ -315,6 +329,7 @@ export default {
       const settings = {
         selectedRegionId: this.selectedRegionId,
         selectedGroupId: this.selectedGroupId,
+        searchAllCategories: this.searchAllCategories,
         minProfitIsk: this.minProfitIsk,
         maxTransportVolume: this.maxTransportVolume,
         maxBuyCost: this.maxBuyCost,
@@ -339,6 +354,12 @@ export default {
           // Restore values if they exist
           if (settings.selectedRegionId !== undefined && settings.selectedRegionId !== null) {
             this.selectedRegionId = settings.selectedRegionId
+          }
+          if (settings.searchAllCategories !== undefined) {
+            this.searchAllCategories = settings.searchAllCategories
+            if (this.searchAllCategories) {
+              this.groupName = 'All Categories'
+            }
           }
           if (settings.selectedGroupId !== undefined && settings.selectedGroupId !== null) {
             this.selectedGroupId = settings.selectedGroupId
@@ -473,9 +494,20 @@ export default {
         this.groupName = group.name
       }
     },
+    handleSearchAllCategoriesChange() {
+      if (this.searchAllCategories) {
+        this.selectedGroupId = null
+        this.groupName = 'All Categories'
+      }
+      this.saveSettings()
+    },
     async searchDeals() {
-      if (!this.selectedRegionId || !this.selectedGroupId) {
-        this.error = 'Please select a region and a market group'
+      if (!this.selectedRegionId) {
+        this.error = 'Please select a region'
+        return
+      }
+      if (!this.searchAllCategories && !this.selectedGroupId) {
+        this.error = 'Please select a market group or enable "Search in all categories"'
         return
       }
 
@@ -487,8 +519,10 @@ export default {
         // Prepare parameters
         const params = {
           region_id: this.selectedRegionId,
-          group_id: this.selectedGroupId,
           min_profit_isk: this.minProfitIsk
+        }
+        if (!this.searchAllCategories && this.selectedGroupId) {
+          params.group_id = this.selectedGroupId
         }
         if (this.maxTransportVolume !== null && this.maxTransportVolume > 0) {
           params.max_transport_volume = this.maxTransportVolume
