@@ -80,3 +80,74 @@ class TestRegionAPI:
             if len(data["adjacent_regions"]) > 1:
                 names = [r["name"] for r in data["adjacent_regions"]]
                 assert names == sorted(names), "Les régions doivent être triées par nom"
+
+    def test_get_all_systems_endpoint_structure(self, client):
+        """Test the structure of the /api/v1/systems/ endpoint"""
+        response = client.get("/api/v1/systems/")
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert "total" in data
+        assert "systems" in data
+        assert isinstance(data["total"], int)
+        assert isinstance(data["systems"], list)
+
+        if data["systems"]:
+            system = data["systems"][0]
+            assert "system_id" in system
+            assert "name" in system
+            assert isinstance(system["system_id"], int)
+            assert isinstance(system["name"], str)
+
+    def test_get_all_systems_with_filter(self, client):
+        """Test filtering systems by name"""
+        response = client.get("/api/v1/systems/", params={"name_filter": "Jita"})
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert "total" in data
+        assert "systems" in data
+        assert isinstance(data["systems"], list)
+
+        if data["systems"]:
+            for system in data["systems"]:
+                assert "Jita" in system["name"] or "jita" in system["name"].lower()
+
+    def test_get_all_constellations_endpoint_structure(self, client):
+        """Test the structure of the /api/v1/constellations/ endpoint"""
+        response = client.get("/api/v1/constellations/")
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert "total" in data
+        assert "constellations" in data
+        assert isinstance(data["total"], int)
+        assert isinstance(data["constellations"], list)
+
+        if data["constellations"]:
+            constellation = data["constellations"][0]
+            assert "constellation_id" in constellation
+            assert "name" in constellation
+            assert isinstance(constellation["constellation_id"], int)
+            assert isinstance(constellation["name"], str)
+
+    def test_get_all_constellations_with_filter(self, client):
+        """Test filtering constellations by name"""
+        response = client.get("/api/v1/constellations/", params={"name_filter": "Kimotoro"})
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert "total" in data
+        assert "constellations" in data
+        assert isinstance(data["constellations"], list)
+
+        if data["constellations"]:
+            for constellation in data["constellations"]:
+                assert (
+                    "Kimotoro" in constellation["name"]
+                    or "kimotoro" in constellation["name"].lower()
+                )

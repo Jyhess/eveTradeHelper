@@ -105,14 +105,15 @@ class TestEveRepositoryImplRegions:
     async def test_get_regions_with_details(self, repository, reference_data):
         """Test retrieving regions with their details (limited to 5 for tests)"""
         # Use domain service instead of direct method
-        region_service = RegionService(repository)
+        from domain.region_data import RegionData
 
-        limit = 5
-        result = await region_service.get_regions_with_details(limit=limit)
+        region_data = RegionData(repository)
+        region_service = RegionService(repository, region_data)
+
+        result = await region_service.get_regions_with_details()
 
         # Basic checks
         assert isinstance(result, list), "Result must be a list"
-        assert len(result) <= limit, f"Result must not exceed {limit} elements"
 
         for region in result:
             assert isinstance(region, dict), "Each region must be a dictionary"
@@ -120,7 +121,7 @@ class TestEveRepositoryImplRegions:
             assert "name" in region, "Each region must have a name"
 
         # Compare with reference
-        ref_key = f"regions_with_details_limit_{limit}"
+        ref_key = "regions_with_details"
         reference = load_reference(ref_key)
 
         if reference:

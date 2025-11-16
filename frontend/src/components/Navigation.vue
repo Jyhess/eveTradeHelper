@@ -15,6 +15,9 @@
         >
           System to System
         </router-link>
+        <router-link to="/system-map" class="nav-link" active-class="active">
+          System Map
+        </router-link>
       </div>
     </div>
     <div v-if="breadcrumbItems.length > 0" class="breadcrumb-container">
@@ -136,6 +139,16 @@ export default {
         }
       } else if (route.name === 'SystemToSystemDeals') {
         items.push({ label: 'System to System Deals', path: '/deals/system-to-system' })
+      } else if (route.name === 'SystemMapSearch') {
+        items.push({ label: 'System Map', path: '/system-map' })
+      } else if (route.name === 'SystemMap') {
+        items.push({ label: 'System Map', path: '/system-map' })
+        if (this.breadcrumbData.systemName) {
+          items.push({
+            label: this.breadcrumbData.systemName,
+            path: `/systems/${this.breadcrumbData.systemId}/map`
+          })
+        }
       }
 
       return items

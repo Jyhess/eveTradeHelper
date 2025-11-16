@@ -148,6 +148,7 @@
 
 <script>
 import api from '../services/api'
+import { SECURITY_COLORS } from '../constants'
 import MarketGroupSelector from '../components/MarketGroupSelector.vue'
 import DealsList from '../components/DealsList.vue'
 import Loader from '../components/Loader.vue'
@@ -169,6 +170,12 @@ export default {
   },
   data() {
     return {
+      securityColorNegative: SECURITY_COLORS.NEGATIVE,
+      securityColorRed: SECURITY_COLORS.RED,
+      securityColorOrange: SECURITY_COLORS.ORANGE,
+      securityColorYellow: SECURITY_COLORS.YELLOW,
+      securityColorGreen: SECURITY_COLORS.GREEN,
+      securityColorBlue: SECURITY_COLORS.BLUE,
       regions: [],
       selectedRegionId: null,
       regionName: '',
@@ -1253,33 +1260,27 @@ export default {
 }
 
 .danger-negative {
-  background: #000000;
-  /* Black for security < 0 */
+  background: v-bind('securityColorNegative');
 }
 
 .danger-red {
-  background: #f56565;
-  /* Red for security <= 0.2 */
+  background: v-bind('securityColorRed');
 }
 
 .danger-orange {
-  background: #ed8936;
-  /* Orange for security <= 0.4 */
+  background: v-bind('securityColorOrange');
 }
 
 .danger-yellow {
-  background: #f6e05e;
-  /* Yellow for security <= 0.5 */
+  background: v-bind('securityColorYellow');
 }
 
 .danger-green {
-  background: #48bb78;
-  /* Green for security <= 0.6 (or up to 0.8) */
+  background: v-bind('securityColorGreen');
 }
 
 .danger-blue {
-  background: #4299e1;
-  /* Blue for security > 0.8 */
+  background: v-bind('securityColorBlue');
 }
 
 .route-arrow {

@@ -69,6 +69,17 @@ export const constellationsApi = {
       console.error(`Error retrieving systems for constellation ${constellationId}:`, error)
       throw new Error(extractErrorMessage(error))
     }
+  },
+
+  async getAllConstellations(nameFilter = null) {
+    try {
+      const params = nameFilter ? { name_filter: nameFilter } : {}
+      const response = await apiClient.get('/constellations/', { params })
+      return response.data
+    } catch (error) {
+      console.error('Error retrieving all constellations:', error)
+      throw new Error(extractErrorMessage(error))
+    }
   }
 }
 
@@ -89,6 +100,29 @@ export const systemsApi = {
       return response.data
     } catch (error) {
       console.error(`Error retrieving connections for system ${systemId}:`, error)
+      throw new Error(extractErrorMessage(error))
+    }
+  },
+
+  async getSystemMap(systemId, maxJumps = 3) {
+    try {
+      const response = await apiClient.get(`/systems/${systemId}/map`, {
+        params: { max_jumps: maxJumps }
+      })
+      return response.data
+    } catch (error) {
+      console.error(`Error retrieving system map for ${systemId}:`, error)
+      throw new Error(extractErrorMessage(error))
+    }
+  },
+
+  async getAllSystems(nameFilter = null) {
+    try {
+      const params = nameFilter ? { name_filter: nameFilter } : {}
+      const response = await apiClient.get('/systems/', { params })
+      return response.data
+    } catch (error) {
+      console.error('Error retrieving all systems:', error)
       throw new Error(extractErrorMessage(error))
     }
   }

@@ -4,6 +4,7 @@ from .deals_service import DealsService
 from .location_validator import LocationValidator
 from .market_service import MarketService
 from .orders_service import OrdersService
+from .region_data import RegionData
 from .region_service import RegionService
 from .repository import EveRepository
 
@@ -13,6 +14,8 @@ class Services:
         location_validator = LocationValidator(local_data_repository, eve_repository)
         # Create shared OrdersService instance for cache sharing
         orders_service = OrdersService(eve_repository, location_validator)
-        self.region_service = RegionService(eve_repository)
+        # Create RegionData and pass it to RegionService
+        region_data = RegionData(eve_repository)
+        self.region_service = RegionService(eve_repository, region_data)
         self.deals_service = DealsService(eve_repository, location_validator, orders_service)
         self.market_service = MarketService(eve_repository, location_validator, orders_service)

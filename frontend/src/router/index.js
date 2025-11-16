@@ -29,6 +29,15 @@ const routes = [
     props: route => ({ constellationId: parseInt(route.params.constellationId) })
   },
   {
+    path: '/systems/:systemId/map',
+    name: 'SystemMap',
+    component: () => import('../views/SystemMap.vue'),
+    props: route => ({
+      systemId: parseInt(route.params.systemId),
+      maxJumps: route.query.maxJumps ? parseInt(route.query.maxJumps) : undefined
+    })
+  },
+  {
     path: '/systems/:systemId',
     name: 'SystemDetail',
     component: () => import('../views/SystemDetail.vue'),
@@ -72,6 +81,11 @@ const routes = [
     path: '/deals/system-to-system',
     name: 'SystemToSystemDeals',
     component: () => import('../views/SystemToSystemDeals.vue')
+  },
+  {
+    path: '/system-map',
+    name: 'SystemMapSearch',
+    component: () => import('../views/SystemMapSearch.vue')
   }
 ]
 
@@ -93,12 +107,16 @@ router.beforeEach((to, from, next) => {
     pageTitle = 'Systems - ' + baseTitle
   } else if (to.name === 'SystemDetail') {
     pageTitle = 'System Details - ' + baseTitle
+  } else if (to.name === 'SystemMap') {
+    pageTitle = 'System Map - ' + baseTitle
   } else if (to.name === 'Market' || to.name === 'MarketRegion' || to.name === 'MarketConstellation' || to.name === 'MarketSystem') {
     pageTitle = 'Market - ' + baseTitle
   } else if (to.name === 'Deals' || to.name === 'DealsRegion') {
     pageTitle = 'Deals - ' + baseTitle
   } else if (to.name === 'SystemToSystemDeals') {
     pageTitle = 'System to System Deals - ' + baseTitle
+  } else if (to.name === 'SystemMapSearch') {
+    pageTitle = 'System Map - ' + baseTitle
   }
 
   document.title = pageTitle

@@ -5,7 +5,10 @@ from domain.region_service import RegionService
 
 @pytest.fixture
 def region_service(eve_repository):
-    return RegionService(eve_repository)
+    from domain.region_data import RegionData
+
+    region_data = RegionData(eve_repository)
+    return RegionService(eve_repository, region_data)
 
 
 class TestConstellationSystems:

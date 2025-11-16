@@ -238,6 +238,7 @@
 <script>
 import { formatPrice, formatVolume, formatNumber } from '../utils/numberFormatter'
 import api from '../services/api'
+import { SECURITY_COLORS } from '../constants'
 
 export default {
   name: 'DealItem',
@@ -278,7 +279,13 @@ export default {
   emits: ['deal-updated', 'deal-removed'],
   data() {
     return {
-      refreshing: false
+      refreshing: false,
+      securityColorNegative: SECURITY_COLORS.NEGATIVE,
+      securityColorRed: SECURITY_COLORS.RED,
+      securityColorOrange: SECURITY_COLORS.ORANGE,
+      securityColorYellow: SECURITY_COLORS.YELLOW,
+      securityColorGreen: SECURITY_COLORS.GREEN,
+      securityColorBlue: SECURITY_COLORS.BLUE
     }
   },
   computed: {
@@ -792,27 +799,27 @@ export default {
 }
 
 .danger-negative {
-  background: #000000;
+  background: v-bind('securityColorNegative');
 }
 
 .danger-red {
-  background: #f56565;
+  background: v-bind('securityColorRed');
 }
 
 .danger-orange {
-  background: #ed8936;
+  background: v-bind('securityColorOrange');
 }
 
 .danger-yellow {
-  background: #f6e05e;
+  background: v-bind('securityColorYellow');
 }
 
 .danger-green {
-  background: #48bb78;
+  background: v-bind('securityColorGreen');
 }
 
 .danger-blue {
-  background: #4299e1;
+  background: v-bind('securityColorBlue');
 }
 
 .orders-line {

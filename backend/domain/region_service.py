@@ -5,8 +5,11 @@ Contains pure business logic, independent of infrastructure (async version)
 
 import asyncio
 import logging
+from collections import deque
 from typing import Any
 
+from .constants import DEFAULT_MAX_JUMPS
+from .region_data import RegionData
 from .repository import EveRepository
 
 logger = logging.getLogger(__name__)
@@ -15,37 +18,20 @@ logger = logging.getLogger(__name__)
 class RegionService:
     """Domain service for Eve Online regions (async)"""
 
-    def __init__(self, repository: EveRepository):
+    def __init__(self, repository: EveRepository, region_data: RegionData):
         """
-        Initialize the service with a repository
+        Initialize RegionService with a repository and RegionData
 
         Args:
             repository: Eve repository implementation
+            region_data: RegionData instance for fast lookups
         """
         self.repository = repository
+        self.region_data = region_data
 
-    async def get_regions_with_details(self, limit: int | None = None) -> list[dict[str, Any]]:
-        """
-        Retrieves the list of regions with their details
-        Business logic: orchestration of repository calls (parallelized)
-
-        Args:
-            limit: Maximum number of regions to retrieve (None = all)
-
-        Returns:
-            List of regions with their formatted details
-
-        Raises:
-            Exception: If an error occurs during retrieval
-        """
-        # Fetch the list of IDs from the repository
+    async def get_regions_with_details(self) -> list[dict[str, Any]]:
         region_ids = await self.repository.get_regions_list()
 
-        # Apply limit if specified (business logic)
-        if limit:
-            region_ids = region_ids[:limit]
-
-        # Fetch details of each region in parallel
         async def fetch_region(region_id: int) -> dict[str, Any] | None:
             try:
                 region_data = await self.repository.get_region_details(region_id)
@@ -56,36 +42,18 @@ class RegionService:
                     "constellations": region_data.get("constellations", []),
                 }
             except Exception as e:
-                # Log the error but continue with other regions
                 logger.warning(f"Error retrieving region {region_id}: {e}")
                 return None
 
-        # Execute all requests in parallel
         results = await asyncio.gather(*[fetch_region(rid) for rid in region_ids])
 
-        # Filter None results
         regions = [r for r in results if r is not None]
         return regions
 
     async def get_region_constellations_with_details(self, region_id: int) -> list[dict[str, Any]]:
-        """
-        Retrieves details of all constellations in a region
-        Business logic: orchestration of repository calls (parallelized)
-
-        Args:
-            region_id: Region ID
-
-        Returns:
-            List of constellations with their formatted details
-
-        Raises:
-            Exception: If an error occurs during retrieval
-        """
-        # Fetch region details to get constellation IDs
         region_data = await self.repository.get_region_details(region_id)
         constellation_ids = region_data.get("constellations", [])
 
-        # Fetch details of each constellation in parallel
         async def fetch_constellation(
             constellation_id: int,
         ) -> dict[str, Any] | None:
@@ -103,34 +71,17 @@ class RegionService:
                 logger.warning(f"Error retrieving constellation {constellation_id}: {e}")
                 return None
 
-        # Execute all requests in parallel
         results = await asyncio.gather(*[fetch_constellation(cid) for cid in constellation_ids])
 
-        # Filter None results
         constellations = [c for c in results if c is not None]
         return constellations
 
     async def get_constellation_systems_with_details(
         self, constellation_id: int
     ) -> list[dict[str, Any]]:
-        """
-        Retrieves details of all systems in a constellation
-        Business logic: orchestration of repository calls (parallelized)
-
-        Args:
-            constellation_id: Constellation ID
-
-        Returns:
-            List of systems with their formatted details
-
-        Raises:
-            Exception: If an error occurs during retrieval
-        """
-        # Fetch constellation details to get system IDs
         constellation_data = await self.repository.get_constellation_details(constellation_id)
         system_ids = constellation_data.get("systems", [])
 
-        # Fetch details of each system in parallel
         async def fetch_system(system_id: int) -> dict[str, Any] | None:
             try:
                 system_data = await self.repository.get_system_details(system_id)
@@ -148,32 +99,15 @@ class RegionService:
                 logger.warning(f"Error retrieving system {system_id}: {e}")
                 return None
 
-        # Execute all requests in parallel
         results = await asyncio.gather(*[fetch_system(sid) for sid in system_ids])
 
-        # Filter None results
         systems = [s for s in results if s is not None]
         return systems
 
     async def get_system_connections(self, system_id: int) -> list[dict[str, Any]]:
-        """
-        Retrieves systems connected to a given system via stargates
-        Business logic: orchestration of repository calls
-
-        Args:
-            system_id: System ID
-
-        Returns:
-            List of connected systems with their details
-
-        Raises:
-            Exception: If an error occurs during retrieval
-        """
-        # Fetch system details to get stargate IDs
         system_data = await self.repository.get_system_details(system_id)
         stargate_ids = system_data.get("stargates", [])
 
-        # Fetch source system's constellation and region for comparison
         source_constellation_id = system_data.get("constellation_id")
         source_region_id = None
         if source_constellation_id:
@@ -182,7 +116,6 @@ class RegionService:
             )
             source_region_id = source_constellation.get("region_id")
 
-        # Function to fetch connection details
         async def fetch_connection(stargate_id: int) -> dict[str, Any] | None:
             try:
                 stargate_data = await self.repository.get_stargate_details(stargate_id)
@@ -190,7 +123,6 @@ class RegionService:
                 destination_system_id = destination.get("system_id")
 
                 if destination_system_id and destination_system_id != system_id:
-                    # Fetch destination system details
                     destination_system = await self.repository.get_system_details(
                         destination_system_id
                     )
@@ -239,10 +171,8 @@ class RegionService:
 
             return None
 
-        # Execute all requests in parallel
         results = await asyncio.gather(*[fetch_connection(sid) for sid in stargate_ids])
 
-        # Filter None results
         connected_systems = [c for c in results if c is not None]
         return connected_systems
 
@@ -254,3 +184,209 @@ class RegionService:
 
     async def get_region_details(self, region_id: int) -> dict[str, Any]:
         return await self.repository.get_region_details(region_id)
+
+    async def _get_connected_system_ids(self, system_id: int) -> list[int]:
+        try:
+            system_data = await self.repository.get_system_details(system_id)
+            stargate_ids = system_data.get("stargates", [])
+
+            if not stargate_ids:
+                return []
+
+            async def get_destination_system_id(stargate_id: int) -> int | None:
+                try:
+                    stargate_data = await self.repository.get_stargate_details(stargate_id)
+                    destination = stargate_data.get("destination", {})
+                    return destination.get("system_id")
+                except Exception as e:
+                    logger.warning(f"Error retrieving stargate {stargate_id}: {e}")
+                    return None
+
+            results = await asyncio.gather(
+                *[get_destination_system_id(sid) for sid in stargate_ids],
+                return_exceptions=True,
+            )
+
+            connected_systems = [
+                sid for sid in results if isinstance(sid, int) and sid != system_id
+            ]
+            return connected_systems
+        except Exception as e:
+            logger.warning(f"Error getting connected systems for {system_id}: {e}")
+            return []
+
+    async def get_systems_within_jumps(
+        self, system_id: int, max_jumps: int = DEFAULT_MAX_JUMPS
+    ) -> dict[str, Any]:
+        systems_map: dict[int, dict[str, Any]] = {}
+        connections: list[dict[str, Any]] = []
+        visited: set[int] = set()
+        queue: deque[tuple[int, int]] = deque([(system_id, 0)])
+
+        while queue:
+            current_system_id, current_jumps = queue.popleft()
+
+            if current_system_id in visited:
+                continue
+
+            if current_jumps > max_jumps:
+                continue
+
+            visited.add(current_system_id)
+
+            try:
+                system_data = await self.repository.get_system_details(current_system_id)
+                constellation_id = system_data.get("constellation_id")
+                region_id = None
+                if constellation_id:
+                    constellation_data = await self.repository.get_constellation_details(
+                        constellation_id
+                    )
+                    region_id = constellation_data.get("region_id")
+
+                systems_map[current_system_id] = {
+                    "system_id": current_system_id,
+                    "name": system_data.get("name", "Unknown"),
+                    "security_status": system_data.get("security_status", 0.0),
+                    "security_class": system_data.get("security_class", ""),
+                    "jumps": current_jumps,
+                    "constellation_id": constellation_id,
+                    "region_id": region_id,
+                }
+
+                if current_jumps < max_jumps:
+                    connected_ids = await self._get_connected_system_ids(current_system_id)
+
+                    for connected_id in connected_ids:
+                        connections.append(
+                            {
+                                "from_system_id": current_system_id,
+                                "to_system_id": connected_id,
+                            }
+                        )
+
+                        if connected_id not in visited:
+                            queue.append((connected_id, current_jumps + 1))
+
+            except Exception as e:
+                logger.warning(f"Error retrieving system {current_system_id}: {e}")
+
+        return {
+            "systems": list(systems_map.values()),
+            "connections": connections,
+        }
+
+    async def get_all_systems(self, name_filter: str | None = None) -> list[dict[str, Any]]:
+        """
+        Retrieves all systems with optional name filter
+        Uses RegionData cache for fast lookup
+
+        Args:
+            name_filter: Optional filter to match system names (case-insensitive)
+
+        Returns:
+            List of systems with their details
+        """
+        if name_filter:
+            systems = await self.region_data.find_system_by_name(name_filter)
+        else:
+            systems = await self.region_data.get_all_systems()
+
+        return sorted(systems, key=lambda x: x.get("name", ""))
+
+    async def get_all_constellations(self, name_filter: str | None = None) -> list[dict[str, Any]]:
+        if name_filter:
+            constellations = await self.region_data.find_constellation_by_name(name_filter)
+        else:
+            constellations = await self.region_data.get_all_constellations()
+
+        return sorted(constellations, key=lambda x: x.get("name", ""))
+
+    async def search_systems(self, name_filter: str | None = None) -> list[dict[str, Any]]:
+        all_systems = []
+        region_ids = await self.repository.get_regions_list()
+
+        for region_id in region_ids:
+            try:
+                constellations = await self.get_region_constellations_with_details(region_id)
+
+                for constellation in constellations:
+                    constellation_id_raw = constellation.get("constellation_id")
+                    if not isinstance(constellation_id_raw, int):
+                        continue
+                    constellation_id = constellation_id_raw
+                    system_ids = constellation.get("systems", [])
+
+                    for system_id in system_ids:
+                        try:
+                            system_data = await self.repository.get_system_details(system_id)
+                            system_name = system_data.get("name", "")
+
+                            if name_filter and name_filter.lower() not in system_name.lower():
+                                continue
+
+                            constellation_data = await self.repository.get_constellation_details(
+                                constellation_id
+                            )
+                            region_id_from_constellation = constellation_data.get("region_id")
+
+                            all_systems.append(
+                                {
+                                    "system_id": system_id,
+                                    "name": system_name,
+                                    "security_status": system_data.get("security_status", 0.0),
+                                    "security_class": system_data.get("security_class", ""),
+                                    "constellation_id": constellation_id,
+                                    "region_id": region_id_from_constellation,
+                                }
+                            )
+                        except Exception as e:
+                            logger.warning(f"Error retrieving system {system_id}: {e}")
+                            continue
+            except Exception as e:
+                logger.warning(f"Error retrieving constellations for region {region_id}: {e}")
+                continue
+
+        return all_systems
+
+    async def search_constellations(self, name_filter: str | None = None) -> list[dict[str, Any]]:
+        all_constellations = []
+        region_ids = await self.repository.get_regions_list()
+
+        for region_id in region_ids:
+            try:
+                constellations = await self.get_region_constellations_with_details(region_id)
+
+                for constellation in constellations:
+                    constellation_id_raw = constellation.get("constellation_id")
+                    if not isinstance(constellation_id_raw, int):
+                        continue
+                    constellation_id = constellation_id_raw
+                    constellation_name = constellation.get("name", "")
+
+                    if name_filter and name_filter.lower() not in constellation_name.lower():
+                        continue
+
+                    try:
+                        constellation_data = await self.repository.get_constellation_details(
+                            constellation_id
+                        )
+                        region_id_from_constellation = constellation_data.get("region_id")
+
+                        all_constellations.append(
+                            {
+                                "constellation_id": constellation_id,
+                                "name": constellation_name,
+                                "region_id": region_id_from_constellation,
+                            }
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"Error retrieving constellation details {constellation_id}: {e}"
+                        )
+                        continue
+            except Exception as e:
+                logger.warning(f"Error retrieving constellations for region {region_id}: {e}")
+                continue
+
+        return all_constellations

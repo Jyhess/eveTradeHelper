@@ -12,7 +12,7 @@ from cachetools import TTLCache
 from fastapi import APIRouter, Depends, HTTPException
 
 from application.utils import cached_async
-from domain.constants import ADJACENT_REGIONS_CACHE_TTL
+from domain.constants import ADJACENT_REGIONS_CACHE_TTL, DEFAULT_MAX_JUMPS
 from domain.region_service import RegionService
 
 from .services_provider import ServicesProvider
@@ -39,8 +39,7 @@ async def get_regions(region_service: RegionService = Depends(ServicesProvider.g
     """
     try:
         logger.info("Retrieving regions")
-        limit = int(os.getenv("REGIONS_LIMIT", "50"))
-        regions = await region_service.get_regions_with_details(limit=limit)
+        regions = await region_service.get_regions_with_details()
 
         # Sort by name
         regions_sorted = sorted(regions, key=lambda x: x.get("name", ""))
@@ -126,6 +125,38 @@ async def get_constellation_systems(
         ) from None
 
 
+@router.get("/api/v1/systems/")
+async def get_all_systems(
+    name_filter: str | None = None,
+    region_service: RegionService = Depends(ServicesProvider.get_region_service),
+):
+    """
+    Retrieves all systems with optional name filter
+    Cache is automatically managed by the infrastructure layer (EveAPIClient)
+
+    Args:
+        name_filter: Optional filter to match system names (case-insensitive)
+
+    Returns:
+        JSON response with systems
+    """
+    try:
+        logger.info(f"Retrieving all systems with filter: {name_filter}")
+        systems = await region_service.get_all_systems(name_filter=name_filter)
+
+        return {
+            "total": len(systems),
+            "systems": systems,
+        }
+
+    except Exception as e:
+        logger.error(f"Error retrieving systems: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"ESI API connection error: {str(e)}",
+        ) from None
+
+
 @router.get("/api/v1/systems/{system_id}")
 async def get_system_details(
     system_id: int, region_service: RegionService = Depends(ServicesProvider.get_region_service)
@@ -198,6 +229,76 @@ async def get_system_connections(
 
     except Exception as e:
         logger.error(f"Error retrieving connections: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"ESI API connection error: {str(e)}",
+        ) from None
+
+
+@router.get("/api/v1/systems/{system_id}/map")
+async def get_system_map(
+    system_id: int,
+    max_jumps: int = DEFAULT_MAX_JUMPS,
+    region_service: RegionService = Depends(ServicesProvider.get_region_service),
+):
+    """
+    Retrieves a map of all systems within N jumps from a given system and their connections
+    Cache is automatically managed by the infrastructure layer (EveAPIClient)
+
+    Args:
+        system_id: Starting system ID
+        max_jumps: Maximum number of jumps (default: DEFAULT_MAX_JUMPS)
+
+    Returns:
+        JSON response with systems and their connections
+    """
+    try:
+        logger.info(f"Retrieving system map for {system_id} with max_jumps={max_jumps}")
+        result = await region_service.get_systems_within_jumps(system_id, max_jumps)
+
+        return {
+            "system_id": system_id,
+            "max_jumps": max_jumps,
+            "total_systems": len(result["systems"]),
+            "total_connections": len(result["connections"]),
+            "systems": result["systems"],
+            "connections": result["connections"],
+        }
+
+    except Exception as e:
+        logger.error(f"Error retrieving system map: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"ESI API connection error: {str(e)}",
+        ) from None
+
+
+@router.get("/api/v1/constellations/")
+async def get_all_constellations(
+    name_filter: str | None = None,
+    region_service: RegionService = Depends(ServicesProvider.get_region_service),
+):
+    """
+    Retrieves all constellations with optional name filter
+    Cache is automatically managed by the infrastructure layer (EveAPIClient)
+
+    Args:
+        name_filter: Optional filter to match constellation names (case-insensitive)
+
+    Returns:
+        JSON response with constellations
+    """
+    try:
+        logger.info(f"Retrieving all constellations with filter: {name_filter}")
+        constellations = await region_service.get_all_constellations(name_filter=name_filter)
+
+        return {
+            "total": len(constellations),
+            "constellations": constellations,
+        }
+
+    except Exception as e:
+        logger.error(f"Error retrieving constellations: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"ESI API connection error: {str(e)}",

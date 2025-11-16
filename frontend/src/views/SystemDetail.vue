@@ -13,6 +13,9 @@
             <router-link :to="`/markets/system/${systemId}`" class="market-button">
               📊 View market for this system
             </router-link>
+            <router-link :to="`/systems/${systemId}/map`" class="market-button map-button">
+              🗺️ View system map
+            </router-link>
           </div>
           <div class="system-meta">
             <p class="system-id">ID: {{ system.system_id }}</p>
@@ -245,6 +248,9 @@ export default {
 
 .market-link {
   margin-bottom: 15px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .market-button {
