@@ -251,8 +251,26 @@ export default {
     }
   },
   watch: {
-    regionId() {
-      this.fetchCategories()
+    async regionId(newRegionId) {
+      // Save the currently selected type before changing region
+      const savedTypeId = this.selectedTypeId
+      
+      // Update region name
+      if (newRegionId) {
+        await this.fetchRegionName()
+      }
+      
+      // If a type was selected, reload market orders for the new region
+      if (savedTypeId && newRegionId) {
+        // Keep the selected type and reload orders
+        this.marketOrders = null
+        this.marketOrdersError = ''
+        await this.fetchMarketOrders(savedTypeId)
+      } else if (savedTypeId && !newRegionId) {
+        // Region cleared, clear orders
+        this.marketOrders = null
+        this.marketOrdersError = ''
+      }
     },
     constellationId() {
       this.fetchCategories()
@@ -400,10 +418,7 @@ export default {
         this.regions = data.regions || []
         // Update region name if regionId is set
         if (this.regionId) {
-          const region = this.regions.find(r => r.region_id === parseInt(this.regionId))
-          if (region) {
-            this.regionName = region.name
-          }
+          await this.fetchRegionName()
         }
       } catch (error) {
         console.error('Error loading regions:', error)
