@@ -24,6 +24,18 @@
           @system-next="focusToSystemSelector"
         />
 
+        <div class="swap-systems-container">
+          <button
+            type="button"
+            class="swap-systems-button"
+            :disabled="!fromSystemId || !toSystemId"
+            :title="'Swap source and destination systems'"
+            @click="swapSystems"
+          >
+            ⇅ Swap
+          </button>
+        </div>
+
         <SystemSelector
           ref="toSystemSelector"
           title="To System"
@@ -229,8 +241,26 @@ export default {
   },
   async mounted() {
     await this.fetchRegions()
-    await this.loadSettings()
-    this.isLoadingSettings = false
+    
+    // Check for URL query parameters first (priority over localStorage)
+    const fromSystemIdParam = this.$route.query.from_system_id
+    const toSystemIdParam = this.$route.query.to_system_id
+    
+    if (fromSystemIdParam || toSystemIdParam) {
+      // Load from URL params if available
+      if (fromSystemIdParam) {
+        this.fromSystemId = parseInt(fromSystemIdParam)
+      }
+      if (toSystemIdParam) {
+        this.toSystemId = parseInt(toSystemIdParam)
+      }
+      // Note: We don't load region/constellation from URL as SystemSelector will handle it
+      this.isLoadingSettings = false
+    } else {
+      // Load from localStorage if no URL params
+      await this.loadSettings()
+      this.isLoadingSettings = false
+    }
   },
   methods: {
     async fetchRegions() {
@@ -273,6 +303,23 @@ export default {
         this.selectedGroupId = null
         this.groupName = 'All Categories'
       }
+      this.saveSettings()
+    },
+    swapSystems() {
+      // Swap all system-related values
+      const tempRegionId = this.fromRegionId
+      const tempConstellationId = this.fromConstellationId
+      const tempSystemId = this.fromSystemId
+
+      this.fromRegionId = this.toRegionId
+      this.fromConstellationId = this.toConstellationId
+      this.fromSystemId = this.toSystemId
+
+      this.toRegionId = tempRegionId
+      this.toConstellationId = tempConstellationId
+      this.toSystemId = tempSystemId
+
+      // Save settings after swap
       this.saveSettings()
     },
     focusToSystemSelector() {
@@ -679,6 +726,39 @@ h1 {
   border-radius: 6px;
   color: #c33;
   font-size: 1.1em;
+}
+
+.swap-systems-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 15px 0;
+}
+
+.swap-systems-button {
+  padding: 8px 16px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swap-systems-button:hover:not(:disabled) {
+  background: #5568d3;
+  transform: scale(1.05);
+}
+
+.swap-systems-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 </style>
 

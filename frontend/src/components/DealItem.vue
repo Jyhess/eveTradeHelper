@@ -261,6 +261,22 @@
           </router-link>
         </span>
       </div>
+
+      <!-- Line 6: System to System Link -->
+      <div
+        v-if="deal.buy_system_id && deal.sell_system_id"
+        class="detail-line system-to-system-line"
+      >
+        <span class="detail-label">Actions:</span>
+        <span class="detail-content">
+          <router-link
+            :to="getSystemToSystemLink()"
+            class="system-to-system-link"
+          >
+            🔄 View System to System Deals
+          </router-link>
+        </span>
+      </div>
     </div>
   </div>
 </template>
@@ -389,6 +405,12 @@ export default {
         return adjacentRegion.name
       }
       return `Region ${regionId}`
+    },
+    getSystemToSystemLink() {
+      if (!this.deal.buy_system_id || !this.deal.sell_system_id) {
+        return '/deals/system-to-system'
+      }
+      return `/deals/system-to-system?from_system_id=${this.deal.buy_system_id}&to_system_id=${this.deal.sell_system_id}`
     },
     async refreshDeal() {
       if (this.refreshing) {
@@ -918,6 +940,26 @@ export default {
 
 .contraband-system-link:hover {
   color: #c82333;
+  text-decoration: underline;
+}
+
+.system-to-system-line {
+  background: #e7f3ff;
+  border-left: 3px solid #0066cc;
+}
+
+.system-to-system-link {
+  color: #0066cc;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.system-to-system-link:hover {
+  color: #0052a3;
   text-decoration: underline;
 }
 </style>
