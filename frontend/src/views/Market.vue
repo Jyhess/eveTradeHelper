@@ -88,7 +88,16 @@
 
               <!-- Selected type details (if selected from tree or panel) -->
               <div v-if="selectedTypeId && typeDetails[selectedTypeId]" class="type-details">
-                <h4>{{ typeDetails[selectedTypeId].name }}</h4>
+                <div class="type-details-header">
+                  <h4>{{ typeDetails[selectedTypeId].name }}</h4>
+                  <router-link
+                    :to="`/markets/types/${selectedTypeId}/prices`"
+                    class="view-prices-button"
+                    title="View prices across all regions"
+                  >
+                    View Prices by Region
+                  </router-link>
+                </div>
                 <div v-if="typeDetails[selectedTypeId].description" class="type-description">
                   <p v-html="processDescription(typeDetails[selectedTypeId].description)"></p>
                 </div>
@@ -912,6 +921,34 @@ export default {
   margin-top: 20px;
   padding-top: 20px;
   border-top: 2px solid #e0e0e0;
+}
+
+.type-details-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.type-details-header h4 {
+  margin: 0;
+}
+
+.view-prices-button {
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  text-decoration: none;
+  font-size: 0.9em;
+  font-weight: 500;
+  transition: background 0.2s;
+  display: inline-block;
+}
+
+.view-prices-button:hover {
+  background: #5568d3;
 }
 
 .market-orders {

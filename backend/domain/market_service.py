@@ -5,9 +5,11 @@ Contains pure business logic, independent of infrastructure (async version)
 
 import asyncio
 import logging
-from typing import Any
+from typing import Any, cast
 
 from .constants import DEFAULT_MARKET_ORDERS_LIMIT
+from repositories.local_data import LocalDataRepository
+
 from .location_validator import LocationValidator
 from .orders_service import OrdersService
 from .repository import EveRepository
@@ -23,6 +25,7 @@ class MarketService:
         repository: EveRepository,
         location_validator: LocationValidator,
         orders_service: OrdersService,
+        local_data_repository: LocalDataRepository | None = None,
     ):
         """
         Initialize the service with a repository
@@ -35,6 +38,7 @@ class MarketService:
         self.repository = repository
         self.location_validator = location_validator
         self.orders_service = orders_service
+        self.local_data_repository = local_data_repository
 
     async def get_market_categories(self) -> list[dict[str, Any]]:
         """
@@ -169,3 +173,108 @@ class MarketService:
             "buy_orders": buy_orders_final,
             "sell_orders": sell_orders_final,
         }
+
+    async def search_item_types(
+        self, query: str | None = None, limit: int = 20
+    ) -> list[dict[str, Any]]:
+        # If no query, return all types
+        if not query or not query.strip():
+            if not self.local_data_repository:
+                logger.warning("Local data repository not configured for type search")
+                return []
+            return self.local_data_repository.search_types(None, limit)
+
+        query = query.strip()
+
+        # Handle ID search
+        if query.isdigit():
+            type_id = int(query)
+            try:
+                type_data = await self.repository.get_item_type(type_id)
+            except Exception:  # pragma: no cover - ESI errors already logged upstream
+                logger.warning("Error retrieving type %s for search", type_id)
+                return []
+
+            if not type_data:
+                return []
+
+            name = type_data.get("name")
+            if isinstance(name, dict):
+                name = name.get("en") or name.get("fr")
+
+            if not isinstance(name, str) or not name:
+                name = f"Type {type_id}"
+
+            return [{"type_id": type_id, "name": name}]
+
+        if not self.local_data_repository:
+            logger.warning("Local data repository not configured for type search")
+            return []
+
+        return self.local_data_repository.search_types(query, limit)
+
+    async def get_type_prices_by_region(
+        self, type_id: int, max_concurrent: int = 10
+    ) -> list[dict[str, Any]]:
+        """
+        Retrieves minimum sell price and maximum buy price for a type across all regions
+        Business logic: parallelized fetching with concurrency limit
+
+        Args:
+            type_id: Item type ID
+            max_concurrent: Maximum number of concurrent region queries (default: 10)
+
+        Returns:
+            List of dictionaries with region_id, region_name, min_sell_price, max_buy_price
+        """
+        # Get all region IDs
+        region_ids = await self.repository.get_regions_list()
+
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def get_region_prices(region_id: int) -> dict[str, Any] | None:
+            """Get prices for a single region"""
+            async with semaphore:
+                try:
+                    buy_orders, sell_orders = await self.orders_service.get_orders_separated(
+                        region_id, type_id
+                    )
+
+                    # Find max buy price (highest price someone is willing to buy at)
+                    max_buy_price = None
+                    if buy_orders:
+                        max_buy_price = max(order.get("price", 0) for order in buy_orders)
+
+                    # Find min sell price (lowest price someone is willing to sell at)
+                    min_sell_price = None
+                    if sell_orders:
+                        min_sell_price = min(order.get("price", float("inf")) for order in sell_orders)
+
+                    # Get region name
+                    region_data = await self.repository.get_region_details(region_id)
+                    region_name = region_data.get("name", f"Region {region_id}")
+
+                    return {
+                        "region_id": region_id,
+                        "region_name": region_name,
+                        "max_buy_price": max_buy_price,
+                        "min_sell_price": min_sell_price,
+                    }
+                except Exception as e:
+                    logger.warning(f"Error retrieving prices for region {region_id}: {e}")
+                    return None
+
+        # Fetch prices for all regions in parallel (with concurrency limit)
+        results = await asyncio.gather(
+            *[get_region_prices(region_id) for region_id in region_ids], return_exceptions=True
+        )
+
+        # Filter out None results and exceptions, then sort by region name
+        prices: list[dict[str, Any]] = []
+        for result in results:
+            if isinstance(result, dict):
+                prices.append(result)
+        # Type narrowing: prices contains only dict[str, Any] at this point
+        prices.sort(key=lambda x: x.get("region_name", ""))  # type: ignore[union-attr]
+
+        return prices  # type: ignore[return-value]

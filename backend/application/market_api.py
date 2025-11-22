@@ -8,7 +8,7 @@ from collections.abc import Hashable
 from typing import Any
 
 from cachetools import TTLCache
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from domain.constants import MARKET_CATEGORIES_CACHE_TTL
 from domain.market_service import MarketService
@@ -174,4 +174,65 @@ async def refresh_market_orders(
         raise HTTPException(
             status_code=500,
             detail=f"Error refreshing orders: {str(e)}",
+        ) from None
+
+
+@router.get("/api/v1/markets/types/")
+async def get_item_types(
+    name_filter: str | None = Query(
+        None, description="Optional filter to search types by name or ID"
+    ),
+    limit: int = Query(20, ge=1, le=50, description="Maximum number of results"),
+    market_service: MarketService = Depends(ServicesProvider.get_market_service),
+):
+    """
+    Retrieves all item types, optionally filtered by name or ID.
+
+    Args:
+        name_filter: Optional filter to search types by name or ID (if None, returns all types)
+        limit: Maximum number of results to return (default: 20)
+
+    Returns:
+        JSON response with item types
+    """
+    try:
+        results = await market_service.search_item_types(name_filter, limit)
+        return {"total": len(results), "types": results}
+    except Exception as e:  # pragma: no cover - FastAPI handles errors
+        logger.error(f"Error retrieving item types: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error retrieving item types: {str(e)}",
+        ) from None
+
+
+@router.get("/api/v1/markets/types/{type_id}/prices")
+async def get_type_prices_by_region(
+    type_id: int,
+    market_service: MarketService = Depends(ServicesProvider.get_market_service),
+):
+    """
+    Retrieves minimum sell price and maximum buy price for a type across all regions
+
+    Args:
+        type_id: Item type ID
+
+    Returns:
+        JSON response with prices by region
+    """
+    try:
+        logger.info(f"Retrieving prices for type {type_id} across all regions")
+
+        prices = await market_service.get_type_prices_by_region(type_id)
+
+        return {
+            "type_id": type_id,
+            "regions": prices,
+        }
+
+    except Exception as e:
+        logger.error(f"Error retrieving prices for type {type_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"ESI API connection error: {str(e)}",
         ) from None

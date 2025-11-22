@@ -151,3 +151,31 @@ class TestMarketAPI:
         # Par défaut, limit = 50, donc max 50 ordres d'achat et 50 de vente
         assert len(data["buy_orders"]) <= 50
         assert len(data["sell_orders"]) <= 50
+
+    def test_get_item_types_endpoint_with_filter(self, client):
+        response = client.get(
+            "/api/v1/markets/types/",
+            params={"name_filter": "Tritanium", "limit": 5},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "types" in data
+        assert "total" in data
+        assert isinstance(data["types"], list)
+        assert isinstance(data["total"], int)
+        if data["types"]:
+            result = data["types"][0]
+            assert "type_id" in result
+            assert "name" in result
+
+    def test_get_item_types_endpoint_without_filter(self, client):
+        response = client.get("/api/v1/markets/types/", params={"limit": 10})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "types" in data
+        assert "total" in data
+        assert isinstance(data["types"], list)
+        assert isinstance(data["total"], int)
+        assert len(data["types"]) <= 10

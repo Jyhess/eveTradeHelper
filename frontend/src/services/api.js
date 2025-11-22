@@ -191,6 +191,30 @@ export const marketsApi = {
       console.error('Error refreshing deal:', error)
       throw new Error(extractErrorMessage(error))
     }
+  },
+
+  async getTypePricesByRegion(typeId) {
+    try {
+      const response = await apiClient.get(`/markets/types/${typeId}/prices`)
+      return response.data
+    } catch (error) {
+      console.error(`Error retrieving prices for type ${typeId}:`, error)
+      throw new Error(extractErrorMessage(error))
+    }
+  },
+
+  async searchTypes(nameFilter = null, limit = 20) {
+    try {
+      const params = { limit }
+      if (nameFilter) {
+        params.name_filter = nameFilter
+      }
+      const response = await apiClient.get('/markets/types/', { params })
+      return response.data
+    } catch (error) {
+      console.error('Error searching item types:', error)
+      throw new Error(extractErrorMessage(error))
+    }
   }
 }
 

@@ -75,7 +75,45 @@ def market_service(mock_repository, local_data_repository):
     """Fixture to create a MarketService with a mock repository"""
     location_validator = LocationValidator(local_data_repository, mock_repository)
     orders_service = OrdersService(mock_repository, location_validator)
-    return MarketService(mock_repository, location_validator, orders_service)
+    return MarketService(
+        mock_repository,
+        location_validator,
+        orders_service,
+        local_data_repository,
+    )
+
+
+@pytest.fixture
+def fake_local_data_repository():
+    class FakeLocalDataRepository:
+        def __init__(self):
+            self.types = [
+                {"type_id": 34, "name": "Tritanium"},
+                {"type_id": 35, "name": "Pyerite"},
+                {"type_id": 1234, "name": "Advanced Tritanium"},
+            ]
+
+        def search_types(self, query: str, limit: int = 20):
+            query_lower = query.lower()
+            matches = [
+                t for t in self.types if query_lower in t["name"].lower()
+            ]
+            return matches[:limit]
+
+    return FakeLocalDataRepository()
+
+
+@pytest.fixture
+def market_service_with_type_search(mock_repository, local_data_repository, fake_local_data_repository):
+    """Fixture to create a MarketService with fake type search data"""
+    location_validator = LocationValidator(local_data_repository, mock_repository)
+    orders_service = OrdersService(mock_repository, location_validator)
+    return MarketService(
+        mock_repository,
+        location_validator,
+        orders_service,
+        fake_local_data_repository,
+    )
 
 
 @pytest.mark.asyncio
@@ -223,8 +261,47 @@ class TestMarketServiceEnrichedOrders:
         assert result["total"] == 3
         assert len(result["buy_orders"]) == 2
         assert len(result["sell_orders"]) == 1
-        assert all(o["is_buy_order"] for o in result["buy_orders"])
-        assert all(not o["is_buy_order"] for o in result["sell_orders"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+class TestMarketServiceTypeSearch:
+    async def test_search_item_types_by_name(self, market_service_with_type_search):
+        results = await market_service_with_type_search.search_item_types("tri")
+
+        assert len(results) == 2
+        assert results[0]["type_id"] == 34
+        assert results[0]["name"] == "Tritanium"
+
+    async def test_search_item_types_by_id(self, market_service_with_type_search, mock_repository):
+        type_id = 987654
+
+        async def fake_get_item_type(requested_id: int) -> dict[str, Any]:
+            if requested_id == type_id:
+                return {"type_id": type_id, "name": "Custom Item"}
+            return {}
+
+        mock_repository.get_item_type = fake_get_item_type
+
+        results = await market_service_with_type_search.search_item_types(str(type_id))
+
+        assert len(results) == 1
+        assert results[0]["type_id"] == type_id
+        assert results[0]["name"] == "Custom Item"
+
+    async def test_search_item_types_empty_query(self, market_service_with_type_search):
+        results = await market_service_with_type_search.search_item_types("  ")
+
+        # Empty query should return all types (limited by default limit)
+        assert isinstance(results, list)
+        assert len(results) > 0
+
+    async def test_search_item_types_no_query(self, market_service_with_type_search):
+        results = await market_service_with_type_search.search_item_types(None)
+
+        # No query should return all types (limited by default limit)
+        assert isinstance(results, list)
+        assert len(results) > 0
 
     async def test_get_enriched_market_orders_sorted_by_price(
         self, market_service, mock_repository

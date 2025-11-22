@@ -86,6 +86,12 @@ const routes = [
     path: '/system-map',
     name: 'SystemMapSearch',
     component: () => import('../views/SystemMapSearch.vue')
+  },
+  {
+    path: '/markets/types/:typeId/prices',
+    name: 'TypePrices',
+    component: () => import('../views/TypePrices.vue'),
+    props: route => ({ typeId: parseInt(route.params.typeId) })
   }
 ]
 
@@ -117,6 +123,8 @@ router.beforeEach((to, from, next) => {
     pageTitle = 'System to System Deals - ' + baseTitle
   } else if (to.name === 'SystemMapSearch') {
     pageTitle = 'System Map - ' + baseTitle
+  } else if (to.name === 'TypePrices') {
+    pageTitle = 'Type Prices - ' + baseTitle
   }
 
   document.title = pageTitle
