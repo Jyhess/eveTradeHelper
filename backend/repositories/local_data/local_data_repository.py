@@ -1,11 +1,12 @@
 import json
 import logging
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
+from domain.i_local_data_repository import ILocalDataRepository
+from domain.types import IdRanges, MarketGroupDetails
 from utils.cache import SimpleCache
-
-from .id_ranges import IdRanges
 
 logger = logging.getLogger(__name__)
 
@@ -15,11 +16,12 @@ TYPES_JSONL_FILE = STATIC_DATA_DIR / "types.jsonl"
 CONTRABAND_TYPES_FILE = STATIC_DATA_DIR / "contrabandTypes.jsonl"
 MAP_SOLAR_SYSTEMS_FILE = STATIC_DATA_DIR / "mapSolarSystems.jsonl"
 MAP_REGIONS_FILE = STATIC_DATA_DIR / "mapRegions.jsonl"
+MARKET_GROUPS_FILE = STATIC_DATA_DIR / "marketGroups.jsonl"
 INVALID_LOCATION_IDS_KEY_PREFIX = "invalid_location_ids"
 MAX_INT32 = 2147483647
 
 
-class LocalDataRepository:
+class LocalDataRepository(ILocalDataRepository):
     def __init__(self, cache: SimpleCache):
         self.cache = cache
         self.id_ranges: list[dict[str, Any]] = []
@@ -27,6 +29,8 @@ class LocalDataRepository:
         self._contraband_data: dict[int, list[int]] | None = None
         self._systems_faction_map: dict[int, int | None] | None = None
         self._regions_faction_map: dict[int, int | None] | None = None
+        self._market_groups_data: dict[int, MarketGroupDetails] | None = None
+        self._types_by_group: dict[int, set[int]] | None = None
         self._load_id_ranges()
 
     def _load_id_ranges(self) -> None:
@@ -117,11 +121,13 @@ class LocalDataRepository:
                         continue
 
                     published = data.get("published", True)
+                    group_id = data.get("groupID")
                     self._types_data.append(
                         {
                             "type_id": type_id,
                             "name": english_name,
                             "published": published,
+                            "group_id": group_id if isinstance(group_id, int) else None,
                         }
                     )
             logger.info("Loaded %d types from %s", len(self._types_data), TYPES_JSONL_FILE)
@@ -308,3 +314,190 @@ class LocalDataRepository:
             return None
 
         return self._regions_faction_map.get(region_id)
+
+    def _load_market_groups(self) -> None:
+        """Load market groups data from JSONL file"""
+        if self._market_groups_data is not None:
+            return
+
+        self._market_groups_data = {}
+
+        if not MARKET_GROUPS_FILE.exists():
+            logger.warning(f"Market groups file not found: {MARKET_GROUPS_FILE}")
+            return
+
+        try:
+            with open(MARKET_GROUPS_FILE, encoding="utf-8") as file:
+                for line in file:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                        group_id = data.get("_key")
+                        if not isinstance(group_id, int):
+                            continue
+
+                        names = data.get("name", {})
+                        english_name: str | None = None
+                        if isinstance(names, dict):
+                            english_name = names.get("en") or names.get("fr")
+                        elif isinstance(names, str):
+                            english_name = names
+
+                        parent_group_id = data.get("parentGroupID")
+                        types = []
+                        if isinstance(data.get("hasTypes"), bool) and data.get("hasTypes"):
+                            types = list(self.get_types_for_group(group_id, include_children=False))
+
+                        self._market_groups_data[group_id] = MarketGroupDetails(
+                            market_group_id=group_id,
+                            name=english_name or f"Group {group_id}",
+                            description=data.get("description", {}).get("en", ""),
+                            parent_group_id=parent_group_id
+                            if isinstance(parent_group_id, int)
+                            else None,
+                            types=types,
+                            icon_id=data.get("iconID"),
+                        )
+                    except json.JSONDecodeError:
+                        continue
+            logger.info(
+                "Loaded %d market groups from %s",
+                len(self._market_groups_data),
+                MARKET_GROUPS_FILE,
+            )
+        except Exception as exc:
+            logger.error("Error loading market groups from %s: %s", MARKET_GROUPS_FILE, exc)
+            self._market_groups_data = {}
+
+    def _build_types_by_group(self) -> None:
+        """Build a mapping of group_id to set of type_ids from types data"""
+        if self._types_by_group is not None:
+            return
+
+        self._ensure_types_data_loaded()
+        self._types_by_group = {}
+
+        if not self._types_data:
+            return
+
+        for type_entry in self._types_data:
+            type_id = type_entry.get("type_id")
+            group_id = type_entry.get("group_id")
+
+            if isinstance(type_id, int) and isinstance(group_id, int):
+                if group_id not in self._types_by_group:
+                    self._types_by_group[group_id] = set()
+                self._types_by_group[group_id].add(type_id)
+
+        logger.info(
+            "Built types_by_group mapping with %d groups and %d total types",
+            len(self._types_by_group),
+            sum(len(types) for types in self._types_by_group.values()),
+        )
+
+    def get_all_market_group_ids(self) -> list[int]:
+        """Get all market group IDs from static data"""
+        self._load_market_groups()
+        if not self._market_groups_data:
+            return []
+        return list(self._market_groups_data.keys())
+
+    def get_market_group_details(self, group_id: int) -> MarketGroupDetails | None:
+        """Get market group details from static data"""
+        self._load_market_groups()
+        if not self._market_groups_data:
+            return None
+        return self._market_groups_data.get(group_id)
+
+    def get_types_for_group(self, group_id: int, include_children: bool = True) -> set[int]:
+        """
+        Get all type IDs for a market group, optionally including child groups
+
+        Args:
+            group_id: Market group ID
+            include_children: If True, recursively include types from child groups
+
+        Returns:
+            Set of type IDs
+        """
+        self._load_market_groups()
+        self._build_types_by_group()
+
+        if not self._market_groups_data or not self._types_by_group:
+            return set()
+
+        # Type narrowing: mypy needs explicit assertion
+        assert self._types_by_group is not None
+        assert self._market_groups_data is not None
+
+        result: set[int] = set()
+        types_by_group = self._types_by_group
+        market_groups_data = self._market_groups_data
+
+        def collect_types_recursive(gid: int, visited: set[int]) -> None:
+            if gid in visited:
+                return
+            visited.add(gid)
+
+            # Add types directly in this group
+            if gid in types_by_group:
+                result.update(types_by_group[gid])
+
+            # Recursively collect from child groups
+            if include_children:
+                for child_gid, child_data in market_groups_data.items():
+                    parent_id = None
+                    if isinstance(child_data, MarketGroupDetails):
+                        parent_id = child_data.parent_group_id
+                    elif isinstance(child_data, dict):
+                        parent_id = child_data.get("parent_group_id")
+                    if parent_id == gid:
+                        collect_types_recursive(child_gid, visited)
+
+        collect_types_recursive(group_id, set())
+        return result
+
+    def get_all_types_from_all_groups(self) -> set[int]:
+        """Get all type IDs from all top-level market groups"""
+        self._load_market_groups()
+        self._build_types_by_group()
+
+        if not self._market_groups_data or not self._types_by_group:
+            return set()
+
+        # Find top-level groups (no parent)
+        top_level_groups = []
+        for gid, data in self._market_groups_data.items():
+            parent_id = None
+            if isinstance(data, MarketGroupDetails):
+                parent_id = data.parent_group_id
+            elif isinstance(data, dict):
+                parent_id = data.get("parent_group_id")
+            if parent_id is None:
+                top_level_groups.append(gid)
+
+        all_types = set()
+        for group_id in top_level_groups:
+            all_types.update(self.get_types_for_group(group_id, include_children=True))
+
+        return all_types
+
+    def get_root_market_group_ids(self) -> list[int]:
+        """Get all root (top-level) market group IDs (groups with no parent)"""
+        self._load_market_groups()
+        if not self._market_groups_data:
+            return []
+
+        root_groups = []
+        for gid, data in self._market_groups_data.items():
+            parent_id = None
+            if isinstance(data, MarketGroupDetails):
+                parent_id = data.parent_group_id
+            elif isinstance(data, dict):
+                parent_id = data.get("parent_group_id")
+            if parent_id is None:
+                root_groups.append(gid)
+
+        return root_groups

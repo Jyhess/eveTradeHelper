@@ -36,7 +36,6 @@ class Deal:
             "type_name": self.type_name,
             "buy_price": self.buy_price,
             "sell_price": self.sell_price,
-            "profit_percent": round(self.profit_percent, 2),
             "profit_isk": round(self.profit_isk, 2),
             "tradable_volume": self.tradable_volume,
             "item_volume": self.item_volume,

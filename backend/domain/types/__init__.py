@@ -10,6 +10,7 @@ from .contraband_system import ContrabandSystem
 from .deal import Deal
 from .enriched_market_orders import EnrichedMarketOrders
 from .enriched_order import EnrichedOrder
+from .id_ranges import IdRanges
 from .item_type import ItemType
 from .item_type_search_result import ItemTypeSearchResult
 from .market_category import MarketCategory
@@ -37,6 +38,7 @@ __all__ = [
     "Deal",
     "EnrichedMarketOrders",
     "EnrichedOrder",
+    "IdRanges",
     "ItemType",
     "ItemTypeSearchResult",
     "MarketCategory",

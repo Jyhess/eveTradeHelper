@@ -27,9 +27,12 @@
         <MarketGroupSelector
           v-if="!searchAllCategories"
           id="group-select"
+          :multiple="true"
           :selected-group-id="selectedGroupId"
+          :selected-group-ids="selectedGroupIds"
           :disabled="!selectedRegionId"
           @update:selected-group-id="selectedGroupId = $event"
+          @update:selected-group-ids="selectedGroupIds = $event"
           @group-select="handleGroupSelect"
           @group-change="handleGroupChange"
           @error="error = $event"
@@ -43,7 +46,7 @@
               v-model="minProfitIskDisplay"
               type="text"
               placeholder="100 000"
-              :disabled="!selectedRegionId || (!searchAllCategories && !selectedGroupId)"
+              :disabled="!selectedRegionId || (!searchAllCategories && (!selectedGroupIds || selectedGroupIds.length === 0))"
               @input="handleMinProfitInput"
               @blur="handleMinProfitBlur"
             />
@@ -55,7 +58,7 @@
               v-model="maxTransportVolumeDisplay"
               type="text"
               placeholder="Unlimited"
-              :disabled="!selectedRegionId || (!searchAllCategories && !selectedGroupId)"
+              :disabled="!selectedRegionId || (!searchAllCategories && (!selectedGroupIds || selectedGroupIds.length === 0))"
               @input="handleMaxVolumeInput"
               @blur="handleMaxVolumeBlur"
             />
@@ -67,7 +70,7 @@
               v-model="maxBuyCostDisplay"
               type="text"
               placeholder="Unlimited"
-              :disabled="!selectedRegionId || (!searchAllCategories && !selectedGroupId)"
+              :disabled="!selectedRegionId || (!searchAllCategories && (!selectedGroupIds || selectedGroupIds.length === 0))"
               @input="handleMaxBuyCostInput"
               @blur="handleMaxBuyCostBlur"
             />
@@ -125,7 +128,7 @@
 
         <button
           class="search-button"
-          :disabled="!selectedRegionId || (!searchAllCategories && !selectedGroupId) || searching"
+          :disabled="!selectedRegionId || (!searchAllCategories && (!selectedGroupIds || selectedGroupIds.length === 0)) || searching"
           @click="searchDeals"
         >
           {{ searching ? 'Searching...' : 'Search for Deals' }}
@@ -193,6 +196,7 @@ export default {
       selectedRegionId: null,
       regionName: '',
       selectedGroupId: null,
+      selectedGroupIds: [],
       groupName: '',
       searchAllCategories: false,
       minProfitIsk: 100000, // Minimum profit threshold in ISK
@@ -207,6 +211,7 @@ export default {
       error: '',
       sortBy: 'profit_isk', // Default sort by total profits (ISK)
       isLoadingSettings: false, // Flag to avoid saving during initial load
+      rootGroupIds: [], // Root market group IDs (groups without parent)
       // Formatted values for display in inputs
       minProfitIskDisplay: '',
       maxTransportVolumeDisplay: '',
@@ -233,7 +238,7 @@ export default {
           return deals.sort((a, b) => (b.profit_isk || 0) - (a.profit_isk || 0))
         case 'profit':
         default:
-          return deals.sort((a, b) => (b.profit_percent || 0) - (a.profit_percent || 0))
+          return deals.sort((a, b) => (b.profit_isk || 0) - (a.profit_isk || 0))
       }
     },
     filteredDealsCount() {
@@ -246,6 +251,7 @@ export default {
   },
   async mounted() {
     await this.fetchRegions()
+    await this.loadRootGroupIds()
 
     // Load saved values from localStorage
     await this.loadSettings()
@@ -257,14 +263,26 @@ export default {
       this.isLoadingSettings = false // Disable flag because we're loading from route
       await this.onRegionChange()
 
-      // If we have a group_id in query params, select it (priority over localStorage)
-      const groupId = this.$route.query.group_id
-      if (groupId) {
+      // If we have group_ids or group_id in query params, select them (priority over localStorage)
+      const groupIdsParam = this.$route.query.group_ids
+      const groupIdParam = this.$route.query.group_id
+      if (groupIdsParam) {
         await this.$nextTick() // Wait for groups to be loaded
-        this.selectedGroupId = parseInt(groupId)
-        const group = this.marketGroups.find(g => g.group_id === this.selectedGroupId)
-        if (group) {
-          this.groupName = group.name
+        // Parse and validate group IDs: filter out invalid values (NaN, null, non-integers, <= 0)
+        this.selectedGroupIds = String(groupIdsParam)
+          .split(',')
+          .map(id => parseInt(id.trim(), 10))
+          .filter(id => !isNaN(id) && Number.isInteger(id) && id > 0)
+        if (this.selectedGroupIds.length > 0) {
+          this.updateGroupNameFromIds(this.selectedGroupIds)
+        }
+      } else if (groupIdParam) {
+        // Fallback to single group_id for backward compatibility
+        await this.$nextTick() // Wait for groups to be loaded
+        const parsedId = parseInt(groupIdParam, 10)
+        if (!isNaN(parsedId) && Number.isInteger(parsedId) && parsedId > 0) {
+          this.selectedGroupIds = [parsedId]
+          this.updateGroupNameFromIds(this.selectedGroupIds)
         }
       }
     } else if (this.selectedRegionId) {
@@ -464,6 +482,20 @@ export default {
       }
       this.saveSettings() // Save panel state
     },
+    async loadRootGroupIds() {
+      try {
+        const data = await api.markets.getCategories()
+        const categories = data.categories || []
+        // Filter root groups (those without parent_group_id)
+        this.rootGroupIds = categories
+          .filter(cat => cat.parent_group_id == null || cat.parent_group_id === undefined)
+          .map(cat => cat.group_id)
+          .filter(id => id != null && !isNaN(id) && Number.isInteger(id) && id > 0)
+      } catch (error) {
+        console.error('Error loading root group IDs:', error)
+        this.rootGroupIds = []
+      }
+    },
     async fetchAdjacentRegions() {
       if (!this.selectedRegionId) return
 
@@ -506,8 +538,8 @@ export default {
         this.error = 'Please select a region'
         return
       }
-      if (!this.searchAllCategories && !this.selectedGroupId) {
-        this.error = 'Please select a market group or enable "Search in all categories"'
+      if (!this.searchAllCategories && (!this.selectedGroupIds || this.selectedGroupIds.length === 0)) {
+        this.error = 'Please select at least one market group or enable "Search in all categories"'
         return
       }
 
@@ -521,8 +553,28 @@ export default {
           region_id: this.selectedRegionId,
           min_profit_isk: this.minProfitIsk
         }
-        if (!this.searchAllCategories && this.selectedGroupId) {
-          params.group_id = this.selectedGroupId
+        // group_ids is now required
+        if (this.searchAllCategories) {
+          // When searching all categories, use root groups
+          if (this.rootGroupIds.length > 0) {
+            params.group_ids = this.rootGroupIds.join(',')
+          } else {
+            this.error = 'Unable to load root groups. Please try again.'
+            return
+          }
+        } else if (this.selectedGroupIds && this.selectedGroupIds.length > 0) {
+          // Filter out invalid IDs and ensure we have valid group IDs
+          const validGroupIds = this.selectedGroupIds
+            .filter(id => id != null && !isNaN(id) && Number.isInteger(id) && id > 0)
+          if (validGroupIds.length > 0) {
+            params.group_ids = validGroupIds.join(',')
+          } else {
+            this.error = 'Please select at least one valid market group'
+            return
+          }
+        } else {
+          this.error = 'Please select at least one market group or enable "Search in all categories"'
+          return
         }
         if (this.maxTransportVolume !== null && this.maxTransportVolume > 0) {
           params.max_transport_volume = this.maxTransportVolume

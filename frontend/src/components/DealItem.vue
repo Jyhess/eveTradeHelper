@@ -21,9 +21,6 @@
         >
           {{ dealRegionName }}
         </span>
-        <div class="profit-badge" :class="profitBadgeClass">
-          {{ deal.profit_percent || 0 }}% profit
-        </div>
       </div>
     </div>
     <div class="deal-details">
@@ -353,13 +350,6 @@ export default {
       }
       return `Region ${regionId}`
     },
-    profitBadgeClass() {
-      const profitPercent = this.deal.profit_percent || 0
-      if (profitPercent >= 20) return 'profit-excellent'
-      if (profitPercent >= 10) return 'profit-good'
-      if (profitPercent >= 5) return 'profit-medium'
-      return 'profit-low'
-    }
   },
   methods: {
     formatPrice,
@@ -561,30 +551,6 @@ export default {
   border: 1px solid #b3d9ff;
 }
 
-.profit-badge {
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-weight: 600;
-  font-size: 0.9em;
-  color: white;
-}
-
-.profit-excellent {
-  background: #28a745;
-}
-
-.profit-good {
-  background: #17a2b8;
-}
-
-.profit-medium {
-  background: #ffc107;
-  color: #333;
-}
-
-.profit-low {
-  background: #fd7e14;
-}
 
 .deal-details {
   display: flex;

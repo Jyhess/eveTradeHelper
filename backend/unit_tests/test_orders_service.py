@@ -8,7 +8,7 @@ from domain.location_validator import LocationValidator
 from domain.orders_service import OrdersService
 from domain.repository import EveRepository
 from domain.types import Order
-
+from domain.types import RegionDetails, ConstellationDetails, SystemDetails, StargateDetails, StationDetails, MarketGroupDetails, ItemType, RouteDetail
 
 class MockRepository(EveRepository):
     """Mock repository for unit tests"""
@@ -28,35 +28,35 @@ class MockRepository(EveRepository):
     async def get_regions_list(self) -> list[int]:
         return []
 
-    async def get_region_details(self, region_id: int) -> dict:
-        return {}
+    async def get_region_details(self, region_id: int) -> RegionDetails:
+        raise NotImplementedError
 
-    async def get_constellation_details(self, constellation_id: int) -> dict:
-        return {}
+    async def get_constellation_details(self, constellation_id: int) -> ConstellationDetails:
+        raise NotImplementedError
 
-    async def get_system_details(self, system_id: int) -> dict:
-        return {}
+    async def get_system_details(self, system_id: int) -> SystemDetails:
+        raise NotImplementedError
 
-    async def get_stargate_details(self, stargate_id: int) -> dict:
-        return {}
+    async def get_stargate_details(self, stargate_id: int) -> StargateDetails:
+        raise NotImplementedError
 
-    async def get_station_details(self, station_id: int) -> dict:
-        return {}
+    async def get_station_details(self, station_id: int) -> StationDetails:
+        raise NotImplementedError
 
     async def get_market_groups_list(self) -> list[int]:
         return []
 
-    async def get_market_group_details(self, group_id: int) -> dict:
-        return {}
+    async def get_market_group_details(self, group_id: int) -> MarketGroupDetails:
+        raise NotImplementedError
 
-    async def get_item_type(self, type_id: int) -> dict:
-        return {}
+    async def get_item_type(self, type_id: int) -> ItemType:
+        raise NotImplementedError
 
     async def get_route(self, origin: int, destination: int) -> list[int]:
-        return []
+        raise NotImplementedError
 
-    async def get_route_with_details(self, origin: int, destination: int) -> list[dict]:
-        return []
+    async def get_route_with_details(self, origin: int, destination: int) -> list[RouteDetail]:
+        raise NotImplementedError
 
 
 def create_order_dict(
@@ -65,21 +65,22 @@ def create_order_dict(
     is_buy_order: bool = True,
     price: float = 100.0,
     location_id: int = 30000142,
-) -> dict:
+) -> Order:
     """Helper function to create a complete order dictionary"""
-    return {
-        "order_id": order_id,
-        "type_id": type_id,
-        "is_buy_order": is_buy_order,
-        "price": price,
-        "location_id": location_id,
-        "volume_total": 1000,
-        "volume_remain": 1000,
-        "min_volume": 1,
-        "duration": 90,
-        "issued": "2024-01-01T00:00:00Z",
-        "range": "region",
-    }
+    return Order(
+        order_id=order_id,
+        type_id=type_id,
+        is_buy_order=is_buy_order,
+        price=price,
+        location_id=location_id,
+        volume_total=1000,
+        volume_remain=1000,
+        min_volume=1,
+        duration=90,
+        issued="2024-01-01T00:00:00Z",
+        range="region",
+    )
+        
 
 
 @pytest.fixture

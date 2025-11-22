@@ -1,7 +1,7 @@
 import logging
 
 from eve.exceptions import BadRequestError, NotFoundError
-from repositories.local_data import LocalDataRepository
+from .i_local_data_repository import ILocalDataRepository
 
 from .constants import STATION_ID_THRESHOLD
 from .repository import EveRepository
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class LocationValidator:
-    def __init__(self, local_data_repository: LocalDataRepository, repository: EveRepository):
+    def __init__(self, local_data_repository: ILocalDataRepository, repository: EveRepository):
         self.local_data_repository = local_data_repository
         self.repository = repository
 

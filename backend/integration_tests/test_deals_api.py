@@ -6,7 +6,7 @@ class TestDealsAPI:
     def test_get_market_deals_endpoint_structure(self, client):
         response = client.get(
             "/api/v1/markets/deals",
-            params={"region_id": 10000002, "group_id": 1822, "min_profit_isk": 50.0},
+            params={"region_id": 10000002, "group_ids": "1822", "min_profit_isk": 50.0},
         )
 
         # Vérifier le statut HTTP
@@ -35,14 +35,14 @@ class TestDealsAPI:
 
     def test_get_market_deals_endpoint_params(self, client):
         region_id = 10000002
-        group_id = 1822
+        group_ids = "1822"
         min_profit_isk = 30.0
 
         response = client.get(
             "/api/v1/markets/deals",
             params={
                 "region_id": region_id,
-                "group_id": group_id,
+                "group_ids": group_ids,
                 "min_profit_isk": min_profit_isk,
             },
         )
@@ -51,13 +51,13 @@ class TestDealsAPI:
         data = response.json()
 
         assert data["region_id"] == region_id
-        assert data["group_id"] == group_id
+        assert data["group_id"] == 1822  # Service returns single group_id when one group provided
         assert data["min_profit_isk"] == min_profit_isk
 
     def test_get_market_deals_endpoint_default_threshold(self, client):
         response = client.get(
             "/api/v1/markets/deals",
-            params={"region_id": 10000002, "group_id": 1822},
+            params={"region_id": 10000002, "group_ids": "1822"},
         )
 
         assert response.status_code == 200
@@ -71,7 +71,7 @@ class TestDealsAPI:
             "/api/v1/markets/deals",
             params={
                 "region_id": 10000002,
-                "group_id": 1822,
+                "group_ids": "1822",
                 "min_profit_isk": 100.0,  # Seuil élevé pour peut-être avoir 0 deals
             },
         )
@@ -105,7 +105,7 @@ class TestDealsAPI:
             "/api/v1/markets/deals",
             params={
                 "region_id": 10000002,
-                "group_id": 1822,
+                "group_ids": "1822",
                 "min_profit_isk": 10.0,
             },
         )
@@ -122,15 +122,41 @@ class TestDealsAPI:
         # Test sans region_id
         response = client.get(
             "/api/v1/markets/deals",
-            params={"group_id": 1822},
+            params={"group_ids": "1822"},
         )
         assert response.status_code == 422  # Validation error
 
-    def test_get_market_deals_endpoint_without_group_id(self, client):
-        """Test that endpoint works without group_id (all categories)"""
+    def test_get_market_deals_endpoint_missing_group_ids(self, client):
+        """Test that endpoint returns 422 when group_ids is missing"""
         response = client.get(
             "/api/v1/markets/deals",
             params={"region_id": 10000002, "min_profit_isk": 1000000.0},
+        )
+        assert response.status_code == 422  # Validation error
+
+    def test_get_market_deals_endpoint_empty_group_ids(self, client):
+        """Test that endpoint returns 400 when group_ids is empty"""
+        response = client.get(
+            "/api/v1/markets/deals",
+            params={"region_id": 10000002, "group_ids": "", "min_profit_isk": 1000000.0},
+        )
+        assert response.status_code == 400
+        assert "cannot be empty" in response.json()["detail"].lower()
+
+    def test_get_market_deals_endpoint_invalid_group_ids_format(self, client):
+        """Test that endpoint returns 400 when group_ids has invalid format"""
+        response = client.get(
+            "/api/v1/markets/deals",
+            params={"region_id": 10000002, "group_ids": "invalid", "min_profit_isk": 1000000.0},
+        )
+        assert response.status_code == 400
+        assert "invalid format" in response.json()["detail"].lower()
+
+    def test_get_market_deals_endpoint_multiple_group_ids(self, client):
+        """Test that endpoint works with multiple group_ids"""
+        response = client.get(
+            "/api/v1/markets/deals",
+            params={"region_id": 10000002, "group_ids": "1822,1823", "min_profit_isk": 1000000.0},
         )
         assert response.status_code == 200
         data = response.json()
@@ -139,15 +165,13 @@ class TestDealsAPI:
         assert "min_profit_isk" in data
         assert "total_types" in data
         assert "deals" in data
-        # group_id should not be in response when None
-        assert "group_id" not in data or data.get("group_id") is None
 
     def test_get_market_deals_endpoint_invalid_group(self, client):
         response = client.get(
             "/api/v1/markets/deals",
             params={
                 "region_id": 10000002,
-                "group_id": 999999,  # Groupe inexistant
+                "group_ids": "999999",  # Groupe inexistant
                 "min_profit_isk": 5.0,
             },
         )
@@ -165,7 +189,7 @@ class TestDealsAPI:
             "/api/v1/markets/deals",
             params={
                 "region_id": 10000002,
-                "group_id": 1822,
+                "group_ids": "1822",
                 "min_profit_isk": -5.0,
             },
         )
@@ -180,7 +204,7 @@ class TestDealsAPI:
             "/api/v1/markets/deals",
             params={
                 "region_id": 10000002,  # The Forge
-                "group_id": 1822,  # Materials & Parts
+                "group_ids": "1822",  # Materials & Parts
                 "min_profit_isk": 5.0,
             },
             timeout=60,  # Timeout plus long pour ce test

@@ -68,9 +68,10 @@
         <MarketGroupSelector
           v-if="!searchAllCategories"
           id="market-group-select"
-          :selected-group-id="selectedGroupId"
+          :multiple="true"
+          :selected-group-ids="selectedGroupIds"
           :disabled="!fromSystemId || !toSystemId"
-          @update:selected-group-id="selectedGroupId = $event"
+          @update:selected-group-ids="selectedGroupIds = $event"
           @group-select="onGroupSelect"
           @group-change="onGroupChange"
           @error="error = $event"
@@ -198,9 +199,10 @@ export default {
       toRegionId: null,
       toConstellationId: null,
       toSystemId: null,
-      selectedGroupId: null,
+      selectedGroupIds: [],
       groupName: '',
       searchAllCategories: false,
+      rootGroupIds: [], // Root market group IDs (groups without parent)
       minProfitIsk: 100000.0,
       minProfitIskDisplay: '100 000',
       maxTransportVolume: null,
@@ -241,6 +243,7 @@ export default {
   },
   async mounted() {
     await this.fetchRegions()
+    await this.loadRootGroupIds()
     
     // Check for URL query parameters first (priority over localStorage)
     const fromSystemIdParam = this.$route.query.from_system_id
@@ -248,13 +251,17 @@ export default {
     
     if (fromSystemIdParam || toSystemIdParam) {
       // Load from URL params if available
-      if (fromSystemIdParam) {
-        this.fromSystemId = parseInt(fromSystemIdParam)
+      try {
+        if (fromSystemIdParam) {
+          await this.initializeSystemFromId(parseInt(fromSystemIdParam), 'from')
+        }
+        if (toSystemIdParam) {
+          await this.initializeSystemFromId(parseInt(toSystemIdParam), 'to')
+        }
+      } catch (error) {
+        console.error('Error initializing systems from URL params:', error)
+        this.error = `Error initializing systems: ${error.message}`
       }
-      if (toSystemIdParam) {
-        this.toSystemId = parseInt(toSystemIdParam)
-      }
-      // Note: We don't load region/constellation from URL as SystemSelector will handle it
       this.isLoadingSettings = false
     } else {
       // Load from localStorage if no URL params
@@ -270,6 +277,20 @@ export default {
         this.regions = data.regions || []
       } catch (error) {
         this.error = 'Error loading regions: ' + error.message
+      }
+    },
+    async loadRootGroupIds() {
+      try {
+        const data = await api.markets.getCategories()
+        const categories = data.categories || []
+        // Filter root groups (those without parent_group_id)
+        this.rootGroupIds = categories
+          .filter(cat => cat.parent_group_id == null || cat.parent_group_id === undefined)
+          .map(cat => cat.group_id)
+          .filter(id => id != null && !isNaN(id) && Number.isInteger(id) && id > 0)
+      } catch (error) {
+        console.error('Error loading root group IDs:', error)
+        this.rootGroupIds = []
       }
     },
     onFromRegionChange() {
@@ -289,6 +310,42 @@ export default {
     },
     onToSystemChange() {
       this.saveSettings()
+    },
+    async initializeSystemFromId(systemId, prefix) {
+      try {
+        const systemData = await api.systems.getSystem(systemId)
+        const system = systemData.system
+
+        if (!system || !system.constellation_id) {
+          this.error = `Could not retrieve constellation for system ${systemId}`
+          return
+        }
+
+        const constellationData = await api.constellations.getConstellation(system.constellation_id)
+        const constellation = constellationData.constellation
+
+        if (!constellation || !constellation.region_id) {
+          this.error = `Could not retrieve region for constellation ${system.constellation_id}`
+          return
+        }
+
+        if (prefix === 'from') {
+          this.fromRegionId = constellation.region_id
+          await this.$nextTick()
+          this.fromConstellationId = system.constellation_id
+          await this.$nextTick()
+          this.fromSystemId = systemId
+        } else if (prefix === 'to') {
+          this.toRegionId = constellation.region_id
+          await this.$nextTick()
+          this.toConstellationId = system.constellation_id
+          await this.$nextTick()
+          this.toSystemId = systemId
+        }
+      } catch (error) {
+        this.error = `Error initializing system ${systemId}: ${error.message}`
+        console.error(`Error initializing system ${systemId}:`, error)
+      }
     },
     onGroupSelect() {
       this.saveSettings()
@@ -595,12 +652,28 @@ export default {
           to_system_id: this.toSystemId,
           min_profit_isk: this.minProfitIsk
         }
-        if (
-          !this.searchAllCategories &&
-          this.selectedGroupId !== null &&
-          this.selectedGroupId !== undefined
-        ) {
-          params.group_id = this.selectedGroupId
+        // group_ids is now required
+        if (this.searchAllCategories) {
+          // When searching all categories, use root groups
+          if (this.rootGroupIds.length > 0) {
+            params.group_ids = this.rootGroupIds.join(',')
+          } else {
+            this.error = 'Unable to load root groups. Please try again.'
+            return
+          }
+        } else if (this.selectedGroupIds && this.selectedGroupIds.length > 0) {
+          // Filter out invalid IDs and ensure we have valid group IDs
+          const validGroupIds = this.selectedGroupIds
+            .filter(id => id != null && !isNaN(id) && Number.isInteger(id) && id > 0)
+          if (validGroupIds.length > 0) {
+            params.group_ids = validGroupIds.join(',')
+          } else {
+            this.error = 'Please select at least one valid market group'
+            return
+          }
+        } else {
+          this.error = 'Please select at least one market group or enable "Search in all categories"'
+          return
         }
         if (this.maxTransportVolume !== null && this.maxTransportVolume !== undefined) {
           params.max_transport_volume = this.maxTransportVolume

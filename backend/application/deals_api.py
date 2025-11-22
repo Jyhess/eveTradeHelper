@@ -27,10 +27,31 @@ router = APIRouter()
 deals_router = router
 
 
+def parse_group_ids(group_ids: str) -> list[int]:
+    if not group_ids.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="group_ids parameter cannot be empty",
+        )
+    try:
+        group_id_list = [int(gid.strip()) for gid in group_ids.split(",") if gid.strip()]
+        if not group_id_list:
+            raise HTTPException(
+                status_code=400,
+                detail="group_ids parameter must contain at least one valid group ID",
+            )
+        return group_id_list
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid format for group_ids: {group_ids}. Expected comma-separated integers.",
+        ) from e
+
+
 @router.get("/api/v1/markets/deals")
 async def get_market_deals(
     region_id: int,
-    group_id: int | None = None,
+    group_ids: str,
     min_profit_isk: float = 100000.0,  # Uses DEFAULT_MIN_PROFIT_ISK from service
     max_transport_volume: float | None = None,
     max_buy_cost: float | None = None,
@@ -38,13 +59,13 @@ async def get_market_deals(
     deals_service: DealsService = Depends(ServicesProvider.get_deals_service),
 ):
     """
-    Finds deals in a market group for a region
-    Iterates through all item types in the group (including subgroups) and calculates
+    Finds deals in market groups for a region
+    Iterates through all item types in the specified groups (including subgroups) and calculates
     potential profit between best buy and sell orders in all specified regions
 
     Args:
         region_id: Main region ID
-        group_id: Market group ID (None = all groups)
+        group_ids: Comma-separated list of market group IDs (e.g., "1822,1823,1824"). Required.
         min_profit_isk: Minimum profit threshold in ISK (default: 100000.0)
         max_transport_volume: Maximum transport volume allowed in m³ (None = unlimited)
         max_buy_cost: Maximum purchase amount in ISK (None = unlimited)
@@ -64,9 +85,11 @@ async def get_market_deals(
                 logger.warning(f"Invalid format for additional_regions: {additional_regions}")
                 additional_region_ids = []
 
+        group_id_list = parse_group_ids(group_ids)
+
         result = await deals_service.find_market_deals(
             region_id=region_id,
-            group_id=group_id,
+            group_ids=group_id_list,
             min_profit_isk=min_profit_isk,
             max_transport_volume=max_transport_volume,
             max_buy_cost=max_buy_cost,
@@ -74,6 +97,9 @@ async def get_market_deals(
         )
         return result.to_dict()
 
+    except HTTPException:
+        # Re-raise HTTP exceptions (validation errors) as-is
+        raise
     except Exception as e:
         logger.error(f"Error searching for deals: {e}")
         raise HTTPException(
@@ -86,10 +112,10 @@ async def get_market_deals(
 async def get_system_to_system_deals(
     from_system_id: int,
     to_system_id: int,
+    group_ids: str,
     min_profit_isk: float = 100000.0,
     max_transport_volume: float | None = None,
     max_buy_cost: float | None = None,
-    group_id: int | None = None,
     max_detour_jumps: int = 0,
     deals_service: DealsService = Depends(ServicesProvider.get_deals_service),
 ):
@@ -109,24 +135,29 @@ async def get_system_to_system_deals(
         min_profit_isk: Minimum profit threshold in ISK (default: 100000.0)
         max_transport_volume: Maximum transport volume allowed in m³ (None = unlimited)
         max_buy_cost: Maximum purchase amount in ISK (None = unlimited)
-        group_id: Market group ID to filter by (None = all groups)
+        group_ids: Comma-separated list of market group IDs (e.g., "1822,1823,1824"). Required.
         max_detour_jumps: Maximum number of jumps to consider systems connected to route systems (default: 0)
 
     Returns:
         JSON response with deals from all route segments, including route and route_segments
     """
     try:
+        group_id_list = parse_group_ids(group_ids)
+
         result = await deals_service.find_system_to_system_deals(
             from_system_id=from_system_id,
             to_system_id=to_system_id,
             min_profit_isk=min_profit_isk,
             max_transport_volume=max_transport_volume,
             max_buy_cost=max_buy_cost,
-            group_id=group_id,
+            group_ids=group_id_list,
             max_detour_jumps=max_detour_jumps,
         )
         return result
 
+    except HTTPException:
+        # Re-raise HTTP exceptions (validation errors) as-is
+        raise
     except Exception as e:
         logger.error(f"Error searching for system-to-system deals: {e}")
         raise HTTPException(

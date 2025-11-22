@@ -6,9 +6,8 @@ Contains pure business logic, independent of infrastructure (async version)
 import asyncio
 import logging
 
-from repositories.local_data import LocalDataRepository
-
 from .constants import DEFAULT_MARKET_ORDERS_LIMIT
+from .i_local_data_repository import ILocalDataRepository
 from .location_validator import LocationValidator
 from .orders_service import OrdersService
 from .repository import EveRepository
@@ -18,6 +17,7 @@ from .types import (
     ItemType,
     ItemTypeSearchResult,
     MarketCategory,
+    MarketGroupDetails,
     Order,
     TypePriceByRegion,
 )
@@ -33,7 +33,7 @@ class MarketService:
         repository: EveRepository,
         location_validator: LocationValidator,
         orders_service: OrdersService,
-        local_data_repository: LocalDataRepository | None = None,
+        local_data_repository: ILocalDataRepository,
     ):
         """
         Initialize the service with a repository
@@ -50,27 +50,29 @@ class MarketService:
 
     async def get_market_categories(self) -> list[MarketCategory]:
         """
-        Retrieves the list of market categories with their details
-        Business logic: orchestration of repository calls (parallelized)
+        Retrieves the list of market categories with their details from static data
 
         Returns:
             List of formatted categories, sorted by name
         """
-        group_ids = await self.repository.get_market_groups_list()
+        if not self.local_data_repository:
+            raise ValueError(
+                "local_data_repository is required for getting market categories. "
+                "Static data must be available."
+            )
 
-        async def fetch_group(group_id: int) -> MarketCategory | None:
-            try:
-                group_data = await self.repository.get_market_group_details(group_id)
-                return MarketCategory.from_market_group_details(group_data)
-            except Exception as e:
-                logger.warning(f"Error retrieving group {group_id}: {e.__class__.__name__} {e}")
-                return None
+        group_ids = self.local_data_repository.get_all_market_group_ids()
 
-        results = await asyncio.gather(*[fetch_group(gid) for gid in group_ids])
+        categories = []
+        for group_id in group_ids:
+            market_group_details = self.local_data_repository.get_market_group_details(group_id)
+            if not market_group_details:
+                continue
 
-        categories = sorted([c for c in results if c is not None], key=lambda x: x.name)
+            category = MarketCategory.from_market_group_details(market_group_details)
+            categories.append(category)
 
-        return categories
+        return sorted(categories, key=lambda x: x.name)
 
     async def get_item_type(self, type_id: int) -> ItemType:
         return await self.repository.get_item_type(type_id)

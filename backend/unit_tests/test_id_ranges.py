@@ -1,6 +1,6 @@
 import pytest
 
-from repositories.local_data.id_ranges import IdRanges
+from domain.types import IdRanges
 
 
 @pytest.mark.unit

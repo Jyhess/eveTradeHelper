@@ -7,9 +7,6 @@ import asyncio
 import logging
 from typing import Any
 
-from repositories.local_data import LocalDataRepository
-from utils.cache import cached
-
 from .constants import (
     DEFAULT_MAX_CONCURRENT_ANALYSES,
     DEFAULT_MIN_PROFIT_ISK,
@@ -20,6 +17,7 @@ from .helpers import (
     calculate_tradable_volume,
     get_system_id_from_location,
 )
+from .i_local_data_repository import ILocalDataRepository
 from .location_validator import LocationValidator
 from .orders_service import OrdersService
 from .repository import EveRepository
@@ -43,7 +41,7 @@ class DealsService:
         repository: EveRepository,
         location_validator: LocationValidator,
         orders_service: OrdersService,
-        local_data_repository: LocalDataRepository | None = None,
+        local_data_repository: ILocalDataRepository,
     ):
         self.repository = repository
         self.location_validator = location_validator
@@ -278,46 +276,17 @@ class DealsService:
             sell_region_id=sell_region_id,
         )
 
-    @cached(cache_key_prefix="collect_all_types_from_group2")
-    async def collect_all_types_from_group(self, group_id: int) -> set[int]:
-        all_group_ids = await self.repository.get_market_groups_list()
-        all_groups_data = await asyncio.gather(
-            *[self.repository.get_market_group_details(gid) for gid in all_group_ids],
-            return_exceptions=True,
-        )
+    def collect_all_types_from_group(self, group_id: int) -> set[int]:
+        """
+        Collect all types from a market group using static data
+        """
+        if not self.local_data_repository:
+            raise ValueError(
+                "local_data_repository is required for collecting types. "
+                "Static data must be available."
+            )
 
-        groups_map = {}
-        for i, group_data in enumerate(all_groups_data):
-            gid = all_group_ids[i]
-            if isinstance(group_data, Exception):
-                continue
-            groups_map[gid] = {
-                "data": group_data,
-                "types": group_data.types,
-                "parent_id": group_data.parent_group_id,
-                "children": [],
-            }
-
-        for gid, group_info in groups_map.items():
-            parent_id = group_info["parent_id"]
-            if parent_id and parent_id in groups_map:
-                groups_map[parent_id]["children"].append(gid)
-
-        def collect_all_types_recursive(gid: int, collected_types: set[int]) -> set[int]:
-            """Recursively collects all types from a market group"""
-            if gid not in groups_map:
-                return collected_types
-
-            group_info = groups_map[gid]
-            collected_types.update(group_info["types"])
-
-            for child_id in group_info["children"]:
-                collect_all_types_recursive(child_id, collected_types)
-
-            return collected_types
-
-        result_set = collect_all_types_recursive(group_id, set())
-        return result_set
+        return self.local_data_repository.get_types_for_group(group_id, include_children=True)
 
     async def analyze_type_profitability(
         self,
@@ -451,7 +420,7 @@ class DealsService:
     async def find_market_deals(
         self,
         region_id: int,
-        group_id: int | None = None,
+        group_ids: list[int] | None = None,
         min_profit_isk: float = DEFAULT_MIN_PROFIT_ISK,
         max_transport_volume: float | None = None,
         max_buy_cost: float | None = None,
@@ -462,7 +431,20 @@ class DealsService:
         if additional_regions:
             regions_str += f" + {len(additional_regions)} other(s)"
 
-        group_str = f"group {group_id}" if group_id is not None else "all groups"
+        if group_ids:
+            if isinstance(group_ids, int):
+                group_str = f"group {group_ids}"
+            elif isinstance(group_ids, list):
+                group_str = (
+                    f"groups {', '.join(map(str, group_ids))}"
+                    if len(group_ids) > 1
+                    else f"group {group_ids[0]}"
+                )
+            else:
+                group_str = str(group_ids)
+        else:
+            group_str = "all groups"
+
         logger.info(
             f"Searching for deals in {group_str} "
             f"in regions: {regions_str} (threshold: {min_profit_isk} ISK"
@@ -470,10 +452,11 @@ class DealsService:
             f"{f', max buy amount: {max_buy_cost} ISK' if max_buy_cost else ''})"
         )
 
-        # Collect all types from the group (and subgroups)
-        all_types = await self._collect_types_for_deals(group_id)
+        # Collect all types from the specified groups (and subgroups)
+        all_types = await self._collect_types_for_deals_multiple(group_ids)
 
         if not all_types:
+            logger.warning(f"No types found for group_ids={group_ids}. Returning empty result.")
             return MarketDealsResult(
                 region_id=region_id,
                 min_profit_isk=min_profit_isk,
@@ -482,10 +465,9 @@ class DealsService:
                 total_types=0,
                 total_profit_isk=0.0,
                 deals=[],
-                group_id=group_id,
+                group_id=group_ids[0] if group_ids and len(group_ids) == 1 else None,
             )
 
-        group_str = f"group {group_id}" if group_id is not None else "all groups"
         logger.info(f"Found {len(all_types)} item types in {group_str}")
 
         # Analyze all types in parallel (limited to avoid overload)
@@ -507,6 +489,26 @@ class DealsService:
             return_exceptions=True,
         )
 
+        exception_count = 0
+        deal_count = 0
+        none_count = 0
+        for i, r in enumerate(results):
+            if isinstance(r, Exception):
+                exception_count += 1
+                logger.warning(
+                    f"Exception analyzing type {all_types[i]}: {r}",
+                    exc_info=r if isinstance(r, BaseException) else None,
+                )
+            elif isinstance(r, Deal):
+                deal_count += 1
+            else:
+                none_count += 1
+
+        if exception_count > 0:
+            logger.warning(
+                f"Found {exception_count} exceptions out of {len(results)} type analyses"
+            )
+
         valid_results: list[Deal | None] = [r if isinstance(r, Deal) else None for r in results]
         deals = self._filter_valid_deals(valid_results)
         deals = self._sort_deals_by_profit(deals)
@@ -526,7 +528,7 @@ class DealsService:
             total_types=len(all_types),
             total_profit_isk=total_profit_isk,
             deals=deals,
-            group_id=group_id,
+            group_id=group_ids[0] if group_ids and len(group_ids) == 1 else None,
         )
 
     def _generate_route_segments(self, route: list[int]) -> list[tuple[int, int]]:
@@ -597,30 +599,45 @@ class DealsService:
 
         return filtered_deals
 
-    @cached(cache_key_prefix="collect_types_for_deals")
-    async def _collect_types_for_deals(self, group_id: int | None = None) -> set[int]:
-        if group_id is not None:
-            return await self.collect_all_types_from_group(group_id)
+    async def _collect_types_for_deals_multiple(
+        self, group_ids: list[int] | None = None
+    ) -> set[int]:
+        """
+        Collect types for deals from multiple groups using static data
+        """
+        if not self.local_data_repository:
+            raise ValueError(
+                "local_data_repository is required for collecting types. "
+                "Static data must be available."
+            )
 
-        all_group_ids = await self.repository.get_market_groups_list()
-        all_groups_data = await asyncio.gather(
-            *[self.repository.get_market_group_details(gid) for gid in all_group_ids],
-            return_exceptions=True,
-        )
-
-        top_level_group_ids = []
-        for i, group_data in enumerate(all_groups_data):
-            if isinstance(group_data, Exception):
-                continue
-            if group_data.parent_group_id is None:
-                top_level_group_ids.append(all_group_ids[i])
+        if group_ids is None or len(group_ids) == 0:
+            return self.local_data_repository.get_all_types_from_all_groups()
 
         all_types = set()
-        for top_level_group_id in top_level_group_ids:
-            group_types = await self.collect_all_types_from_group(top_level_group_id)
+        for group_id in group_ids:
+            group_types = self.local_data_repository.get_types_for_group(
+                group_id, include_children=True
+            )
             all_types.update(group_types)
 
         return all_types
+
+    async def _collect_types_for_deals(self, group_id: int | None = None) -> set[int]:
+        """
+        Collect types for deals from static data
+        """
+        if not self.local_data_repository:
+            raise ValueError(
+                "local_data_repository is required for collecting types. "
+                "Static data must be available."
+            )
+
+        if group_id is not None:
+            result = self.local_data_repository.get_types_for_group(group_id, include_children=True)
+            return result
+
+        return self.local_data_repository.get_all_types_from_all_groups()
 
     async def _get_connected_system_ids(self, system_id: int) -> list[int]:
         """
@@ -884,16 +901,23 @@ class DealsService:
         min_profit_isk: float,
         max_transport_volume: float | None,
         max_buy_cost: float | None,
-        group_id: int | None,
+        group_ids: list[int] | None,
         max_detour_jumps: int,
     ) -> None:
         """Log the start of a system-to-system deals search"""
+        group_str = (
+            f"groups {', '.join(map(str, group_ids))}"
+            if group_ids and len(group_ids) > 1
+            else f"group {group_ids[0]}"
+            if group_ids and len(group_ids) == 1
+            else ""
+        )
         logger.info(
             f"Searching for deals along route from system {from_system_id} to system {to_system_id} "
             f"(threshold: {min_profit_isk} ISK"
             f"{f', max volume: {max_transport_volume} m³' if max_transport_volume else ''}"
             f"{f', max buy amount: {max_buy_cost} ISK' if max_buy_cost else ''}"
-            f"{f', group: {group_id}' if group_id else ''}"
+            f"{f', {group_str}' if group_str else ''}"
             f"{f', max detour jumps: {max_detour_jumps}' if max_detour_jumps > 0 else ''})"
         )
 
@@ -904,7 +928,7 @@ class DealsService:
         min_profit_isk: float = DEFAULT_MIN_PROFIT_ISK,
         max_transport_volume: float | None = None,
         max_buy_cost: float | None = None,
-        group_id: int | None = None,
+        group_ids: list[int] | None = None,
         max_concurrent: int = DEFAULT_MAX_CONCURRENT_ANALYSES,
         max_detour_jumps: int = 0,
     ) -> SystemToSystemDealsResult:
@@ -937,7 +961,7 @@ class DealsService:
             min_profit_isk,
             max_transport_volume,
             max_buy_cost,
-            group_id,
+            group_ids,
             max_detour_jumps,
         )
 
@@ -963,7 +987,7 @@ class DealsService:
             min_profit_isk,
             max_transport_volume,
             max_buy_cost,
-            group_id,
+            group_ids,
             max_concurrent,
         )
 
@@ -977,7 +1001,7 @@ class DealsService:
         min_profit_isk: float,
         max_transport_volume: float | None,
         max_buy_cost: float | None,
-        group_id: int | None,
+        group_ids: list[int] | None,
         max_concurrent: int,
     ) -> SystemToSystemDealsResult:
         """
@@ -992,7 +1016,7 @@ class DealsService:
             min_profit_isk: Minimum profit threshold
             max_transport_volume: Maximum transport volume
             max_buy_cost: Maximum buy cost
-            group_id: Market group ID
+            group_ids: Market group IDs
             max_concurrent: Maximum concurrent analyses
 
         Returns:
@@ -1010,7 +1034,7 @@ class DealsService:
 
         market_deals_result = await self.find_market_deals(
             region_id=from_region_id,
-            group_id=group_id,
+            group_ids=group_ids,
             min_profit_isk=min_profit_isk,
             max_transport_volume=max_transport_volume,
             max_buy_cost=max_buy_cost,
