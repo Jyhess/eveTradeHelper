@@ -12,9 +12,9 @@ def mock_repository():
 
 
 @pytest.fixture
-def deals_service(mock_repository, local_data_repository):
+def deals_service(mock_repository, local_data_repository, cache):
     """Fixture to create a DealsService with a mock repository"""
     location_validator = LocationValidator(local_data_repository, mock_repository)
-    orders_service = OrdersService(mock_repository, location_validator)
+    orders_service = OrdersService(mock_repository, location_validator, cache)
     return DealsService(mock_repository, location_validator, orders_service, local_data_repository)
 

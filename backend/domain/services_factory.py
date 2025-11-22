@@ -1,4 +1,6 @@
 from .i_local_data_repository import ILocalDataRepository
+from utils.cache.simple_cache import SimpleCache
+
 
 from .deals_service import DealsService
 from .location_validator import LocationValidator
@@ -10,10 +12,15 @@ from .repository import EveRepository
 
 
 class Services:
-    def __init__(self, eve_repository: EveRepository, local_data_repository: ILocalDataRepository):
+    def __init__(
+        self,
+        eve_repository: EveRepository,
+        local_data_repository: ILocalDataRepository,
+        cache: SimpleCache,
+    ):
         location_validator = LocationValidator(local_data_repository, eve_repository)
         # Create shared OrdersService instance for cache sharing
-        orders_service = OrdersService(eve_repository, location_validator)
+        orders_service = OrdersService(eve_repository, location_validator, cache)
         # Create RegionData and pass it to RegionService
         region_data = RegionData(eve_repository)
         self.region_service = RegionService(eve_repository, region_data)

@@ -98,10 +98,10 @@ def mock_repository():
 
 
 @pytest.fixture
-def market_service(mock_repository, local_data_repository):
+def market_service(mock_repository, local_data_repository, cache):
     """Fixture to create a MarketService with a mock repository"""
     location_validator = LocationValidator(local_data_repository, mock_repository)
-    orders_service = OrdersService(mock_repository, location_validator)
+    orders_service = OrdersService(mock_repository, location_validator, cache)
     return MarketService(
         mock_repository,
         location_validator,
@@ -136,11 +136,11 @@ def fake_local_data_repository():
 
 @pytest.fixture
 def market_service_with_type_search(
-    mock_repository, local_data_repository, fake_local_data_repository
+    mock_repository, local_data_repository, fake_local_data_repository, cache
 ):
     """Fixture to create a MarketService with fake type search data"""
     location_validator = LocationValidator(local_data_repository, mock_repository)
-    orders_service = OrdersService(mock_repository, location_validator)
+    orders_service = OrdersService(mock_repository, location_validator, cache)
     return MarketService(
         mock_repository,
         location_validator,

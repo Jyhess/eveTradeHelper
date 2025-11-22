@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
 
     # Infrastructure Layer: Repository
     eve_repository = make_eve_repository(cache, local_data_repository)
-    services = Services(eve_repository, local_data_repository)
+    services = Services(eve_repository, local_data_repository, cache)
     AppFactory.set_services(app, services)
 
     logger.info("Application initialized")

@@ -90,10 +90,10 @@ def mock_repository():
 
 
 @pytest.fixture
-def orders_service(mock_repository, local_data_repository):
+def orders_service(mock_repository, local_data_repository, cache):
     """Fixture to create an OrdersService with a mock repository"""
     location_validator = LocationValidator(local_data_repository, mock_repository)
-    return OrdersService(mock_repository, location_validator)
+    return OrdersService(mock_repository, location_validator, cache)
 
 
 @pytest.mark.asyncio
@@ -120,7 +120,7 @@ class TestOrdersService:
         assert orders[1].is_buy_order is False
 
     async def test_get_orders_caches_results(self, orders_service, mock_repository):
-        """Test that orders are cached in memory"""
+        """Test that orders are cached in Redis"""
         region_id = 10000002
         type_id = 123
 
@@ -135,7 +135,7 @@ class TestOrdersService:
         # Clear repository to verify cache is used
         mock_repository.market_orders = {}
 
-        # Second call should use cache
+        # Second call should use Redis cache
         orders2 = await orders_service.get_orders(region_id, type_id)
         assert len(orders2) == 1
         assert orders2 == orders1

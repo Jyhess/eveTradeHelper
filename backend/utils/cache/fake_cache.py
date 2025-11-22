@@ -31,13 +31,15 @@ class FakeCache:
         self.expiry_hours = expiry_hours
         self._cache_data: dict[str, dict[str, Any]] = {}
         self._metadata: dict[str, dict[str, Any]] = {}
+        self._raw_values: dict[str, str] = {}
 
-    def is_valid(self, key: str) -> bool:
+    def is_valid(self, key: str, expiry_hours: int | None = None) -> bool:
         """
         Checks if the cache for a key is still valid
 
         Args:
             key: Cache key
+            expiry_hours: Optional expiry hours override (uses self.expiry_hours if None)
 
         Returns:
             True if cache is valid, False otherwise
@@ -56,22 +58,24 @@ class FakeCache:
             last_updated = datetime.fromisoformat(last_updated_str)
             if last_updated.tzinfo is None:
                 last_updated = last_updated.replace(tzinfo=UTC)
-            expiry_time = last_updated + timedelta(hours=self.expiry_hours)
+            hours = expiry_hours if expiry_hours is not None else self.expiry_hours
+            expiry_time = last_updated + timedelta(hours=hours)
             return datetime.now(UTC) < expiry_time
         except (ValueError, TypeError):
             return False
 
-    def get(self, key: str) -> list[dict[str, Any]] | None:
+    def get(self, key: str, expiry_hours: int | None = None) -> list[dict[str, Any]] | None:
         """
         Retrieves data from cache
 
         Args:
             key: Cache key
+            expiry_hours: Optional expiry hours override (uses self.expiry_hours if None)
 
         Returns:
             Cached data or None if not available
         """
-        if not self.is_valid(key):
+        if not self.is_valid(key, expiry_hours):
             return None
 
         cache_key = f"cache:{key}"
@@ -80,7 +84,13 @@ class FakeCache:
             return cache_data.get("items", [])
         return None
 
-    def set(self, key: str, items: list[dict[str, Any]], metadata: dict | None = None):
+    def set(
+        self,
+        key: str,
+        items: list[dict[str, Any]],
+        metadata: dict | None = None,
+        expiry_hours: int | None = None,
+    ):
         """
         Saves data to cache
 
@@ -88,6 +98,7 @@ class FakeCache:
             key: Cache key
             items: List of items to cache
             metadata: Optional metadata (e.g., region_ids)
+            expiry_hours: Optional expiry hours override (uses self.expiry_hours if None)
         """
         now = datetime.now(UTC)
 
@@ -115,9 +126,6 @@ class FakeCache:
         Returns:
             Cached value as string or None if not found
         """
-        # Check both cache_data and a simple _raw_values dict
-        if not hasattr(self, "_raw_values"):
-            self._raw_values: dict[str, str] = {}
         return self._raw_values.get(key)
 
     def set_raw_value(self, key: str, value: str) -> None:
@@ -128,8 +136,6 @@ class FakeCache:
             key: Cache key
             value: Value to store
         """
-        if not hasattr(self, "_raw_values"):
-            self._raw_values: dict[str, str] = {}
         self._raw_values[key] = value
 
     def delete_raw_value(self, key: str) -> None:
@@ -139,8 +145,7 @@ class FakeCache:
         Args:
             key: Cache key to delete
         """
-        if hasattr(self, "_raw_values"):
-            self._raw_values.pop(key, None)
+        self._raw_values.pop(key, None)
 
     def clear(self, key: str | None = None):
         """
@@ -154,10 +159,8 @@ class FakeCache:
             metadata_key = f"metadata:{key}"
             self._cache_data.pop(cache_key, None)
             self._metadata.pop(metadata_key, None)
-            if hasattr(self, "_raw_values"):
-                self._raw_values.pop(key, None)
+            self._raw_values.pop(key, None)
         else:
             self._cache_data.clear()
             self._metadata.clear()
-            if hasattr(self, "_raw_values"):
-                self._raw_values.clear()
+            self._raw_values.clear()
