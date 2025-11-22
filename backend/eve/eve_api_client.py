@@ -6,6 +6,7 @@ Async version with httpx
 import asyncio
 import functools
 import logging
+from urllib.parse import urlencode
 from typing import Any
 
 import httpx
@@ -18,17 +19,15 @@ from domain.constants import (
     EVE_API_CONTACT_EMAIL,
     EVE_API_SOURCE_URL,
 )
+from domain.exceptions import BadRequestError, ClientError, NotFoundError, ServerError
 
 from .etag_cache import EtagCache
-from .exceptions import BadRequestError, ClientError, NotFoundError, ServerError
 from .rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
 
 
 class EveAPIClient:
-    """Client to interact with Eve Online ESI API (async)"""
-
     def __init__(
         self,
         rate_limiter: RateLimiter,
@@ -42,13 +41,11 @@ class EveAPIClient:
         self.etag_cache = etag_cache
 
     async def close(self):
-        """Closes the HTTP client"""
         if hasattr(self, "client"):
             await self.client.aclose()
 
     @functools.cached_property
     def client(self) -> httpx.AsyncClient:
-        """Gets or creates an async HTTP client"""
         headers = {"User-Agent": self.user_agent}
         return httpx.AsyncClient(timeout=self.timeout, headers=headers)
 
@@ -97,24 +94,27 @@ class EveAPIClient:
         self, url: str, params: dict | None, rate_limit_group: str | None
     ) -> dict[str, Any]:
         await self.rate_limiter.wait(rate_limit_group)
+        full_url = f"{url}?{urlencode(params)}" if params else url
 
-        headers = self.etag_cache.get_request_headers(url)
+        headers = self.etag_cache.get_request_headers(url, params)
         response = await self.client.get(url, params=params, headers=headers)
         logger.info(f"{url} : {response.status_code}")
 
         self.rate_limiter.extract_limit_info(response)
 
         if response.status_code == 304:
-            logger.debug(f"304 Not Modified for {url}, using cached data")
-            return self.etag_cache.get_cached_response_for_304(url)
+            logger.debug(f"304 Not Modified for {full_url}, using cached data")
+            return self.etag_cache.get_cached_response_for_304(url, params)
+        else:
+            self.etag_cache.clear_etag_and_cached_response(url, params)
 
         response.raise_for_status()
         result = response.json()
 
         if 200 <= response.status_code < 300:
-            self.etag_cache.cache_response(url, response, result)
+            self.etag_cache.update_etag_from_response(url, response, result, params)
         else:
-            logger.warning(f"{url} : {response.status_code}")
+            logger.error(f"{full_url} : {response.status_code}")
 
         return result
 
@@ -128,7 +128,6 @@ class EveAPIClient:
             )
             await asyncio.sleep(DEFAULT_API_RETRY_DELAY_SECONDS)
         else:
-            # Raise typed exceptions based on HTTP status code
             if isinstance(error, httpx.HTTPStatusError):
                 status_code = error.response.status_code
                 if status_code == 400:
@@ -146,7 +145,6 @@ class EveAPIClient:
         if isinstance(error, (httpx.TimeoutException, httpx.RequestError)):
             return True
 
-        # For HTTP status errors, check the status code
         if isinstance(error, httpx.HTTPStatusError):
             status_code = error.response.status_code
             # Retry rate limiting errors (420 is EVE Online specific, 429 is standard)

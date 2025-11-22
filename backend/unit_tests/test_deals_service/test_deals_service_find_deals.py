@@ -2,8 +2,6 @@
 
 import pytest
 
-from domain.types import RouteDetail
-
 from .utils_function import create_item_type, create_order, create_system_details
 
 
@@ -24,12 +22,12 @@ class TestDealsServiceFindDeals:
 
         # Verify
         assert result.region_id == 10000002
-        assert result.group_id == group_id
+        assert result.group_ids == [group_id]
         assert result.min_profit_isk == 5.0
         assert result.total_types == 0
         assert result.deals == []
 
-    async def test_find_market_deals_without_group_id(
+    async def test_find_market_deals_with_group_ids(
         self, deals_service, mock_repository, local_data_repository
     ):
         """Test find_market_deals with group_ids=None (all groups) using real static data"""
@@ -69,17 +67,16 @@ class TestDealsServiceFindDeals:
             type_id: create_item_type(type_id=type_id, name=f"Item {type_id}", volume=1.0)
         }
 
-        # Execute with group_ids=None (uses all groups from static data)
         result = await deals_service.find_market_deals(
-            region_id, group_ids=None, min_profit_isk=profit_threshold
+            region_id, group_ids=[61], min_profit_isk=profit_threshold
         )
 
         # Verify
         assert result.region_id == region_id
-        assert result.group_id is None  # Should not include group_id when None
+        assert result.group_ids == [61]
         assert result.min_profit_isk == profit_threshold
-        assert result.total_types > 0  # Should include types from all groups in static data
-        # May or may not find deals depending on orders setup
+        assert result.total_types > 0
+        assert len(result.deals) > 0
 
     async def test_find_market_deals_with_profitable_items(
         self, deals_service, mock_repository, local_data_repository

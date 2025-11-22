@@ -8,7 +8,7 @@ import pytest
 from domain.location_validator import LocationValidator
 from domain.market_service import MarketService
 from domain.orders_service import OrdersService
-from unit_tests.test_market_service.test_market_service_fixtures import (
+from .utils import (
     FakeLocalDataRepository,
     MockRepository,
 )

@@ -9,7 +9,7 @@ from collections import deque
 
 from .constants import DEFAULT_MAX_JUMPS
 from .region_data import RegionData
-from .repository import EveRepository
+from .eve_repository import EveRepository
 from .types import (
     ConstellationDetails,
     ConstellationSearchResult,

@@ -1,6 +1,9 @@
 """
 Integration tests for EveRepositoryImpl
 Compares API responses with references
+
+NOTE: This file contains integration tests that use real EveAPIClient.
+These tests should ideally be moved to integration_tests/ directory.
 """
 
 import time
@@ -8,7 +11,10 @@ import time
 import pytest
 
 from domain.region_service import RegionService
+from eve.etag_cache import EtagCache
+from eve.eve_api_client import EveAPIClient
 from eve.eve_repository_impl import EveRepositoryImpl
+from eve.rate_limiter import RateLimiter
 from utils.cache import CacheManager, SimpleCache
 
 from .test_utils import (
@@ -16,6 +22,14 @@ from .test_utils import (
     normalize_for_comparison,
     save_reference,
 )
+
+
+@pytest.fixture
+def eve_client(cache):
+    """Fixture to create an Eve API client with test cache (for integration tests only)"""
+    rate_limiter = RateLimiter()
+    etag_cache = EtagCache(cache=cache)
+    return EveAPIClient(rate_limiter=rate_limiter, etag_cache=etag_cache)
 
 
 @pytest.fixture

@@ -11,6 +11,50 @@ from domain.region_service import RegionService
 @pytest.fixture
 def region_service(eve_repository):
     from domain.region_data import RegionData
+    from domain.types import ConstellationDetails, StargateDetails, SystemDetails
+
+    # Configure mock with test data for Jita system (30000142) and connected systems
+    system_id = 30000142  # Jita
+    connected_system_id = 30000144  # Connected system
+    stargate_id = 50000001  # Stargate connecting the systems
+    constellation_id = 20000020
+
+    eve_repository.constellation_details[constellation_id] = ConstellationDetails(
+        constellation_id=constellation_id,
+        name="Test Constellation",
+        systems=[system_id, connected_system_id],
+        position={"x": 0, "y": 0, "z": 0},
+        region_id=10000002,
+    )
+    eve_repository.system_details[system_id] = SystemDetails(
+        system_id=system_id,
+        name="Jita",
+        security_status=0.9,
+        security_class="B",
+        position={"x": 0, "y": 0, "z": 0},
+        constellation_id=constellation_id,
+        planets=[],
+        star_id=40000001,
+        stargates=[stargate_id],
+    )
+    eve_repository.system_details[connected_system_id] = SystemDetails(
+        system_id=connected_system_id,
+        name="Connected System",
+        security_status=0.8,
+        security_class="B",
+        position={"x": 1, "y": 1, "z": 1},
+        constellation_id=constellation_id,
+        planets=[],
+        star_id=40000002,
+    )
+    eve_repository.stargate_details[stargate_id] = StargateDetails(
+        stargate_id=stargate_id,
+        system_id=system_id,
+        destination_system_id=connected_system_id,
+        position={"x": 0, "y": 0, "z": 0},
+        type_id=29624,
+        name="Test Stargate",
+    )
 
     region_data = RegionData(eve_repository)
     return RegionService(eve_repository, region_data)

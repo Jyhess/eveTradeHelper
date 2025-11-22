@@ -9,7 +9,6 @@ from repositories.local_data.local_data_repository import (
     TYPES_FROM_ID_FILE,
     LocalDataRepository,
 )
-from utils.cache.fake_cache import FakeCache
 
 
 @pytest.fixture
@@ -81,12 +80,14 @@ class TestLocalDataRepository:
 
         assert local_data_repository.is_invalid_location_id_cached(invalid_id) is True
 
-    def test_mark_location_id_as_invalid_with_none_cache(self):
-        fake_cache = FakeCache(expiry_hours=24)
-        repository = LocalDataRepository(fake_cache)
+    def test_mark_location_id_as_invalid_with_valid_cache(self, cache):
+        repository = LocalDataRepository(cache)
 
-        repository.mark_location_id_as_invalid(777777777)
-        assert repository.is_invalid_location_id_cached(777777777) is False
+        assert repository.is_invalid_location_id_cached(60008494) is False
+
+        repository.mark_location_id_as_invalid(60008494)
+
+        assert repository.is_invalid_location_id_cached(60008494) is True
 
     def test_get_max_int32(self, local_data_repository):
         assert local_data_repository.get_max_int32() == 2147483647

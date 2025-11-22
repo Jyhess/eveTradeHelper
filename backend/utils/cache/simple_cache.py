@@ -6,102 +6,22 @@ import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-try:
-    import redis
-
-    REDIS_AVAILABLE = True
-except ImportError:
-    REDIS_AVAILABLE = False
-
 
 class SimpleCache:
     """Cache using Redis"""
 
-    def __init__(
-        self,
-        expiry_hours: int,
-        redis_url: str | None = None,
-        redis_host: str | None = None,
-        redis_port: int = 6379,
-        redis_db: int = 0,
-    ):
+    def __init__(self, redis_client: Any, default_expiry_hours: int):
         """
         Initialize Redis cache
 
         Args:
-            expiry_hours: Cache lifetime in hours
-            redis_url: Redis connection URL (e.g., redis://localhost:6379/0)
-            redis_host: Redis host (ignored if redis_url is provided)
-            redis_port: Redis port (ignored if redis_url is provided)
-            redis_db: Redis database (ignored if redis_url is provided)
-
-        Raises:
-            ImportError: If redis-py is not installed
-            ConnectionError: If connection to Redis fails
+            redis_client: Redis client instance (required)
+            default_expiry_hours: Default cache lifetime in hours
         """
-        self._validate_redis_available()
-        self.expiry_hours = expiry_hours
-        self._validate_redis_config(redis_url, redis_host)
-        self.redis_client = self._create_redis_client(redis_url, redis_host, redis_port, redis_db)
-
-    def _validate_redis_available(self) -> None:
-        """Validates that Redis is available"""
-        if not REDIS_AVAILABLE:
-            raise ImportError(
-                "Redis is required but redis-py is not installed. "
-                "Install it with: pip install redis"
-            )
-
-    def _validate_redis_config(self, redis_url: str | None, redis_host: str | None) -> None:
-        """Validates that at least one Redis configuration is provided"""
-        if not redis_url and not redis_host:
-            raise ValueError(
-                "Redis is required but no configuration is provided. "
-                "Please provide REDIS_URL or REDIS_HOST in environment variables."
-            )
-
-    def _create_redis_client(
-        self, redis_url: str | None, redis_host: str | None, redis_port: int, redis_db: int
-    ) -> Any:
-        """Creates and tests Redis client connection"""
-        try:
-            if redis_url:
-                client = redis.from_url(redis_url, decode_responses=True)
-            else:
-                client = redis.Redis(
-                    host=redis_host,
-                    port=redis_port,
-                    db=redis_db,
-                    decode_responses=True,
-                )
-            # Test connection
-            client.ping()
-            return client
-        except redis.ConnectionError as e:
-            raise ConnectionError(
-                f"❌ Unable to connect to Redis.\n"
-                f"   Check that Redis is started with: docker-compose up -d redis\n"
-                f"   Or start the Redis service in Docker: docker-compose up redis\n"
-                f"   Error details: {e}"
-            ) from e
-        except Exception as e:
-            raise ConnectionError(
-                f"❌ Error connecting to Redis.\n"
-                f"   Check that Redis is started with: docker-compose up -d redis\n"
-                f"   Error details: {e}"
-            ) from e
+        self.redis_client = redis_client
+        self.default_expiry_hours = default_expiry_hours
 
     def is_valid(self, key: str, expiry_hours: int | None = None) -> bool:
-        """
-        Checks if the cache for a key is still valid
-
-        Args:
-            key: Cache key
-            expiry_hours: Optional expiry hours override (uses self.expiry_hours if None)
-
-        Returns:
-            True if cache is valid, False otherwise
-        """
         metadata_key = f"metadata:{key}"
         last_updated_str = self.redis_client.hget(metadata_key, "last_updated")
 
@@ -110,26 +30,28 @@ class SimpleCache:
 
         try:
             last_updated = datetime.fromisoformat(last_updated_str)
-            # Ensure the date is timezone-aware
             if last_updated.tzinfo is None:
                 last_updated = last_updated.replace(tzinfo=UTC)
-            hours = expiry_hours if expiry_hours is not None else self.expiry_hours
+
+            # Priority: 1) parameter expiry_hours, 2) metadata expiry_hours, 3) default_expiry_hours
+            if expiry_hours is not None:
+                hours = expiry_hours
+            else:
+                metadata_expiry_hours_str = self.redis_client.hget(metadata_key, "expiry_hours")
+                if metadata_expiry_hours_str:
+                    try:
+                        hours = int(metadata_expiry_hours_str)
+                    except (ValueError, TypeError):
+                        hours = self.default_expiry_hours
+                else:
+                    hours = self.default_expiry_hours
+
             expiry_time = last_updated + timedelta(hours=hours)
             return datetime.now(UTC) < expiry_time
         except (ValueError, TypeError):
             return False
 
     def get(self, key: str, expiry_hours: int | None = None) -> list[dict[str, Any]] | None:
-        """
-        Retrieves data from cache
-
-        Args:
-            key: Cache key
-            expiry_hours: Optional expiry hours override (uses self.expiry_hours if None)
-
-        Returns:
-            Cached data or None if not available
-        """
         if not self.is_valid(key, expiry_hours):
             return None
 
@@ -149,18 +71,8 @@ class SimpleCache:
         metadata: dict | None = None,
         expiry_hours: int | None = None,
     ):
-        """
-        Saves data to cache
-
-        Args:
-            key: Cache key
-            items: List of items to cache
-            metadata: Optional metadata (e.g., region_ids)
-            expiry_hours: Optional expiry hours override (uses self.expiry_hours if None)
-        """
         now = datetime.now(UTC)
 
-        # Save data
         cache_data = {
             "key": key,
             "items": items,
@@ -168,68 +80,36 @@ class SimpleCache:
         }
 
         try:
-            # Save data to Redis
             cache_key = f"cache:{key}"
             self.redis_client.set(cache_key, json.dumps(cache_data, ensure_ascii=False))
 
-            # Update metadata
             metadata_key = f"metadata:{key}"
             metadata_data = {
                 "last_updated": now.isoformat(),
                 "count": len(items),
                 "metadata": json.dumps(metadata or {}, ensure_ascii=False),
+                "expiry_hours": expiry_hours or self.default_expiry_hours,
             }
             self.redis_client.hset(metadata_key, mapping=metadata_data)
         except Exception as e:
             raise Exception(f"Error writing to Redis cache: {e}") from e
 
     def get_raw_value(self, key: str) -> str | None:
-        """
-        Retrieves a raw string value from cache (without expiration check)
-
-        Args:
-            key: Cache key
-
-        Returns:
-            Cached value as string or None if not found
-        """
-        try:
-            return self.redis_client.get(key)
-        except Exception:
-            return None
+        return self.redis_client.get(key)
 
     def set_raw_value(self, key: str, value: str) -> None:
-        """
-        Stores a raw string value in cache (without expiration)
-
-        Args:
-            key: Cache key
-            value: Value to store
-        """
         try:
             self.redis_client.set(key, value)
         except Exception as e:
             raise Exception(f"Error writing to Redis cache: {e}") from e
 
     def delete_raw_value(self, key: str) -> None:
-        """
-        Deletes a raw string value from cache
-
-        Args:
-            key: Cache key to delete
-        """
         try:
             self.redis_client.delete(key)
         except Exception as e:
             raise Exception(f"Error deleting from Redis cache: {e}") from e
 
     def clear(self, key: str | None = None):
-        """
-        Clears cache for a specific key or all cache
-
-        Args:
-            key: Key to delete, or None to delete all
-        """
         try:
             if key:
                 cache_key = f"cache:{key}"

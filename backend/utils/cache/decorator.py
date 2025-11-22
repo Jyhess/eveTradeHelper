@@ -14,14 +14,6 @@ from typing import TYPE_CHECKING, Any, cast
 from .manager import CacheManager
 from .simple_cache import SimpleCache
 
-if TYPE_CHECKING:
-    from .fake_cache import FakeCache
-else:
-    try:
-        from .fake_cache import FakeCache
-    except ImportError:
-        FakeCache = None  # type: ignore[assignment, misc]
-
 logger = logging.getLogger(__name__)
 
 
@@ -80,19 +72,10 @@ def _get_cache_instance(expiry_hours: int | None) -> SimpleCache | Any | None:
 
     # Create a temporary instance if expiry_hours is different
     if expiry_hours and expiry_hours != cache_instance.expiry_hours:
-        # Detect cache type and create appropriate temporary instance
-        if isinstance(cache_instance, SimpleCache):
-            temp_cache = SimpleCache.__new__(SimpleCache)
-            temp_cache.expiry_hours = expiry_hours
-            temp_cache.redis_client = cache_instance.redis_client
-            return temp_cache
-        elif FakeCache is not None and isinstance(cache_instance, FakeCache):
-            # For FakeCache, create a new instance that shares the same storage
-            temp_cache = FakeCache.__new__(FakeCache)  # type: ignore[assignment]
-            temp_cache.expiry_hours = expiry_hours
-            temp_cache._cache_data = cache_instance._cache_data  # type: ignore[attr-defined]
-            temp_cache._metadata = cache_instance._metadata  # type: ignore[attr-defined]
-            return temp_cache  # type: ignore[return-value]
+        temp_cache = SimpleCache.__new__(SimpleCache)
+        temp_cache.expiry_hours = expiry_hours
+        temp_cache.redis_client = cache_instance.redis_client
+        return temp_cache
 
     return cache_instance
 

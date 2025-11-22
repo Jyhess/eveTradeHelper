@@ -1,10 +1,10 @@
 import logging
 
-from eve.exceptions import BadRequestError, NotFoundError
+from .exceptions import BadRequestError, NotFoundError
 from .i_local_data_repository import ILocalDataRepository
 
 from .constants import STATION_ID_THRESHOLD
-from .repository import EveRepository
+from .eve_repository import EveRepository
 
 logger = logging.getLogger(__name__)
 

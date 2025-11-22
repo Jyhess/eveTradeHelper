@@ -40,7 +40,7 @@ pytest backend/unittests/test_deals_service.py::TestDealsServiceCollectTypes::te
 
 ## Cache for Unit Tests
 
-Unit tests use an **in-memory fake cache** (`FakeCache`) that simulates Redis behavior without requiring a real connection. This allows:
+Unit tests use an **in-memory fake cache** (`fakeredis`) that simulates Redis behavior without requiring a real connection. This allows:
 
 - Testing cache behavior without depending on Redis
 - Running tests faster

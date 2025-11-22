@@ -10,123 +10,107 @@ import pytest
 from eve.etag_cache import EtagCache
 
 
+@pytest.fixture
+def etag_cache(cache):
+    return EtagCache(cache=cache)
+
+
 @pytest.mark.unit
 class TestEtagCache:
-    """Tests for EtagCache class"""
-
     def test_initialization_requires_cache(self):
-        """Test that EtagCache requires a cache instance"""
         with pytest.raises(ValueError, match="Cache instance is required"):
             EtagCache(cache=None)
 
-    def test_initialization_with_cache(self, cache):
-        """Test that EtagCache initializes with cache"""
-        etag_cache = EtagCache(cache=cache)
-
-        assert etag_cache.cache == cache
-
-    def test_get_etag_nonexistent(self, cache):
-        """Test getting ETag that doesn't exist"""
-        etag_cache = EtagCache(cache=cache)
-
-        result = etag_cache.get_etag("https://test.com/api")
-        assert result is None
-
-    def test_set_and_get_etag_with_cache(self, cache):
-        """Test setting and getting ETag with cache"""
-        etag_cache = EtagCache(cache=cache)
-
-        etag_cache.set_etag("https://test.com/api", '"abc123"')
-        result = etag_cache.get_etag("https://test.com/api")
-
-        assert result == '"abc123"'
-
-    def test_get_cached_response_nonexistent(self, cache):
-        """Test getting cached response that doesn't exist"""
-        etag_cache = EtagCache(cache=cache)
-
-        result = etag_cache.get_cached_response("https://test.com/api")
-        assert result is None
-
-    def test_set_and_get_cached_response_with_cache(self, cache):
-        """Test setting and getting cached response with cache"""
-        etag_cache = EtagCache(cache=cache)
-
-        response_data = {"test": "data", "number": 42}
-        etag_cache.set_cached_response("https://test.com/api", response_data)
-        result = etag_cache.get_cached_response("https://test.com/api")
-
-        assert result == response_data
-
-    def test_get_request_headers_no_etag(self, cache):
-        """Test getting request headers when no ETag is cached"""
-        etag_cache = EtagCache(cache=cache)
-
+    def test_get_etag_nonexistent(self, etag_cache):
         headers = etag_cache.get_request_headers("https://test.com/api")
+        assert "If-None-Match" not in headers
 
-        assert headers == {}
+    def test_get_cached_response_for_304_without_cache_raises_exception(self, etag_cache):
+        with pytest.raises(Exception, match="No etag cached value"):
+            etag_cache.get_cached_response_for_304("https://test.com/api")
 
-    def test_get_request_headers_with_etag(self, cache):
-        """Test getting request headers when ETag is cached"""
-        etag_cache = EtagCache(cache=cache)
-
-        etag_cache.set_etag("https://test.com/api", '"abc123"')
+    def test_get_request_headers_with_etag(self, etag_cache):
+        mock_response = AsyncMock()
+        mock_response.headers = {"ETag": '"abc123"'}
+        etag_cache.update_etag_from_response("https://test.com/api", mock_response, {})
         headers = etag_cache.get_request_headers("https://test.com/api")
 
         assert headers == {"If-None-Match": '"abc123"'}
 
-    def test_update_from_response(self, cache):
-        """Test updating ETag from response headers"""
-        etag_cache = EtagCache(cache=cache)
-
+    def test_update_from_response(self, etag_cache):
         mock_response = AsyncMock()
         mock_response.headers = {"ETag": '"xyz789"'}
 
-        etag_cache.update_from_response("https://test.com/api", mock_response)
+        etag_cache.update_etag_from_response("https://test.com/api", mock_response, {"foo": "bar"})
 
-        assert etag_cache.get_etag("https://test.com/api") == '"xyz789"'
+        headers = etag_cache.get_request_headers("https://test.com/api")
+        assert headers["If-None-Match"] == '"xyz789"'
+        assert etag_cache.get_cached_response_for_304("https://test.com/api") == {"foo": "bar"}
 
-    def test_update_from_response_no_etag(self, cache):
-        """Test updating from response without ETag header"""
-        etag_cache = EtagCache(cache=cache)
+    def test_update_from_response_no_data(self, etag_cache):
+        mock_response = AsyncMock()
+        mock_response.headers = {"ETag": '"xyz789"'}
 
+        etag_cache.update_etag_from_response("https://test.com/api", mock_response, {})
+
+        headers = etag_cache.get_request_headers("https://test.com/api")
+        assert headers["If-None-Match"] == '"xyz789"'
+        assert etag_cache.get_cached_response_for_304("https://test.com/api") == {}
+
+    def test_update_from_response_no_etag(self, etag_cache):
+        # First set an ETag
+        mock_response_with_etag = AsyncMock()
+        mock_response_with_etag.headers = {"ETag": '"old_etag"'}
+        etag_cache.update_etag_from_response("https://test.com/api", mock_response_with_etag, {})
+
+        # Then update without ETag
         mock_response = AsyncMock()
         mock_response.headers = {}
+        etag_cache.update_etag_from_response("https://test.com/api", mock_response, {})
 
-        etag_cache.update_from_response("https://test.com/api", mock_response)
+        headers = etag_cache.get_request_headers("https://test.com/api")
+        assert "If-None-Match" not in headers
+        with pytest.raises(Exception, match="No etag cached value"):
+            etag_cache.get_cached_response_for_304("https://test.com/api")
 
-        assert etag_cache.get_etag("https://test.com/api") is None
-
-    def test_etag_cache_isolation(self, cache):
+    def test_etag_cache_isolation(self, etag_cache):
         """Test that different URLs have isolated ETags"""
-        etag_cache = EtagCache(cache=cache)
+        mock_response1 = AsyncMock()
+        mock_response1.headers = {"ETag": '"etag1"'}
+        etag_cache.update_etag_from_response("https://test.com/api1", mock_response1, {})
 
-        etag_cache.set_etag("https://test.com/api1", '"etag1"')
-        etag_cache.set_etag("https://test.com/api2", '"etag2"')
+        mock_response2 = AsyncMock()
+        mock_response2.headers = {"ETag": '"etag2"'}
+        etag_cache.update_etag_from_response("https://test.com/api2", mock_response2, {})
 
-        assert etag_cache.get_etag("https://test.com/api1") == '"etag1"'
-        assert etag_cache.get_etag("https://test.com/api2") == '"etag2"'
+        headers1 = etag_cache.get_request_headers("https://test.com/api1")
+        headers2 = etag_cache.get_request_headers("https://test.com/api2")
+        assert headers1["If-None-Match"] == '"etag1"'
+        assert headers2["If-None-Match"] == '"etag2"'
 
-    def test_response_cache_isolation(self, cache):
+    def test_response_cache_isolation(self, etag_cache):
         """Test that different URLs have isolated response caches"""
-        etag_cache = EtagCache(cache=cache)
-
         response1 = {"data": "response1"}
         response2 = {"data": "response2"}
 
-        etag_cache.set_cached_response("https://test.com/api1", response1)
-        etag_cache.set_cached_response("https://test.com/api2", response2)
+        mock_response1 = AsyncMock()
+        mock_response1.headers = {"ETag": '"etag1"'}
+        etag_cache.update_etag_from_response("https://test.com/api1", mock_response1, response1)
 
-        assert etag_cache.get_cached_response("https://test.com/api1") == response1
-        assert etag_cache.get_cached_response("https://test.com/api2") == response2
+        mock_response2 = AsyncMock()
+        mock_response2.headers = {"ETag": '"etag2"'}
+        etag_cache.update_etag_from_response("https://test.com/api2", mock_response2, response2)
 
-    def test_json_serialization_in_cache(self, cache):
+        assert etag_cache.get_cached_response_for_304("https://test.com/api1") == response1
+        assert etag_cache.get_cached_response_for_304("https://test.com/api2") == response2
+
+    def test_json_serialization_in_cache(self, etag_cache, cache):
         """Test that JSON is properly serialized/deserialized in cache"""
-        etag_cache = EtagCache(cache=cache)
-
         response_data = {"test": "data", "nested": {"key": "value"}, "list": [1, 2, 3]}
-        etag_cache.set_cached_response("https://test.com/api", response_data)
-        result = etag_cache.get_cached_response("https://test.com/api")
+        mock_response = AsyncMock()
+        mock_response.headers = {"ETag": '"etag123"'}
+        etag_cache.update_etag_from_response("https://test.com/api", mock_response, response_data)
+        result = etag_cache.get_cached_response_for_304("https://test.com/api")
 
         assert result == response_data
         # Verify it was stored as JSON in cache
@@ -134,175 +118,82 @@ class TestEtagCache:
         assert cached_json is not None
         assert json.loads(cached_json) == response_data
 
-    def test_clear_etag(self, cache):
-        """Test clearing ETag"""
-        etag_cache = EtagCache(cache=cache)
-
-        etag_cache.set_etag("https://test.com/api", '"abc123"')
-        assert etag_cache.get_etag("https://test.com/api") == '"abc123"'
-
-        etag_cache.clear_etag("https://test.com/api")
-        assert etag_cache.get_etag("https://test.com/api") is None
-
-    def test_clear_cached_response(self, cache):
-        """Test clearing cached response"""
-        etag_cache = EtagCache(cache=cache)
-
-        response_data = {"test": "data"}
-        etag_cache.set_cached_response("https://test.com/api", response_data)
-        assert etag_cache.get_cached_response("https://test.com/api") == response_data
-
-        etag_cache.clear_cached_response("https://test.com/api")
-        assert etag_cache.get_cached_response("https://test.com/api") is None
-
-    def test_clear_all(self, cache):
+    def test_clear_all(self, etag_cache):
         """Test clearing both ETag and cached response"""
-        etag_cache = EtagCache(cache=cache)
-
-        etag_cache.set_etag("https://test.com/api", '"abc123"')
         response_data = {"test": "data"}
-        etag_cache.set_cached_response("https://test.com/api", response_data)
+        mock_response = AsyncMock()
+        mock_response.headers = {"ETag": '"abc123"'}
+        etag_cache.update_etag_from_response("https://test.com/api", mock_response, response_data)
 
-        etag_cache.clear_all("https://test.com/api")
+        etag_cache.clear_etag_and_cached_response("https://test.com/api")
 
-        assert etag_cache.get_etag("https://test.com/api") is None
-        assert etag_cache.get_cached_response("https://test.com/api") is None
+        headers = etag_cache.get_request_headers("https://test.com/api")
+        assert "If-None-Match" not in headers
+        with pytest.raises(Exception, match="No etag cached value"):
+            etag_cache.get_cached_response_for_304("https://test.com/api")
 
-    def test_update_from_response_clears_old_response_when_etag_changes(self, cache):
+    def test_update_from_response_clears_old_response_when_etag_changes(self, etag_cache):
         """Test that old cached response is cleared when ETag changes"""
-        etag_cache = EtagCache(cache=cache)
-
         # Set initial ETag and cached response
-        etag_cache.set_etag("https://test.com/api", '"old_etag"')
         old_response = {"old": "data"}
-        etag_cache.set_cached_response("https://test.com/api", old_response)
+        mock_response_old = AsyncMock()
+        mock_response_old.headers = {"ETag": '"old_etag"'}
+        etag_cache.update_etag_from_response(
+            "https://test.com/api", mock_response_old, old_response
+        )
 
         # Update with new ETag
         mock_response = AsyncMock()
         mock_response.headers = {"ETag": '"new_etag"'}
-        etag_cache.update_from_response("https://test.com/api", mock_response)
+        etag_cache.update_etag_from_response("https://test.com/api", mock_response, {})
 
         # ETag should be updated
-        assert etag_cache.get_etag("https://test.com/api") == '"new_etag"'
-        # Old cached response should be cleared
-        assert etag_cache.get_cached_response("https://test.com/api") is None
+        headers = etag_cache.get_request_headers("https://test.com/api")
+        assert headers["If-None-Match"] == '"new_etag"'
+        # Old response is replaced by new response
+        assert etag_cache.get_cached_response_for_304("https://test.com/api") == {}
 
-    def test_update_from_response_keeps_response_when_etag_unchanged(self, cache):
+    def test_update_from_response_keeps_response_when_etag_unchanged(self, etag_cache):
         """Test that cached response is kept when ETag doesn't change"""
-        etag_cache = EtagCache(cache=cache)
-
         # Set initial ETag and cached response
-        etag_cache.set_etag("https://test.com/api", '"same_etag"')
         response_data = {"test": "data"}
-        etag_cache.set_cached_response("https://test.com/api", response_data)
+        mock_response_initial = AsyncMock()
+        mock_response_initial.headers = {"ETag": '"same_etag"'}
+        etag_cache.update_etag_from_response(
+            "https://test.com/api", mock_response_initial, response_data
+        )
 
-        # Update with same ETag
+        # Update with same ETag and new response data
+        new_response_data = {"test": "new_data"}
         mock_response = AsyncMock()
         mock_response.headers = {"ETag": '"same_etag"'}
-        etag_cache.update_from_response("https://test.com/api", mock_response)
+        etag_cache.update_etag_from_response(
+            "https://test.com/api", mock_response, new_response_data
+        )
 
         # ETag should still be the same
-        assert etag_cache.get_etag("https://test.com/api") == '"same_etag"'
-        # Cached response should still be there
-        assert etag_cache.get_cached_response("https://test.com/api") == response_data
+        headers = etag_cache.get_request_headers("https://test.com/api")
+        assert headers["If-None-Match"] == '"same_etag"'
+        # New response should be cached
+        assert etag_cache.get_cached_response_for_304("https://test.com/api") == new_response_data
 
-    def test_update_from_response_clears_all_when_no_etag(self, cache):
+    def test_update_from_response_clears_all_when_no_etag(self, etag_cache):
         """Test that ETag and cached response are cleared when response has no ETag"""
-        etag_cache = EtagCache(cache=cache)
-
         # Set initial ETag and cached response
-        etag_cache.set_etag("https://test.com/api", '"old_etag"')
         response_data = {"test": "data"}
-        etag_cache.set_cached_response("https://test.com/api", response_data)
+        mock_response_initial = AsyncMock()
+        mock_response_initial.headers = {"ETag": '"old_etag"'}
+        etag_cache.update_etag_from_response(
+            "https://test.com/api", mock_response_initial, response_data
+        )
 
         # Update with no ETag (resource no longer supports ETags)
         mock_response = AsyncMock()
         mock_response.headers = {}
-        etag_cache.update_from_response("https://test.com/api", mock_response)
+        etag_cache.update_etag_from_response("https://test.com/api", mock_response, {})
 
         # Both should be cleared
-        assert etag_cache.get_etag("https://test.com/api") is None
-        assert etag_cache.get_cached_response("https://test.com/api") is None
-
-    def test_clear_etag_with_cache(self, cache):
-        """Test clearing ETag with cache"""
-        etag_cache = EtagCache(cache=cache)
-
-        etag_cache.set_etag("https://test.com/api", '"abc123"')
-        assert etag_cache.get_etag("https://test.com/api") == '"abc123"'
-        assert cache.get_raw_value("etag:https://test.com/api") == '"abc123"'
-
-        etag_cache.clear_etag("https://test.com/api")
-        assert etag_cache.get_etag("https://test.com/api") is None
-        assert cache.get_raw_value("etag:https://test.com/api") is None
-
-    def test_clear_cached_response_with_cache(self, cache):
-        """Test clearing cached response with cache"""
-        etag_cache = EtagCache(cache=cache)
-
-        response_data = {"test": "data"}
-        etag_cache.set_cached_response("https://test.com/api", response_data)
-        assert etag_cache.get_cached_response("https://test.com/api") == response_data
-        assert cache.get_raw_value("response:https://test.com/api") is not None
-
-        etag_cache.clear_cached_response("https://test.com/api")
-        assert etag_cache.get_cached_response("https://test.com/api") is None
-        assert cache.get_raw_value("response:https://test.com/api") is None
-
-    def test_get_cached_response_for_304_with_cache(self, cache):
-        """Test get_cached_response_for_304 returns cached response when available"""
-        etag_cache = EtagCache(cache=cache)
-
-        response_data = {"test": "data"}
-        etag_cache.set_cached_response("https://test.com/api", response_data)
-
-        result = etag_cache.get_cached_response_for_304("https://test.com/api")
-        assert result == response_data
-
-    def test_get_cached_response_for_304_without_cache_raises_exception(self, cache):
-        """Test get_cached_response_for_304 raises exception when no cache available"""
-        etag_cache = EtagCache(cache=cache)
-
-        # Set ETag but no cached response (inconsistent state)
-        etag_cache.set_etag("https://test.com/api", '"abc123"')
-
-        with pytest.raises(Exception, match="304 Not Modified.*no cached response"):
+        headers = etag_cache.get_request_headers("https://test.com/api")
+        assert "If-None-Match" not in headers
+        with pytest.raises(Exception, match="No etag cached value"):
             etag_cache.get_cached_response_for_304("https://test.com/api")
-
-        # ETag should be cleared
-        assert etag_cache.get_etag("https://test.com/api") is None
-
-    def test_cache_response_updates_etag_and_caches_data(self, cache):
-        """Test cache_response updates ETag and caches response data"""
-        etag_cache = EtagCache(cache=cache)
-
-        mock_response = AsyncMock()
-        mock_response.headers = {"ETag": '"new_etag"'}
-        response_data = {"test": "data"}
-
-        etag_cache.cache_response("https://test.com/api", mock_response, response_data)
-
-        # ETag should be updated
-        assert etag_cache.get_etag("https://test.com/api") == '"new_etag"'
-        # Response should be cached
-        assert etag_cache.get_cached_response("https://test.com/api") == response_data
-
-    def test_cache_response_clears_old_response_when_etag_changes(self, cache):
-        """Test cache_response clears old cached response when ETag changes"""
-        etag_cache = EtagCache(cache=cache)
-
-        # Set initial ETag and cached response
-        etag_cache.set_etag("https://test.com/api", '"old_etag"')
-        old_response = {"old": "data"}
-        etag_cache.set_cached_response("https://test.com/api", old_response)
-
-        # Cache new response with new ETag
-        mock_response = AsyncMock()
-        mock_response.headers = {"ETag": '"new_etag"'}
-        new_response = {"new": "data"}
-        etag_cache.cache_response("https://test.com/api", mock_response, new_response)
-
-        # ETag should be updated
-        assert etag_cache.get_etag("https://test.com/api") == '"new_etag"'
-        # New response should be cached
-        assert etag_cache.get_cached_response("https://test.com/api") == new_response

@@ -151,3 +151,21 @@ class TestLocationValidator:
 
         # Should return False
         assert await location_validator.is_station(invalid_id) is False
+
+    @pytest.mark.asyncio
+    async def test_is_station_with_repository_and_invalid_station(
+        self, location_validator, eve_repository
+    ):
+        """Test that is_station uses API when repository is provided and ID not in static data"""
+        # Configure mock to raise BadRequestError for invalid station IDs
+        # 1042847222396 is >= threshold but not a valid station
+        eve_repository.invalid_station_ids.add(1042847222396)
+
+        # 1042847222396 is >= threshold but not a valid station
+        # Should try API and get 400, then cache it as invalid
+        result = await location_validator.is_station(1042847222396)
+        assert result is False
+
+        # Second call should use cache (no API call)
+        result2 = await location_validator.is_station(1042847222396)
+        assert result2 is False

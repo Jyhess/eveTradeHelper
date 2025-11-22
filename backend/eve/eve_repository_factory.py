@@ -1,4 +1,4 @@
-from repositories.local_data import LocalDataRepository
+from repositories import LocalDataRepository
 from utils.cache import SimpleCache
 
 from .etag_cache import EtagCache

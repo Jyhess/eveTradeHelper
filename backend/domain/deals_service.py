@@ -20,7 +20,7 @@ from .helpers import (
 from .i_local_data_repository import ILocalDataRepository
 from .location_validator import LocationValidator
 from .orders_service import OrdersService
-from .repository import EveRepository
+from .eve_repository import EveRepository
 from .types import (
     ContrabandSystem,
     Deal,
@@ -420,7 +420,7 @@ class DealsService:
     async def find_market_deals(
         self,
         region_id: int,
-        group_ids: list[int] | None = None,
+        group_ids: list[int],
         min_profit_isk: float = DEFAULT_MIN_PROFIT_ISK,
         max_transport_volume: float | None = None,
         max_buy_cost: float | None = None,
@@ -431,19 +431,9 @@ class DealsService:
         if additional_regions:
             regions_str += f" + {len(additional_regions)} other(s)"
 
-        if group_ids:
-            if isinstance(group_ids, int):
-                group_str = f"group {group_ids}"
-            elif isinstance(group_ids, list):
-                group_str = (
-                    f"groups {', '.join(map(str, group_ids))}"
-                    if len(group_ids) > 1
-                    else f"group {group_ids[0]}"
-                )
-            else:
-                group_str = str(group_ids)
-        else:
-            group_str = "all groups"
+        if not group_ids:
+            raise ValueError("group_ids is required")
+        group_str = f"groups {', '.join(map(str, group_ids))}"
 
         logger.info(
             f"Searching for deals in {group_str} "
@@ -465,7 +455,7 @@ class DealsService:
                 total_types=0,
                 total_profit_isk=0.0,
                 deals=[],
-                group_id=group_ids[0] if group_ids and len(group_ids) == 1 else None,
+                group_ids=group_ids,
             )
 
         logger.info(f"Found {len(all_types)} item types in {group_str}")
@@ -528,7 +518,7 @@ class DealsService:
             total_types=len(all_types),
             total_profit_isk=total_profit_isk,
             deals=deals,
-            group_id=group_ids[0] if group_ids and len(group_ids) == 1 else None,
+            group_ids=group_ids,
         )
 
     def _generate_route_segments(self, route: list[int]) -> list[tuple[int, int]]:
@@ -622,22 +612,6 @@ class DealsService:
             all_types.update(group_types)
 
         return all_types
-
-    async def _collect_types_for_deals(self, group_id: int | None = None) -> set[int]:
-        """
-        Collect types for deals from static data
-        """
-        if not self.local_data_repository:
-            raise ValueError(
-                "local_data_repository is required for collecting types. "
-                "Static data must be available."
-            )
-
-        if group_id is not None:
-            result = self.local_data_repository.get_types_for_group(group_id, include_children=True)
-            return result
-
-        return self.local_data_repository.get_all_types_from_all_groups()
 
     async def _get_connected_system_ids(self, system_id: int) -> list[int]:
         """

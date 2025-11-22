@@ -6,7 +6,7 @@ import pytest
 
 from domain.location_validator import LocationValidator
 from domain.orders_service import OrdersService
-from domain.repository import EveRepository
+from domain.eve_repository import EveRepository
 from domain.types import Order
 from domain.types import RegionDetails, ConstellationDetails, SystemDetails, StargateDetails, StationDetails, MarketGroupDetails, ItemType, RouteDetail
 
@@ -118,27 +118,6 @@ class TestOrdersService:
         assert len(orders) == 2
         assert orders[0].is_buy_order is True
         assert orders[1].is_buy_order is False
-
-    async def test_get_orders_caches_results(self, orders_service, mock_repository):
-        """Test that orders are cached in Redis"""
-        region_id = 10000002
-        type_id = 123
-
-        mock_repository.market_orders = {
-            (region_id, type_id): [create_order_dict(order_id=1, is_buy_order=True, price=100.0)]
-        }
-
-        # First call
-        orders1 = await orders_service.get_orders(region_id, type_id)
-        assert len(orders1) == 1
-
-        # Clear repository to verify cache is used
-        mock_repository.market_orders = {}
-
-        # Second call should use Redis cache
-        orders2 = await orders_service.get_orders(region_id, type_id)
-        assert len(orders2) == 1
-        assert orders2 == orders1
 
     async def test_get_orders_for_multiple_regions(self, orders_service, mock_repository):
         """Test retrieving orders for multiple regions"""

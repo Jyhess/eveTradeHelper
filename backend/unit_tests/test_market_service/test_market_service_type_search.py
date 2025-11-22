@@ -1,16 +1,6 @@
-"""
-Unit tests for MarketService - Type Search
-Tests business logic with repository mocks
-"""
-
 import pytest
 
 from domain.types import ItemType
-
-from unit_tests.test_market_service.test_market_service_fixtures import (
-    market_service_with_type_search,
-    mock_repository,
-)
 
 
 @pytest.mark.asyncio

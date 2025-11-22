@@ -153,16 +153,11 @@ async def get_regions_list(self) -> list[int]:
 
 For specific cases (e.g., adjacent regions), an in-memory LRU cache is used in the application layer.
 
-### Cache Types
-
-- **SimpleCache**: Redis cache with expiration (production and integration tests)
-- **FakeCache**: In-memory cache for unit tests (no Redis dependency)
-
 ## Tests
 
 Tests are organized in:
 
-- `unit_tests/`: Unit tests with `FakeCache` (no Redis)
+- `unit_tests/`: Unit tests with `fakeredis` (no Redis)
 - `integration_tests/`: Integration tests with `SimpleCache` (real Redis)
 
 Tests use reference data stored in `unit_tests/reference/` to compare API results.

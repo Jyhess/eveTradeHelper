@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from application import AppFactory
 from domain import Services
 from eve import make_eve_repository
-from repositories.local_data import LocalDataRepository
+from repositories import LocalDataRepository
 from utils.cache import create_cache
 from utils.tracing import setup_tracing
 

@@ -6,7 +6,7 @@ import pytest
 
 from domain.region_data import RegionData
 from domain.region_service import RegionService
-from domain.repository import EveRepository
+from domain.eve_repository import EveRepository
 from domain.types import ConstellationDetails, RegionDetails, SystemDetails
 
 

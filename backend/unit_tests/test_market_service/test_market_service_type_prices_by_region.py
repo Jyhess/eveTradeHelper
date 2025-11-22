@@ -1,14 +1,4 @@
-"""
-Unit tests for MarketService - Type Prices By Region
-Tests business logic with repository mocks
-"""
-
 import pytest
-
-from unit_tests.test_market_service.test_market_service_fixtures import (
-    market_service,
-    mock_repository,
-)
 
 
 @pytest.mark.asyncio

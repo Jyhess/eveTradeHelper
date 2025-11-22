@@ -12,7 +12,7 @@ from utils.cache.simple_cache import SimpleCache
 
 from .constants import MARKET_ORDERS_CACHE_EXPIRY_HOURS
 from .location_validator import LocationValidator
-from .repository import EveRepository
+from .eve_repository import EveRepository
 from .types import Order
 
 logger = logging.getLogger(__name__)

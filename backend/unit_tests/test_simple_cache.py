@@ -1,5 +1,5 @@
 """
-Unit tests for SimpleCache and FakeCache
+Unit tests for SimpleCache
 """
 
 import pytest

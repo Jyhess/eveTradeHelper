@@ -15,13 +15,13 @@ class TestDealsAPI:
         # Vérifier la structure de la réponse
         data = response.json()
         assert "region_id" in data
-        assert "group_id" in data
-        assert "min_profit_isk" in data  # Le service retourne min_profit_isk
+        assert "group_ids" in data
+        assert "min_profit_isk" in data
         assert "total_types" in data
         assert "deals" in data
 
         assert isinstance(data["region_id"], int)
-        assert isinstance(data["group_id"], int)
+        assert isinstance(data["group_ids"], list)
         assert isinstance(data["min_profit_isk"], float)
         assert isinstance(data["total_types"], int)
         assert isinstance(data["deals"], list)
@@ -51,7 +51,8 @@ class TestDealsAPI:
         data = response.json()
 
         assert data["region_id"] == region_id
-        assert data["group_id"] == 1822  # Service returns single group_id when one group provided
+        assert "group_ids" in data
+        assert data["group_ids"] == [1822]
         assert data["min_profit_isk"] == min_profit_isk
 
     def test_get_market_deals_endpoint_default_threshold(self, client):

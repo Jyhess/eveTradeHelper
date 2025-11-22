@@ -1,6 +1,7 @@
 import logging
 
-from domain.repository import EveRepository
+from domain.eve_repository import EveRepository
+from domain.exceptions import BadRequestError, NotFoundError
 from domain.types import (
     ConstellationDetails,
     ItemType,
@@ -12,11 +13,10 @@ from domain.types import (
     StationDetails,
     SystemDetails,
 )
-from repositories.local_data import LocalDataRepository
+from repositories import LocalDataRepository
 from utils.cache import cached
 
 from .eve_api_client import EveAPIClient
-from .exceptions import BadRequestError, NotFoundError
 
 logger = logging.getLogger(__name__)
 

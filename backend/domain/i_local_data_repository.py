@@ -52,3 +52,7 @@ class ILocalDataRepository(ABC):
     @abstractmethod
     def get_root_market_group_ids(self) -> list[int]:
         pass
+
+    @abstractmethod
+    def get_types_for_group(self, group_id: int, include_children: bool = True) -> set[int]:
+        pass

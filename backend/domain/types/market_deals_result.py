@@ -13,10 +13,10 @@ class MarketDealsResult:
     total_types: int
     total_profit_isk: float
     deals: list[Deal]
-    group_id: int | None = None
+    group_ids: list[int]
 
     def to_dict(self) -> dict[str, Any]:
-        result = {
+        result: dict[str, Any] = {
             "region_id": self.region_id,
             "min_profit_isk": self.min_profit_isk,
             "max_transport_volume": self.max_transport_volume,
@@ -25,6 +25,6 @@ class MarketDealsResult:
             "total_profit_isk": round(self.total_profit_isk, 2),
             "deals": [deal.to_dict() for deal in self.deals],
         }
-        if self.group_id is not None:
-            result["group_id"] = self.group_id
+        if self.group_ids is not None:
+            result["group_ids"] = self.group_ids
         return result

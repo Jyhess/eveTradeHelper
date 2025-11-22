@@ -12,8 +12,9 @@ from fastapi.testclient import TestClient
 from application import AppFactory
 from domain import Services
 from eve.eve_repository_factory import make_eve_repository
+from repositories import LocalDataRepository
 from utils.cache import CacheManager, create_cache
-from repositories.local_data import LocalDataRepository
+from utils.cache.simple_cache import SimpleCache
 
 # Path to tests directory
 TESTS_DIR = Path(__file__).parent
@@ -21,7 +22,7 @@ REFERENCE_DIR = TESTS_DIR / "reference"
 
 
 # Shared Redis cache for session (initialized once)
-_cache_instance = None
+_cache_instance: SimpleCache | None = None
 
 
 @pytest.fixture(scope="session")
@@ -40,37 +41,14 @@ def _shared_cache():
 
 
 @pytest.fixture(scope="function")
-def cache(request, _shared_cache):
+def cache(_shared_cache):
     """
-    Fixture to manage cache according to test type.
-    - For integration tests: uses shared Redis cache
-    - For unit tests: disables cache (avoids conflicts with mocks)
+    Fixture to provide shared Redis cache for integration tests.
+    Cache is shared across all tests in the session.
     """
-    # Check if it's a unit test (marked with @pytest.mark.unit)
-    # Marker can be on class or method
-    is_unit_test = request.node.get_closest_marker("unit") is not None or (
-        hasattr(request.node, "parent")
-        and request.node.parent is not None
-        and request.node.parent.get_closest_marker("unit") is not None
-    )
-
-    if is_unit_test:
-        # For unit tests, disable cache
-        # Save current instance if it exists
-        original_cache = CacheManager._instance
-        # Completely disable cache for this test
-        CacheManager._instance = None
-
-        try:
-            yield None
-        finally:
-            # Always restore cache after test (for other tests)
-            CacheManager._instance = original_cache
-    else:
-        # For integration tests, use shared Redis cache
-        CacheManager.initialize(_shared_cache)
-        yield _shared_cache
-        # Don't reinitialize - cache is shared
+    CacheManager.initialize(_shared_cache)
+    yield _shared_cache
+    # Don't reinitialize - cache is shared
 
 
 @pytest.fixture(scope="session")
@@ -98,8 +76,8 @@ def eve_repository(cache, local_data_repository):
 
 
 @pytest.fixture
-def services(eve_repository, local_data_repository):
-    return Services(eve_repository, local_data_repository)
+def services(eve_repository, local_data_repository, cache):
+    return Services(eve_repository, local_data_repository, cache)
 
 
 @pytest.fixture

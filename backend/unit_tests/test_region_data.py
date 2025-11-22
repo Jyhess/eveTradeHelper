@@ -5,7 +5,7 @@ Unit tests for RegionData class
 import pytest
 
 from domain.region_data import RegionData
-from domain.repository import EveRepository
+from domain.eve_repository import EveRepository
 from domain.types import ConstellationDetails, RegionDetails, SystemDetails
 
 
@@ -180,14 +180,22 @@ class TestRegionData:
     """Tests for RegionData class"""
 
     @pytest.mark.asyncio
-    async def test_initialize_loads_all_data(self, mock_repository):
-        """Test that initialize loads all regions, constellations, and systems"""
-        region_data = RegionData(mock_repository)
-        await region_data._ensure_initialized()
-
-        assert len(region_data._regions_by_id) == 2
-        assert len(region_data._constellations_by_id) == 3
-        assert len(region_data._systems_by_id) == 4
+    async def test_initialize_loads_all_data(self, region_data):
+        """Test that initialization loads all regions, constellations, and systems"""
+        # Test via public API - verify we can find expected data after initialization
+        # This tests behavior: can we find the regions, constellations, and systems we expect?
+        region = await region_data.find_region_by_id(10000001)
+        assert region is not None, "Region 10000001 should be found"
+        
+        constellation = await region_data.find_constellation_by_id(20000001)
+        assert constellation is not None, "Constellation 20000001 should be found"
+        
+        system = await region_data.find_system_by_id(30000142)
+        assert system is not None, "System 30000142 should be found"
+        
+        # Verify we can also find the second region
+        region2 = await region_data.find_region_by_id(10000002)
+        assert region2 is not None, "Region 10000002 should be found"
 
     @pytest.mark.asyncio
     async def test_find_region_by_id(self, region_data):

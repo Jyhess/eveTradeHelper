@@ -10,14 +10,13 @@ from .constants import DEFAULT_MARKET_ORDERS_LIMIT
 from .i_local_data_repository import ILocalDataRepository
 from .location_validator import LocationValidator
 from .orders_service import OrdersService
-from .repository import EveRepository
+from .eve_repository import EveRepository
 from .types import (
     EnrichedMarketOrders,
     EnrichedOrder,
     ItemType,
     ItemTypeSearchResult,
     MarketCategory,
-    MarketGroupDetails,
     Order,
     TypePriceByRegion,
 )

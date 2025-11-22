@@ -7,9 +7,14 @@ from utils.cache import CacheManager, cached
 
 @pytest.fixture
 def no_cache(cache):
-    CacheManager._instance = None
+    """Fixture to test behavior without cache"""
+    original_cache = CacheManager.get_instance()
+    CacheManager.initialize(None)
     yield None
-    CacheManager._instance = cache
+    if original_cache:
+        CacheManager.initialize(original_cache)
+    else:
+        CacheManager.initialize(cache)
 
 
 class TestCacheDecorator:

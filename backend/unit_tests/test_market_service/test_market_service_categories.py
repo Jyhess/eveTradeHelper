@@ -1,11 +1,4 @@
-"""
-Unit tests for MarketService - Categories
-Tests business logic with repository mocks
-"""
-
 import pytest
-
-from unit_tests.test_market_service.test_market_service_fixtures import market_service
 
 
 @pytest.mark.asyncio

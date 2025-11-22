@@ -7,7 +7,7 @@ import asyncio
 import logging
 from typing import Any
 
-from .repository import EveRepository
+from .eve_repository import EveRepository
 
 logger = logging.getLogger(__name__)
 
