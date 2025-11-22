@@ -21,6 +21,7 @@ class RefreshDealRequest(BaseModel):
     max_transport_volume: float | None = None
     max_buy_cost: float | None = None
 
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 deals_router = router
@@ -53,7 +54,6 @@ async def get_market_deals(
         JSON response with items allowing profit above the threshold
     """
     try:
-        # Parse additional regions
         additional_region_ids = []
         if additional_regions:
             try:
@@ -72,7 +72,7 @@ async def get_market_deals(
             max_buy_cost=max_buy_cost,
             additional_regions=additional_region_ids,
         )
-        return result
+        return result.to_dict()
 
     except Exception as e:
         logger.error(f"Error searching for deals: {e}")
@@ -156,15 +156,12 @@ async def refresh_deal(
         JSON response with the refreshed deal or None if no profitable deal found
     """
     try:
-        # Invalidate cache for both regions and this type
-        deals_service.orders_service.clear_cache_for_region(
-            request.buy_region_id, request.type_id
-        )
-        deals_service.orders_service.clear_cache_for_region(
-            request.sell_region_id, request.type_id
-        )
+        deals_service.orders_service.clear_cache_for_region(request.buy_region_id, request.type_id)
+        if request.sell_region_id != request.buy_region_id:
+            deals_service.orders_service.clear_cache_for_region(
+                request.sell_region_id, request.type_id
+            )
 
-        # Recalculate the deal
         result = await deals_service.analyze_type_profitability(
             region_id=request.buy_region_id,
             type_id=request.type_id,

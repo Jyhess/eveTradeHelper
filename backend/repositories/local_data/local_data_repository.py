@@ -129,9 +129,7 @@ class LocalDataRepository:
             logger.error("Error loading types from %s: %s", TYPES_JSONL_FILE, exc)
             self._types_data = []
 
-    def search_types(
-        self, query: str | None = None, limit: int = 20
-    ) -> list[dict[str, Any]]:
+    def search_types(self, query: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
         self._ensure_types_data_loaded()
         if not self._types_data:
             return []
@@ -201,7 +199,11 @@ class LocalDataRepository:
                                 self._contraband_data[type_id] = faction_ids
                     except json.JSONDecodeError:
                         continue
-            logger.info("Loaded %d contraband types from %s", len(self._contraband_data), CONTRABAND_TYPES_FILE)
+            logger.info(
+                "Loaded %d contraband types from %s",
+                len(self._contraband_data),
+                CONTRABAND_TYPES_FILE,
+            )
         except Exception as exc:  # pragma: no cover - logging only
             logger.error("Error loading contraband types from %s: %s", CONTRABAND_TYPES_FILE, exc)
             self._contraband_data = {}
@@ -240,7 +242,9 @@ class LocalDataRepository:
                 MAP_SOLAR_SYSTEMS_FILE,
             )
         except Exception as exc:  # pragma: no cover - logging only
-            logger.error("Error loading systems faction map from %s: %s", MAP_SOLAR_SYSTEMS_FILE, exc)
+            logger.error(
+                "Error loading systems faction map from %s: %s", MAP_SOLAR_SYSTEMS_FILE, exc
+            )
             self._systems_faction_map = {}
 
     def is_contraband_for_faction(self, type_id: int, faction_id: int) -> bool:

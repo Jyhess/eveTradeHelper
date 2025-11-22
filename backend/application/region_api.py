@@ -4,7 +4,6 @@ FastAPI endpoints for regions (async)
 """
 
 import logging
-import os
 from collections.abc import Hashable
 from typing import Any
 
@@ -14,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from application.utils import cached_async
 from domain.constants import ADJACENT_REGIONS_CACHE_TTL, DEFAULT_MAX_JUMPS
 from domain.region_service import RegionService
+from domain.types import AdjacentRegion, ConstellationDetails, StargateDetails
 
 from .services_provider import ServicesProvider
 
@@ -41,12 +41,11 @@ async def get_regions(region_service: RegionService = Depends(ServicesProvider.g
         logger.info("Retrieving regions")
         regions = await region_service.get_regions_with_details()
 
-        # Sort by name
-        regions_sorted = sorted(regions, key=lambda x: x.get("name", ""))
+        regions_sorted = sorted(regions, key=lambda x: x.name)
 
         return {
             "total": len(regions_sorted),
-            "regions": regions_sorted,
+            "regions": [r.to_dict() for r in regions_sorted],
         }
 
     except Exception as e:
@@ -72,13 +71,12 @@ async def get_region_constellations(
         logger.info(f"Retrieving constellations for region {region_id}")
         constellations = await region_service.get_region_constellations_with_details(region_id)
 
-        # Sort by name
-        constellations_sorted = sorted(constellations, key=lambda x: x.get("name", ""))
+        constellations_sorted = sorted(constellations, key=lambda x: x.name)
 
         return {
             "region_id": region_id,
             "total": len(constellations_sorted),
-            "constellations": constellations_sorted,
+            "constellations": [c.to_dict() for c in constellations_sorted],
         }
 
     except Exception as e:
@@ -108,13 +106,12 @@ async def get_constellation_systems(
         logger.info(f"Retrieving systems for constellation {constellation_id}")
         systems = await region_service.get_constellation_systems_with_details(constellation_id)
 
-        # Sort by name
-        systems_sorted = sorted(systems, key=lambda x: x.get("name", ""))
+        systems_sorted = sorted(systems, key=lambda x: x.name)
 
         return {
             "constellation_id": constellation_id,
             "total": len(systems_sorted),
-            "systems": systems_sorted,
+            "systems": [s.to_dict() for s in systems_sorted],
         }
 
     except Exception as e:
@@ -146,7 +143,7 @@ async def get_all_systems(
 
         return {
             "total": len(systems),
-            "systems": systems,
+            "systems": [s.to_dict() for s in systems],
         }
 
     except Exception as e:
@@ -175,21 +172,9 @@ async def get_system_details(
         logger.info(f"Retrieving system details for {system_id}")
         system_data = await region_service.get_system_details(system_id)
 
-        # Format data as needed
-        system = {
-            "system_id": system_id,
-            "name": system_data.get("name", "Unknown"),
-            "security_status": system_data.get("security_status", 0.0),
-            "security_class": system_data.get("security_class", ""),
-            "position": system_data.get("position", {}),
-            "constellation_id": system_data.get("constellation_id"),
-            "planets": system_data.get("planets", []),
-            "star_id": system_data.get("star_id"),
-        }
-
         return {
             "system_id": system_id,
-            "system": system,
+            "system": system_data.to_dict(),
         }
 
     except Exception as e:
@@ -218,13 +203,12 @@ async def get_system_connections(
         logger.info(f"Retrieving connections for system {system_id}")
         connections = await region_service.get_system_connections(system_id)
 
-        # Sort by name
-        connections_sorted = sorted(connections, key=lambda x: x.get("name", ""))
+        connections_sorted = sorted(connections, key=lambda x: x.name)
 
         return {
             "system_id": system_id,
             "total": len(connections_sorted),
-            "connections": connections_sorted,
+            "connections": [c.to_dict() for c in connections_sorted],
         }
 
     except Exception as e:
@@ -259,10 +243,9 @@ async def get_system_map(
         return {
             "system_id": system_id,
             "max_jumps": max_jumps,
-            "total_systems": len(result["systems"]),
-            "total_connections": len(result["connections"]),
-            "systems": result["systems"],
-            "connections": result["connections"],
+            "total_systems": len(result.systems),
+            "total_connections": len(result.connections),
+            **result.to_dict(),
         }
 
     except Exception as e:
@@ -294,7 +277,7 @@ async def get_all_constellations(
 
         return {
             "total": len(constellations),
-            "constellations": constellations,
+            "constellations": [c.to_dict() for c in constellations],
         }
 
     except Exception as e:
@@ -323,20 +306,17 @@ async def get_constellation_info(
     try:
         logger.info(f"Retrieving constellation info for {constellation_id}")
 
-        # Fetch constellation details
         constellation_data = await region_service.get_constellation_details(constellation_id)
-        region_id = constellation_data.get("region_id")
+        region_id = constellation_data.region_id
 
-        # Fetch region details
         region_data = None
         if region_id:
             region_data = await region_service.get_region_details(region_id)
 
-        # Format data
         info = {
             "constellation": {
                 "constellation_id": constellation_id,
-                "name": constellation_data.get("name", "Unknown"),
+                "name": constellation_data.name,
                 "region_id": region_id,
             },
         }
@@ -344,7 +324,7 @@ async def get_constellation_info(
         if region_data:
             info["region"] = {
                 "region_id": region_id,
-                "name": region_data.get("name", "Unknown"),
+                "name": region_data.name,
             }
 
         return info
@@ -383,7 +363,7 @@ async def get_adjacent_regions(
 
         # Fetch region details to get constellations
         region_details = await region_service.get_region_details(region_id)
-        constellation_ids = region_details.get("constellations", [])
+        constellation_ids = region_details.constellations
 
         if not constellation_ids:
             return {
@@ -401,8 +381,8 @@ async def get_adjacent_regions(
         # Collect all systems in the region
         systems_in_region = set()
         for constellation_data in constellation_details_list:
-            if isinstance(constellation_data, dict):
-                systems_in_region.update(constellation_data.get("systems", []))
+            if isinstance(constellation_data, ConstellationDetails):
+                systems_in_region.update(constellation_data.systems)
 
         if not systems_in_region:
             return {
@@ -411,18 +391,15 @@ async def get_adjacent_regions(
                 "adjacent_regions": [],
             }
 
-        # For each system, fetch its details and find adjacent systems
         async def get_system_adjacent_regions(system_id: int) -> set:
             """Returns IDs of adjacent regions via this system"""
             try:
                 system_details = await region_service.get_system_details(system_id)
-                stargate_ids = system_details.get("stargates", [])
+                stargate_ids = system_details.stargates or []
 
                 if not stargate_ids:
                     return set()
 
-                # Fetch details of each stargate to find the destination system
-                # Note: get_stargate_details is not yet in RegionService, temporary direct usage
                 stargate_details_list = await asyncio.gather(
                     *[
                         region_service.repository.get_stargate_details(sgid)
@@ -433,25 +410,21 @@ async def get_adjacent_regions(
 
                 adjacent_regions = set()
                 for stargate_data in stargate_details_list:
-                    if isinstance(stargate_data, dict):
-                        destination_system_id = stargate_data.get("destination", {}).get(
-                            "system_id"
-                        )
+                    if isinstance(stargate_data, StargateDetails):
+                        destination_system_id = stargate_data.destination_system_id
                         if destination_system_id:
-                            # Fetch destination system details to get its constellation
                             try:
                                 dest_system_details = await region_service.get_system_details(
                                     destination_system_id
                                 )
-                                dest_constellation_id = dest_system_details.get("constellation_id")
+                                dest_constellation_id = dest_system_details.constellation_id
                                 if dest_constellation_id:
-                                    # Fetch constellation to get the region
                                     dest_constellation = (
                                         await region_service.get_constellation_details(
                                             dest_constellation_id
                                         )
                                     )
-                                    dest_region_id = dest_constellation.get("region_id")
+                                    dest_region_id = dest_constellation.region_id
                                     if dest_region_id and dest_region_id != region_id:
                                         adjacent_regions.add(dest_region_id)
                             except Exception as e:
@@ -484,15 +457,14 @@ async def get_adjacent_regions(
                 "adjacent_regions": [],
             }
 
-        # Fetch details of each adjacent region in parallel
-        async def fetch_adjacent_region(adj_region_id: int) -> dict[str, Any] | None:
+        async def fetch_adjacent_region(adj_region_id: int) -> AdjacentRegion | None:
             try:
                 region_data = await region_service.get_region_details(adj_region_id)
-                return {
-                    "region_id": adj_region_id,
-                    "name": region_data.get("name", f"Region {adj_region_id}"),
-                    "description": region_data.get("description", ""),
-                }
+                return AdjacentRegion(
+                    region_id=adj_region_id,
+                    name=region_data.name,
+                    description=region_data.description,
+                )
             except Exception as e:
                 logger.warning(f"Error retrieving region {adj_region_id}: {e}")
                 return None
@@ -502,18 +474,16 @@ async def get_adjacent_regions(
             return_exceptions=True,
         )
 
-        # Filter None results and exceptions
         adjacent_regions = [
-            r for r in adjacent_regions_results if isinstance(r, dict) and r is not None
+            r for r in adjacent_regions_results if isinstance(r, AdjacentRegion) and r is not None
         ]
 
-        # Sort by name
-        adjacent_regions.sort(key=lambda x: x.get("name", ""))
+        adjacent_regions.sort(key=lambda x: x.name)
 
         return {
             "region_id": region_id,
             "total": len(adjacent_regions),
-            "adjacent_regions": adjacent_regions,
+            "adjacent_regions": [r.to_dict() for r in adjacent_regions],
         }
 
     except Exception as e:

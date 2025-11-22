@@ -36,3 +36,9 @@ EVE_API_SOURCE_URL = "https://github.com/evetradehelper/eveTradeHelper"
 RATE_LIMIT_PER_SECOND = 60  # Default rate limit: 60 requests per second
 RATE_LIMIT_SLOWDOWN_THRESHOLD = 10  # Slow down when remaining tokens < 10
 RATE_LIMIT_SLOWDOWN_DELAY_SECONDS = 0.1  # Additional delay when slowing down
+
+# Cache keys
+MARKET_CATEGORIES_CACHE_KEY = "market_categories"
+
+# Test timeouts (in seconds)
+INTEGRATION_TEST_SLOW_TIMEOUT = 300  # 5 minutes for slow integration tests

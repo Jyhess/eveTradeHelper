@@ -127,10 +127,10 @@ class EtagCache:
         Args:
             key: Cache key to delete
         """
-        if hasattr(self.cache, "redis_client"):
-            self.cache.redis_client.delete(key)
-        elif hasattr(self.cache, "delete_raw_value"):
+        if hasattr(self.cache, "delete_raw_value"):
             self.cache.delete_raw_value(key)
+        elif hasattr(self.cache, "redis_client"):
+            self.cache.redis_client.delete(key)
 
     def clear_etag(self, url: str) -> None:
         """

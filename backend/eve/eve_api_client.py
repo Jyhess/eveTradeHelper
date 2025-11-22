@@ -33,7 +33,7 @@ class EveAPIClient:
         self,
         rate_limiter: RateLimiter,
         etag_cache: EtagCache,
-        base_url: str = "https://esi.evetech.net/latest",
+        base_url: str = "https://esi.evetech.net/",
         timeout: int = 10,
     ):
         self.base_url = base_url.rstrip("/")
@@ -100,6 +100,7 @@ class EveAPIClient:
 
         headers = self.etag_cache.get_request_headers(url)
         response = await self.client.get(url, params=params, headers=headers)
+        logger.info(f"{url} : {response.status_code}")
 
         self.rate_limiter.extract_limit_info(response)
 
@@ -112,7 +113,6 @@ class EveAPIClient:
 
         if 200 <= response.status_code < 300:
             self.etag_cache.cache_response(url, response, result)
-            logger.info(f"{url} : {response.status_code}")
         else:
             logger.warning(f"{url} : {response.status_code}")
 

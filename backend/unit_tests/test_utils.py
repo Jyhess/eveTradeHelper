@@ -21,8 +21,11 @@ def save_reference(key: str, data):
     REFERENCE_DIR.mkdir(exist_ok=True)
     ref_file = REFERENCE_DIR / f"{key}.json"
 
+    # Convert dataclasses to dicts before saving
+    normalized_data = normalize_for_comparison(data)
+
     with open(ref_file, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False, sort_keys=True)
+        json.dump(normalized_data, f, indent=2, ensure_ascii=False, sort_keys=True)
 
 
 def load_reference(key: str):
@@ -49,11 +52,21 @@ def normalize_for_comparison(data):
     Normalizes data for comparison (removes non-important variations)
 
     Args:
-        data: Data to normalize
+        data: Data to normalize (can be dict, list, or dataclass)
 
     Returns:
         Normalized data
     """
+    # Convert dataclasses to dicts
+    if hasattr(data, "to_dict"):
+        data = data.to_dict()
+    elif hasattr(data, "__dict__") and not isinstance(data, dict):
+        # Fallback for dataclasses without to_dict
+        from dataclasses import asdict, is_dataclass
+
+        if is_dataclass(data):
+            data = asdict(data)
+
     if isinstance(data, dict):
         # Sort keys and normalize values
         return {k: normalize_for_comparison(v) for k, v in sorted(data.items())}

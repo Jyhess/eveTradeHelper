@@ -1,5 +1,4 @@
 import time
-from typing import Any
 
 import pytest
 
@@ -7,7 +6,17 @@ from domain.deals_service import DealsService
 from domain.location_validator import LocationValidator
 from domain.orders_service import OrdersService
 from domain.repository import EveRepository
-from repositories.local_data import LocalDataRepository
+from domain.types import (
+    ConstellationDetails,
+    ItemType,
+    MarketGroupDetails,
+    Order,
+    RegionDetails,
+    RouteDetail,
+    StargateDetails,
+    StationDetails,
+    SystemDetails,
+)
 
 
 class MockRepository(EveRepository):
@@ -19,6 +28,7 @@ class MockRepository(EveRepository):
         self.market_orders = {}
         self.item_types = {}
         self.system_details = {}
+        self.region_details = {}
         self.constellation_details = {}
         self.station_details = {}
         self.route_with_details = {}
@@ -29,46 +39,324 @@ class MockRepository(EveRepository):
     async def get_market_groups_list(self) -> list[int]:
         return self.market_groups_list
 
-    async def get_market_group_details(self, group_id: int) -> dict[str, Any]:
-        return self.market_groups_details.get(group_id, {})
+    async def get_market_group_details(self, group_id: int) -> MarketGroupDetails:
+        group_data = self.market_groups_details.get(group_id)
+        if group_data is None:
+            # Return default MarketGroupDetails if not found
+            return MarketGroupDetails(
+                market_group_id=group_id,
+                name=f"Group {group_id}",
+                description="",
+                parent_group_id=None,
+                types=[],
+                icon_id=None,
+            )
+        if isinstance(group_data, MarketGroupDetails):
+            return group_data
+        # Handle dict case (should not happen in new tests, but kept for safety)
+        if isinstance(group_data, dict):
+            complete_data = {
+                "market_group_id": group_id,
+                "name": group_data.get("name", f"Group {group_id}"),
+                "description": group_data.get("description", ""),
+                "parent_group_id": group_data.get("parent_group_id"),
+                "types": group_data.get("types", []),
+                "icon_id": group_data.get("icon_id"),
+            }
+            return MarketGroupDetails.from_dict(complete_data)
+        return group_data
 
-    async def get_market_orders(
-        self, region_id: int, type_id: int | None = None
-    ) -> list[dict[str, Any]]:
+    async def get_market_orders(self, region_id: int, type_id: int | None = None) -> list[Order]:
         key = (region_id, type_id)
-        return self.market_orders.get(key, [])
+        orders_data = self.market_orders.get(key, [])
+        # All orders should be Order objects now, but handle dict case for safety
+        return [
+            Order.from_dict(order_data) if isinstance(order_data, dict) else order_data
+            for order_data in orders_data
+        ]
 
-    async def get_item_type(self, type_id: int) -> dict[str, Any]:
-        return self.item_types.get(type_id, {"name": f"Type {type_id}"})
+    async def get_item_type(self, type_id: int) -> ItemType:
+        item_data = self.item_types.get(type_id)
+        if item_data is None:
+            # Return default ItemType if not found
+            return create_item_type(type_id=type_id, name=f"Type {type_id}")
+        if isinstance(item_data, ItemType):
+            return item_data
+        # Handle dict case (should not happen in new tests, but kept for safety)
+        if isinstance(item_data, dict):
+            complete_data = {
+                "type_id": type_id,
+                "name": item_data.get("name", f"Type {type_id}"),
+                "volume": item_data.get("volume", 0.0),
+                "description": item_data.get("description"),
+                "group_id": item_data.get("group_id"),
+                "category_id": item_data.get("category_id"),
+                "market_group_id": item_data.get("market_group_id"),
+            }
+            return ItemType.from_dict(complete_data)
+        return item_data
 
     async def get_regions_list(self) -> list[int]:
         return []
 
-    async def get_region_details(self, region_id: int) -> dict[str, Any]:
-        return {}
+    async def get_region_details(self, region_id: int) -> RegionDetails:
+        region_data = self.region_details.get(region_id)
+        if region_data is None:
+            # Return default RegionDetails if not found
+            return RegionDetails(
+                region_id=region_id,
+                name=f"Region {region_id}",
+                description="",
+                constellations=[],
+            )
+        if isinstance(region_data, RegionDetails):
+            return region_data
+        # Handle dict case (should not happen in new tests, but kept for safety)
+        if isinstance(region_data, dict):
+            complete_data = {
+                "region_id": region_id,
+                "name": region_data.get("name", f"Region {region_id}"),
+                "description": region_data.get("description", ""),
+                "constellations": region_data.get("constellations", []),
+            }
+            return RegionDetails.from_dict(complete_data)
+        return region_data
 
-    async def get_constellation_details(self, constellation_id: int) -> dict[str, Any]:
-        return self.constellation_details.get(constellation_id, {})
+    async def get_constellation_details(self, constellation_id: int) -> ConstellationDetails:
+        constellation_data = self.constellation_details.get(constellation_id)
+        if constellation_data is None:
+            # Return default ConstellationDetails if not found
+            return create_constellation_details(constellation_id=constellation_id)
+        if isinstance(constellation_data, ConstellationDetails):
+            return constellation_data
+        # Handle dict case (should not happen in new tests, but kept for safety)
+        if isinstance(constellation_data, dict):
+            complete_data = {
+                "constellation_id": constellation_id,
+                "name": constellation_data.get("name", f"Constellation {constellation_id}"),
+                "systems": constellation_data.get("systems", []),
+                "position": constellation_data.get("position", {}),
+                "region_id": constellation_data.get("region_id"),
+            }
+            return ConstellationDetails.from_dict(complete_data)
+        return constellation_data
 
-    async def get_system_details(self, system_id: int) -> dict[str, Any]:
-        system_data = self.system_details.get(system_id, {}).copy()
-        if system_id in self.system_connections:
-            system_data["stargates"] = self.system_connections[system_id]
+    async def get_system_details(self, system_id: int) -> SystemDetails:
+        system_data = self.system_details.get(system_id)
+        if system_data is None:
+            # Return default SystemDetails if not found
+            return create_system_details(system_id=system_id)
+        if isinstance(system_data, SystemDetails):
+            # If it's already a SystemDetails object, handle stargates if needed
+            if system_id in self.system_connections:
+                # Create a new SystemDetails with updated stargates
+                return SystemDetails(
+                    system_id=system_data.system_id,
+                    name=system_data.name,
+                    security_status=system_data.security_status,
+                    security_class=system_data.security_class,
+                    position=system_data.position,
+                    constellation_id=system_data.constellation_id,
+                    planets=system_data.planets,
+                    star_id=system_data.star_id,
+                    stargates=self.system_connections[system_id],
+                )
+            return system_data
+        # Handle dict case (should not happen in new tests, but kept for safety)
+        if isinstance(system_data, dict):
+            system_data = system_data.copy()
+            if system_id in self.system_connections:
+                system_data["stargates"] = self.system_connections[system_id]
+            complete_data = {
+                "system_id": system_id,
+                "name": system_data.get("name", f"System {system_id}"),
+                "security_status": system_data.get("security_status", 0.0),
+                "security_class": system_data.get("security_class", ""),
+                "position": system_data.get("position", {}),
+                "constellation_id": system_data.get("constellation_id"),
+                "planets": system_data.get("planets", []),
+                "star_id": system_data.get("star_id"),
+                "stargates": system_data.get("stargates"),
+            }
+            return SystemDetails.from_dict(complete_data)
         return system_data
 
-    async def get_stargate_details(self, stargate_id: int) -> dict[str, Any]:
-        return self.stargate_details.get(stargate_id, {})
+    async def get_stargate_details(self, stargate_id: int) -> StargateDetails:
+        stargate_data = self.stargate_details.get(stargate_id)
+        if stargate_data is None:
+            # Return default StargateDetails if not found
+            return create_stargate_details(stargate_id=stargate_id)
+        if isinstance(stargate_data, StargateDetails):
+            return stargate_data
+        # Handle dict case (should not happen in new tests, but kept for safety)
+        if isinstance(stargate_data, dict):
+            complete_data = {
+                "stargate_id": stargate_id,
+                "system_id": stargate_data.get("system_id", 0),
+                "destination": stargate_data.get("destination", {"system_id": 0}),
+                "position": stargate_data.get("position", {}),
+                "type_id": stargate_data.get("type_id", 0),
+                "name": stargate_data.get("name", f"Stargate {stargate_id}"),
+            }
+            return StargateDetails.from_dict(complete_data)
+        return stargate_data
 
-    async def get_station_details(self, station_id: int) -> dict[str, Any]:
-        return self.station_details.get(station_id, {})
+    async def get_station_details(self, station_id: int) -> StationDetails:
+        station_data = self.station_details.get(station_id)
+        if station_data is None:
+            # Return default StationDetails if not found
+            return create_station_details(station_id=station_id)
+        if isinstance(station_data, StationDetails):
+            return station_data
+        # Handle dict case (should not happen in new tests, but kept for safety)
+        if isinstance(station_data, dict):
+            # StationDetails.from_dict only takes data, not station_id
+            # Ensure station_id is in the dict
+            if "station_id" not in station_data:
+                station_data = station_data.copy()
+                station_data["station_id"] = station_id
+            return StationDetails.from_dict(station_data)
+        return station_data
 
     async def get_route(self, origin: int, destination: int) -> list[int]:
         key = (origin, destination)
         return self.routes.get(key, [])
 
-    async def get_route_with_details(self, origin: int, destination: int) -> list[dict[str, Any]]:
+    async def get_route_with_details(self, origin: int, destination: int) -> list[RouteDetail]:
         key = (origin, destination)
-        return self.route_with_details.get(key, [])
+        route_data = self.route_with_details.get(key, [])
+        # Convert dictionaries to RouteDetail objects
+        return [
+            RouteDetail(
+                system_id=route_item.get("system_id", 0),
+                name=route_item.get("name", "Unknown"),
+                security_status=route_item.get("security_status", 0.0),
+                faction_id=route_item.get("faction_id"),
+            )
+            if isinstance(route_item, dict)
+            else route_item
+            for route_item in route_data
+        ]
+
+
+def create_order(
+    order_id: int = 1,
+    type_id: int = 123,
+    is_buy_order: bool = True,
+    price: float = 100.0,
+    location_id: int = 30000142,
+    volume_remain: int = 1000,
+    volume_total: int = 1000,
+) -> Order:
+    """Helper function to create a complete Order object"""
+    return Order(
+        order_id=order_id,
+        type_id=type_id,
+        is_buy_order=is_buy_order,
+        price=price,
+        location_id=location_id,
+        volume_total=volume_total,
+        volume_remain=volume_remain,
+        min_volume=1,
+        duration=90,
+        issued="2024-01-01T00:00:00Z",
+        range="region",
+    )
+
+
+def create_item_type(
+    type_id: int = 123,
+    name: str = "Test Item",
+    volume: float = 1.0,
+    description: str | None = None,
+) -> ItemType:
+    """Helper function to create an ItemType object"""
+    return ItemType(
+        type_id=type_id,
+        name=name,
+        volume=volume,
+        description=description,
+        group_id=None,
+        category_id=None,
+        market_group_id=None,
+    )
+
+
+def create_system_details(
+    system_id: int = 30000142,
+    name: str = "Test System",
+    security_status: float = 0.9,
+    security_class: str = "B",
+    constellation_id: int | None = None,
+    stargates: list[int] | None = None,
+) -> SystemDetails:
+    """Helper function to create a SystemDetails object"""
+    return SystemDetails(
+        system_id=system_id,
+        name=name,
+        security_status=security_status,
+        security_class=security_class,
+        position={},
+        constellation_id=constellation_id,
+        planets=[],
+        star_id=None,
+        stargates=stargates,
+    )
+
+
+def create_station_details(
+    station_id: int = 60008494,
+    name: str = "Test Station",
+    system_id: int = 30000142,
+) -> StationDetails:
+    """Helper function to create a StationDetails object"""
+    return StationDetails(
+        station_id=station_id,
+        name=name,
+        system_id=system_id,
+        type_id=None,
+        position=None,
+        owner=None,
+        race_id=None,
+        reprocessing_efficiency=None,
+        reprocessing_stations_take=None,
+        max_dockable_ship_volume=None,
+        office_rental_cost=None,
+        services=None,
+    )
+
+
+def create_constellation_details(
+    constellation_id: int = 20000001,
+    name: str = "Test Constellation",
+    region_id: int | None = None,
+    systems: list[int] | None = None,
+) -> ConstellationDetails:
+    """Helper function to create a ConstellationDetails object"""
+    return ConstellationDetails(
+        constellation_id=constellation_id,
+        name=name,
+        systems=systems or [],
+        position={},
+        region_id=region_id,
+    )
+
+
+def create_stargate_details(
+    stargate_id: int = 50000001,
+    system_id: int = 30000142,
+    destination_system_id: int = 30000143,
+    name: str = "Test Stargate",
+) -> StargateDetails:
+    """Helper function to create a StargateDetails object"""
+    return StargateDetails(
+        stargate_id=stargate_id,
+        system_id=system_id,
+        destination_system_id=destination_system_id,
+        position={},
+        type_id=0,
+        name=name,
+    )
 
 
 @pytest.fixture
@@ -224,45 +512,53 @@ class TestDealsServiceAnalyzeType:
         # sell_order = someone wants to SELL → we can BUY at this price
         mock_repository.market_orders = {
             (region_id, type_id): [
-                {
-                    "is_buy_order": True,
-                    "price": 110,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },  # Best price to SELL
-                {
-                    "is_buy_order": True,
-                    "price": 105,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
-                {
-                    "is_buy_order": False,
-                    "price": 95,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },  # Best price to BUY
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
+                create_order(
+                    order_id=1,
+                    type_id=type_id,
+                    is_buy_order=True,
+                    price=110,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),  # Best price to SELL
+                create_order(
+                    order_id=2,
+                    type_id=type_id,
+                    is_buy_order=True,
+                    price=105,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
+                create_order(
+                    order_id=3,
+                    type_id=type_id,
+                    is_buy_order=False,
+                    price=95,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),  # Best price to BUY
+                create_order(
+                    order_id=4,
+                    type_id=type_id,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
             ]
         }
         mock_repository.item_types = {
-            type_id: {"name": "Test Item", "description": "A test item", "volume": 1.0}
+            type_id: create_item_type(
+                type_id=type_id, name="Test Item", description="A test item", volume=1.0
+            )
         }
         mock_repository.system_details = {
-            30000142: {
-                "system_id": 30000142,
-                "name": "Test System",
-                "security_status": 0.9,
-            }
+            30000142: create_system_details(
+                system_id=30000142, name="Test System", security_status=0.9
+            )
         }
 
         # Execute
@@ -271,21 +567,23 @@ class TestDealsServiceAnalyzeType:
         )
 
         # Verify
+        # Note: profit_percent is calculated after market sale fee (8%)
+        # With buy_price=95, sell_price=110, volume=10:
+        # - buy_cost = 95 * 10 = 950
+        # - sell_revenue = 110 * 10 = 1100
+        # - sale_fee = 88 (8% of 1100)
+        # - net_revenue = 1012
+        # - profit_isk = 1012 - 950 = 62
+        # - profit_percent = (62/950) * 100 = 6.53%
         assert result is not None
-        assert result["type_id"] == type_id
-        assert result["type_name"] == "Test Item"
-        assert (
-            result["buy_price"] == 95
-        )  # Price at which we BUY (lowest among sell_orders)
-        assert (
-            result["sell_price"] == 110
-        )  # Price at which we SELL (highest among buy_orders)
-        # Profit = (110 - 95) * 10 = 150 ISK
-        # Profit % = (110 - 95) / 95 * 100 = 15.79%
-        assert result["profit_percent"] == pytest.approx(15.79, rel=0.01)
-        assert result["profit_isk"] == pytest.approx(150, rel=0.01)
-        assert result["buy_order_count"] == 2
-        assert result["sell_order_count"] == 2
+        assert result.type_id == type_id
+        assert result.type_name == "Test Item"
+        assert result.buy_price == 95  # Price at which we BUY (lowest among sell_orders)
+        assert result.sell_price == 110  # Price at which we SELL (highest among buy_orders)
+        assert result.profit_percent == pytest.approx(6.53, rel=0.01)
+        assert result.profit_isk == pytest.approx(62, rel=0.01)
+        assert result.buy_order_count == 2
+        assert result.sell_order_count == 2
 
     async def test_analyze_type_profitability_below_threshold(self, deals_service, mock_repository):
         """Test with a non-profitable type (profit < threshold)"""
@@ -295,8 +593,20 @@ class TestDealsServiceAnalyzeType:
 
         mock_repository.market_orders = {
             (region_id, type_id): [
-                {"is_buy_order": True, "price": 105, "location_id": 30000142},  # Profit = 5%
-                {"is_buy_order": False, "price": 100, "location_id": 30000142},
+                create_order(
+                    order_id=1,
+                    type_id=type_id,
+                    is_buy_order=True,
+                    price=105,
+                    location_id=30000142,
+                ),  # Profit = 5%
+                create_order(
+                    order_id=2,
+                    type_id=type_id,
+                    is_buy_order=False,
+                    price=100,
+                    location_id=30000142,
+                ),
             ]
         }
 
@@ -315,7 +625,13 @@ class TestDealsServiceAnalyzeType:
 
         mock_repository.market_orders = {
             (region_id, type_id): [
-                {"is_buy_order": False, "price": 100, "location_id": 30000142},
+                create_order(
+                    order_id=1,
+                    type_id=type_id,
+                    is_buy_order=False,
+                    price=100,
+                    location_id=30000142,
+                ),
             ]
         }
 
@@ -332,7 +648,13 @@ class TestDealsServiceAnalyzeType:
 
         mock_repository.market_orders = {
             (region_id, type_id): [
-                {"is_buy_order": True, "price": 100, "location_id": 30000142},
+                create_order(
+                    order_id=1,
+                    type_id=type_id,
+                    is_buy_order=True,
+                    price=100,
+                    location_id=30000142,
+                ),
             ]
         }
 
@@ -350,23 +672,29 @@ class TestDealsServiceAnalyzeType:
 
         mock_repository.market_orders = {
             (region_id, type_id): [
-                {
-                    "is_buy_order": True,
-                    "price": 110,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },  # Profit = 10%
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
+                create_order(
+                    order_id=1,
+                    type_id=type_id,
+                    is_buy_order=True,
+                    price=110,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),  # Profit = 10%
+                create_order(
+                    order_id=2,
+                    type_id=type_id,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
             ]
         }
-        mock_repository.item_types = {type_id: {"name": "Test Item", "volume": 1.0}}
+        mock_repository.item_types = {
+            type_id: create_item_type(type_id=type_id, name="Test Item", volume=1.0)
+        }
 
         # Execute
         result = await deals_service.analyze_type_profitability(
@@ -374,8 +702,16 @@ class TestDealsServiceAnalyzeType:
         )
 
         # Verify: should return result (>= threshold)
+        # Note: profit_percent is calculated after market sale fee (8%)
+        # With buy_price=100, sell_price=110, volume=10:
+        # - buy_cost = 1000
+        # - sell_revenue = 1100
+        # - sale_fee = 88 (8% of 1100)
+        # - net_revenue = 1012
+        # - profit_isk = 12
+        # - profit_percent = (12/1000) * 100 = 1.2%
         assert result is not None
-        assert result["profit_percent"] == 10.0
+        assert result.profit_percent == pytest.approx(1.2, rel=0.01)
 
     async def test_analyze_type_profitability_handles_exception(
         self, deals_service, mock_repository
@@ -413,11 +749,11 @@ class TestDealsServiceFindDeals:
         result = await deals_service.find_market_deals(10000002, group_id, min_profit_isk=5.0)
 
         # Verify
-        assert result["region_id"] == 10000002
-        assert result["group_id"] == group_id
-        assert result["min_profit_isk"] == 5.0
-        assert result["total_types"] == 0
-        assert result["deals"] == []
+        assert result.region_id == 10000002
+        assert result.group_id == group_id
+        assert result.min_profit_isk == 5.0
+        assert result.total_types == 0
+        assert result.deals == []
 
     async def test_find_market_deals_without_group_id(self, deals_service, mock_repository):
         """Test find_market_deals with group_id=None (all groups)"""
@@ -439,36 +775,44 @@ class TestDealsServiceFindDeals:
         # Setup orders: 101 profitable
         mock_repository.market_orders = {
             (region_id, 101): [
-                {
-                    "is_buy_order": True,
-                    "price": 110,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
+                create_order(
+                    order_id=1,
+                    type_id=101,
+                    is_buy_order=True,
+                    price=110,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
+                create_order(
+                    order_id=2,
+                    type_id=101,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
             ],
             (region_id, 201): [
-                {
-                    "is_buy_order": True,
-                    "price": 110,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
+                create_order(
+                    order_id=3,
+                    type_id=201,
+                    is_buy_order=True,
+                    price=110,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
+                create_order(
+                    order_id=4,
+                    type_id=201,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
             ],
         }
 
@@ -478,11 +822,11 @@ class TestDealsServiceFindDeals:
         )
 
         # Verify
-        assert result["region_id"] == region_id
-        assert "group_id" not in result  # Should not include group_id when None
-        assert result["min_profit_isk"] == profit_threshold
-        assert result["total_types"] >= 2  # Should include types from top-level groups
-        assert len(result["deals"]) >= 1  # Should find at least one deal
+        assert result.region_id == region_id
+        assert result.group_id is None  # Should not include group_id when None
+        assert result.min_profit_isk == profit_threshold
+        assert result.total_types >= 2  # Should include types from top-level groups
+        assert len(result.deals) >= 1  # Should find at least one deal
 
     async def test_find_market_deals_with_profitable_items(self, deals_service, mock_repository):
         """Test with profitable items"""
@@ -507,60 +851,72 @@ class TestDealsServiceFindDeals:
         # For 201: (120-100)*10 = 200 ISK > 5.0 ✓
         mock_repository.market_orders = {
             (region_id, 101): [
-                {
-                    "is_buy_order": True,
-                    "price": 110,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },  # 10% profit, 100 ISK
+                create_order(
+                    order_id=1,
+                    type_id=101,
+                    is_buy_order=True,
+                    price=110,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
+                create_order(
+                    order_id=2,
+                    type_id=101,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),  # 10% profit, 100 ISK
             ],
             (region_id, 102): [
-                {
-                    "is_buy_order": True,
-                    "price": 102,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },  # 2% profit, 20 ISK
+                create_order(
+                    order_id=3,
+                    type_id=102,
+                    is_buy_order=True,
+                    price=102,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
+                create_order(
+                    order_id=4,
+                    type_id=102,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),  # 2% profit, 20 ISK
             ],
             (region_id, 201): [
-                {
-                    "is_buy_order": True,
-                    "price": 120,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },  # 20% profit, 200 ISK
+                create_order(
+                    order_id=5,
+                    type_id=201,
+                    is_buy_order=True,
+                    price=120,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
+                create_order(
+                    order_id=6,
+                    type_id=201,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),  # 20% profit, 200 ISK
             ],
         }
 
         # Setup types
         mock_repository.item_types = {
-            101: {"name": "Item 101", "volume": 1.0},
-            102: {"name": "Item 102", "volume": 1.0},
-            201: {"name": "Item 201", "volume": 1.0},
+            101: create_item_type(type_id=101, name="Item 101", volume=1.0),
+            102: create_item_type(type_id=102, name="Item 102", volume=1.0),
+            201: create_item_type(type_id=201, name="Item 201", volume=1.0),
         }
 
         # Execute
@@ -569,15 +925,15 @@ class TestDealsServiceFindDeals:
         )
 
         # Verify
-        assert result["total_types"] == 3  # 101, 102, 201
-        # All 3 types have profit_isk >= 5.0, so 3 deals
-        assert len(result["deals"]) == 3  # 101, 102, and 201 (all > 5.0 ISK)
-        assert result["deals"][0]["type_id"] == 201  # Sorted by profit ISK descending
-        assert result["deals"][0]["profit_percent"] == 20.0
-        assert result["deals"][1]["type_id"] == 101  # 100 ISK
-        assert result["deals"][1]["profit_percent"] == 10.0
-        assert result["deals"][2]["type_id"] == 102  # 20 ISK (lowest but > 5.0)
-        assert result["deals"][2]["profit_percent"] == 2.0
+        # Note: After 8% sale fee, type 102 is not profitable:
+        # - buy_cost = 1000, sell_revenue = 1020, fee = 81.6, net = 938.4, profit = -61.6
+        assert result.total_types == 3  # 101, 102, 201
+        # Only 101 and 201 are profitable after tax (102 has negative profit)
+        assert len(result.deals) == 2  # 101 and 201 (102 is not profitable after tax)
+        assert result.deals[0].type_id == 201  # Sorted by profit ISK descending
+        assert result.deals[0].profit_percent == pytest.approx(10.4, rel=0.01)  # After 8% tax
+        assert result.deals[1].type_id == 101  # 12 ISK after tax
+        assert result.deals[1].profit_percent == pytest.approx(1.2, rel=0.01)  # After 8% tax
 
     async def test_find_market_deals_sorted_by_profit(self, deals_service, mock_repository):
         """Test that deals are sorted by profit descending"""
@@ -593,69 +949,83 @@ class TestDealsServiceFindDeals:
         # min_profit_isk = 5.0 ISK, so with volume=10: profit_isk = (sell_price - buy_price) * 10
         mock_repository.market_orders = {
             (region_id, 101): [
-                {
-                    "is_buy_order": True,
-                    "price": 105,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },  # 5%, 50 ISK
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
+                create_order(
+                    order_id=1,
+                    type_id=101,
+                    is_buy_order=True,
+                    price=105,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),  # 5%, 50 ISK
+                create_order(
+                    order_id=2,
+                    type_id=101,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
             ],
             (region_id, 102): [
-                {
-                    "is_buy_order": True,
-                    "price": 115,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },  # 15%, 150 ISK
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
+                create_order(
+                    order_id=3,
+                    type_id=102,
+                    is_buy_order=True,
+                    price=115,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),  # 15%, 150 ISK
+                create_order(
+                    order_id=4,
+                    type_id=102,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
             ],
             (region_id, 103): [
-                {
-                    "is_buy_order": True,
-                    "price": 110,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },  # 10%, 100 ISK
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
+                create_order(
+                    order_id=5,
+                    type_id=103,
+                    is_buy_order=True,
+                    price=110,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),  # 10%, 100 ISK
+                create_order(
+                    order_id=6,
+                    type_id=103,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
             ],
         }
 
         mock_repository.item_types = {
-            101: {"name": "Item 101", "volume": 1.0},
-            102: {"name": "Item 102", "volume": 1.0},
-            103: {"name": "Item 103", "volume": 1.0},
+            101: create_item_type(type_id=101, name="Item 101", volume=1.0),
+            102: create_item_type(type_id=102, name="Item 102", volume=1.0),
+            103: create_item_type(type_id=103, name="Item 103", volume=1.0),
         }
 
         # Execute
         result = await deals_service.find_market_deals(region_id, group_id, min_profit_isk=5.0)
 
-        # Verify: descending sort
-        assert len(result["deals"]) == 3
-        assert result["deals"][0]["profit_percent"] == 15.0  # 102
-        assert result["deals"][1]["profit_percent"] == 10.0  # 103
-        assert result["deals"][2]["profit_percent"] == 5.0  # 101
+        # Verify: descending sort (after 8% sale fee)
+        # 101: buy=100, sell=105 → profit=-34 ISK (not profitable, filtered out)
+        # 102: buy=100, sell=115 → profit=58 ISK, percent=5.8%
+        # 103: buy=100, sell=110 → profit=12 ISK, percent=1.2%
+        assert len(result.deals) == 2  # Only 102 and 103 are profitable (>= 5.0 ISK)
+        assert result.deals[0].profit_percent == pytest.approx(5.8, rel=0.01)  # 102
+        assert result.deals[1].profit_percent == pytest.approx(1.2, rel=0.01)  # 103
 
     @pytest.mark.parametrize(
         "max_transport_volume,expected_volume",
@@ -670,32 +1040,38 @@ class TestDealsServiceFindDeals:
         type_id = 101
 
         mock_repository.market_groups_list = [1]
-        mock_repository.market_groups_details = {
-            1: {"types": [type_id], "parent_group_id": None}
-        }
+        mock_repository.market_groups_details = {1: {"types": [type_id], "parent_group_id": None}}
 
         mock_repository.market_orders = {
             (region_id, type_id): [
-                {
-                    "is_buy_order": True,
-                    "price": 110,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
+                create_order(
+                    order_id=1,
+                    type_id=type_id,
+                    is_buy_order=True,
+                    price=110,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
+                create_order(
+                    order_id=2,
+                    type_id=type_id,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
             ]
         }
 
-        mock_repository.item_types = {type_id: {"name": "Item 101", "volume": 1.0}}
+        mock_repository.item_types = {
+            type_id: create_item_type(type_id=type_id, name="Item 101", volume=1.0)
+        }
         mock_repository.system_details = {
-            30000142: {"system_id": 30000142, "name": "Test System", "security_status": 0.9}
+            30000142: create_system_details(
+                system_id=30000142, name="Test System", security_status=0.9
+            )
         }
 
         result = await deals_service.find_market_deals(
@@ -703,10 +1079,10 @@ class TestDealsServiceFindDeals:
         )
 
         if expected_volume == 0:
-            assert len(result["deals"]) == 0
+            assert len(result.deals) == 0
         else:
-            assert len(result["deals"]) == 1
-            assert result["deals"][0]["tradable_volume"] == expected_volume
+            assert len(result.deals) == 1
+            assert result.deals[0].tradable_volume == expected_volume
 
     @pytest.mark.parametrize(
         "max_buy_cost,expected_volume",
@@ -721,32 +1097,38 @@ class TestDealsServiceFindDeals:
         type_id = 101
 
         mock_repository.market_groups_list = [1]
-        mock_repository.market_groups_details = {
-            1: {"types": [type_id], "parent_group_id": None}
-        }
+        mock_repository.market_groups_details = {1: {"types": [type_id], "parent_group_id": None}}
 
         mock_repository.market_orders = {
             (region_id, type_id): [
-                {
-                    "is_buy_order": True,
-                    "price": 110,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
+                create_order(
+                    order_id=1,
+                    type_id=type_id,
+                    is_buy_order=True,
+                    price=110,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
+                create_order(
+                    order_id=2,
+                    type_id=type_id,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
             ]
         }
 
-        mock_repository.item_types = {type_id: {"name": "Item 101", "volume": 1.0}}
+        mock_repository.item_types = {
+            type_id: create_item_type(type_id=type_id, name="Item 101", volume=1.0)
+        }
         mock_repository.system_details = {
-            30000142: {"system_id": 30000142, "name": "Test System", "security_status": 0.9}
+            30000142: create_system_details(
+                system_id=30000142, name="Test System", security_status=0.9
+            )
         }
 
         result = await deals_service.find_market_deals(
@@ -754,14 +1136,12 @@ class TestDealsServiceFindDeals:
         )
 
         if expected_volume == 0:
-            assert len(result["deals"]) == 0
+            assert len(result.deals) == 0
         else:
-            assert len(result["deals"]) == 1
-            assert result["deals"][0]["tradable_volume"] == expected_volume
+            assert len(result.deals) == 1
+            assert result.deals[0].tradable_volume == expected_volume
 
-    async def test_find_market_deals_with_additional_regions(
-        self, deals_service, mock_repository
-    ):
+    async def test_find_market_deals_with_additional_regions(self, deals_service, mock_repository):
         """Test find_market_deals with additional_regions"""
         region_id = 10000002
         additional_region_id = 10000003
@@ -769,36 +1149,44 @@ class TestDealsServiceFindDeals:
         type_id = 101
 
         mock_repository.market_groups_list = [1]
-        mock_repository.market_groups_details = {
-            1: {"types": [type_id], "parent_group_id": None}
-        }
+        mock_repository.market_groups_details = {1: {"types": [type_id], "parent_group_id": None}}
 
         # Best buy order in additional region, best sell order in main region
         mock_repository.market_orders = {
             (region_id, type_id): [
-                {
-                    "is_buy_order": True,
-                    "price": 110,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
+                create_order(
+                    order_id=1,
+                    type_id=type_id,
+                    is_buy_order=True,
+                    price=110,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
             ],
             (additional_region_id, type_id): [
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000143,
-                },
+                create_order(
+                    order_id=2,
+                    type_id=type_id,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000143,
+                ),
             ],
         }
 
-        mock_repository.item_types = {type_id: {"name": "Item 101", "volume": 1.0}}
+        mock_repository.item_types = {
+            type_id: create_item_type(type_id=type_id, name="Item 101", volume=1.0)
+        }
         mock_repository.system_details = {
-            30000142: {"system_id": 30000142, "name": "Test System 1", "security_status": 0.9},
-            30000143: {"system_id": 30000143, "name": "Test System 2", "security_status": 0.9},
+            30000142: create_system_details(
+                system_id=30000142, name="Test System 1", security_status=0.9
+            ),
+            30000143: create_system_details(
+                system_id=30000143, name="Test System 2", security_status=0.9
+            ),
         }
 
         result = await deals_service.find_market_deals(
@@ -808,10 +1196,10 @@ class TestDealsServiceFindDeals:
             additional_regions=[additional_region_id],
         )
 
-        assert len(result["deals"]) == 1
-        assert result["deals"][0]["type_id"] == type_id
-        assert result["deals"][0]["buy_price"] == 100
-        assert result["deals"][0]["sell_price"] == 110
+        assert len(result.deals) == 1
+        assert result.deals[0].type_id == type_id
+        assert result.deals[0].buy_price == 100
+        assert result.deals[0].sell_price == 110
 
 
 @pytest.mark.asyncio
@@ -819,9 +1207,7 @@ class TestDealsServiceFindDeals:
 class TestDealsServiceSystemToSystem:
     """Tests for system-to-system deals"""
 
-    async def test_find_system_to_system_deals_profitable(
-        self, deals_service, mock_repository
-    ):
+    async def test_find_system_to_system_deals_profitable(self, deals_service, mock_repository):
         """Test find_system_to_system_deals with profitable deal"""
         from_system_id = 30000142
         to_system_id = 30000143
@@ -831,94 +1217,110 @@ class TestDealsServiceSystemToSystem:
 
         # Setup system and constellation data
         mock_repository.system_details = {
-            from_system_id: {
-                "system_id": from_system_id,
-                "name": "From System",
-                "constellation_id": 20000001,
-            },
-            to_system_id: {
-                "system_id": to_system_id,
-                "name": "To System",
-                "constellation_id": 20000002,
-            },
+            from_system_id: create_system_details(
+                system_id=from_system_id,
+                name="From System",
+                constellation_id=20000001,
+            ),
+            to_system_id: create_system_details(
+                system_id=to_system_id,
+                name="To System",
+                constellation_id=20000002,
+            ),
         }
 
         mock_repository.constellation_details = {
-            20000001: {"constellation_id": 20000001, "region_id": from_region_id},
-            20000002: {"constellation_id": 20000002, "region_id": to_region_id},
+            20000001: create_constellation_details(
+                constellation_id=20000001, region_id=from_region_id
+            ),
+            20000002: create_constellation_details(
+                constellation_id=20000002, region_id=to_region_id
+            ),
         }
 
         # Setup station details for location validation
         # Use station IDs that are >= STATION_ID_THRESHOLD (60000000)
         # Use known valid station IDs from static data
         from_station_id = 60008494  # Known valid station ID in static data
-        to_station_id = 60000004  # Another known valid station ID in static data
+        to_station_id = 60008495  # Another known valid station ID (>= 60000000) in static data
         mock_repository.station_details = {
-            from_station_id: {"station_id": from_station_id, "system_id": from_system_id, "name": "From Station"},
-            to_station_id: {"station_id": to_station_id, "system_id": to_system_id, "name": "To Station"},
+            from_station_id: create_station_details(
+                station_id=from_station_id,
+                system_id=from_system_id,
+                name="From Station",
+            ),
+            to_station_id: create_station_details(
+                station_id=to_station_id,
+                system_id=to_system_id,
+                name="To Station",
+            ),
         }
 
         # Setup market orders
         mock_repository.market_orders = {
             (from_region_id, type_id): [
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": from_station_id,
-                },
+                create_order(
+                    order_id=1,
+                    type_id=type_id,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=from_station_id,
+                ),
             ],
             (to_region_id, type_id): [
-                {
-                    "is_buy_order": True,
-                    "price": 110,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": to_station_id,
-                },
+                create_order(
+                    order_id=2,
+                    type_id=type_id,
+                    is_buy_order=True,
+                    price=110,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=to_station_id,
+                ),
             ],
         }
 
-        mock_repository.item_types = {type_id: {"name": "Item 101", "volume": 1.0}}
-        # Setup route (direct connection)
-        mock_repository.routes = {
-            (from_system_id, to_system_id): [from_system_id, to_system_id]
+        mock_repository.item_types = {
+            type_id: create_item_type(type_id=type_id, name="Item 101", volume=1.0)
         }
+        # Setup route (direct connection)
+        mock_repository.routes = {(from_system_id, to_system_id): [from_system_id, to_system_id]}
         mock_repository.route_with_details = {
             (from_system_id, to_system_id): [
-                {
-                    "system_id": from_system_id,
-                    "name": "From System",
-                    "security_status": 0.9,
-                },
-                {
-                    "system_id": to_system_id,
-                    "name": "To System",
-                    "security_status": 0.9,
-                },
+                RouteDetail(
+                    system_id=from_system_id,
+                    name="From System",
+                    security_status=0.9,
+                    faction_id=None,
+                ),
+                RouteDetail(
+                    system_id=to_system_id,
+                    name="To System",
+                    security_status=0.9,
+                    faction_id=None,
+                ),
             ]
         }
 
         # Setup market groups to collect all types (group_id=None means all groups)
         mock_repository.market_groups_list = [1]
-        mock_repository.market_groups_details = {
-            1: {"types": [type_id], "parent_group_id": None}
-        }
+        mock_repository.market_groups_details = {1: {"types": [type_id], "parent_group_id": None}}
 
         result = await deals_service.find_system_to_system_deals(
             from_system_id, to_system_id, min_profit_isk=5.0
         )
 
-        assert result["from_system_id"] == from_system_id
-        assert result["to_system_id"] == to_system_id
-        assert result["route"] == [from_system_id, to_system_id]
-        assert result["route_segments"] == [(from_system_id, to_system_id)]
-        assert len(result["deals"]) == 1
-        assert result["deals"][0]["type_id"] == type_id
-        assert result["deals"][0]["buy_price"] == 100
-        assert result["deals"][0]["sell_price"] == 110
-        assert result["deals"][0]["jumps"] == 1
+        assert result.from_system_id == from_system_id
+        assert result.to_system_id == to_system_id
+        assert result.route == [from_system_id, to_system_id]
+        assert result.route_segments == [(from_system_id, to_system_id)]
+        assert len(result.deals) == 1
+        assert result.deals[0].type_id == type_id
+        assert result.deals[0].buy_price == 100
+        assert result.deals[0].sell_price == 110
+        assert result.deals[0].jumps == 1
 
     async def test_find_system_to_system_deals_with_group_filter(
         self, deals_service, mock_repository
@@ -934,30 +1336,36 @@ class TestDealsServiceSystemToSystem:
 
         # Setup system and constellation data
         mock_repository.system_details = {
-            from_system_id: {
-                "system_id": from_system_id,
-                "name": "From System",
-                "constellation_id": 20000001,
-            },
-            to_system_id: {
-                "system_id": to_system_id,
-                "name": "To System",
-                "constellation_id": 20000002,
-            },
+            from_system_id: create_system_details(
+                system_id=from_system_id,
+                name="From System",
+                constellation_id=20000001,
+            ),
+            to_system_id: create_system_details(
+                system_id=to_system_id,
+                name="To System",
+                constellation_id=20000002,
+            ),
         }
 
         mock_repository.constellation_details = {
-            20000001: {"constellation_id": 20000001, "region_id": from_region_id},
-            20000002: {"constellation_id": 20000002, "region_id": to_region_id},
+            20000001: create_constellation_details(
+                constellation_id=20000001, region_id=from_region_id
+            ),
+            20000002: create_constellation_details(
+                constellation_id=20000002, region_id=to_region_id
+            ),
         }
 
         # Setup station details
         # Use station IDs that are >= STATION_ID_THRESHOLD (60000000)
         from_station_id = 60008494  # Known valid station ID
-        to_station_id = 60000004  # Another known valid station ID
+        to_station_id = 60008495  # Another known valid station ID (>= 60000000)
         mock_repository.station_details = {
-            from_station_id: {"station_id": from_station_id, "system_id": from_system_id},
-            to_station_id: {"station_id": to_station_id, "system_id": to_system_id},
+            from_station_id: create_station_details(
+                station_id=from_station_id, system_id=from_system_id
+            ),
+            to_station_id: create_station_details(station_id=to_station_id, system_id=to_system_id),
         }
 
         # Setup market groups
@@ -969,59 +1377,69 @@ class TestDealsServiceSystemToSystem:
         # Setup market orders for both types
         mock_repository.market_orders = {
             (from_region_id, type_id_in_group): [
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": from_station_id,
-                },
+                create_order(
+                    order_id=1,
+                    type_id=type_id_in_group,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=from_station_id,
+                ),
             ],
             (to_region_id, type_id_in_group): [
-                {
-                    "is_buy_order": True,
-                    "price": 110,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": to_station_id,
-                },
+                create_order(
+                    order_id=2,
+                    type_id=type_id_in_group,
+                    is_buy_order=True,
+                    price=110,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=to_station_id,
+                ),
             ],
             (from_region_id, type_id_not_in_group): [
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": from_station_id,
-                },
+                create_order(
+                    order_id=3,
+                    type_id=type_id_not_in_group,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=from_station_id,
+                ),
             ],
             (to_region_id, type_id_not_in_group): [
-                {
-                    "is_buy_order": True,
-                    "price": 110,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": to_station_id,
-                },
+                create_order(
+                    order_id=4,
+                    type_id=type_id_not_in_group,
+                    is_buy_order=True,
+                    price=110,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=to_station_id,
+                ),
             ],
         }
 
         mock_repository.item_types = {
-            type_id_in_group: {"name": "Item 101", "volume": 1.0},
-            type_id_not_in_group: {"name": "Item 102", "volume": 1.0},
+            type_id_in_group: create_item_type(
+                type_id=type_id_in_group, name="Item 101", volume=1.0
+            ),
+            type_id_not_in_group: create_item_type(
+                type_id=type_id_not_in_group, name="Item 102", volume=1.0
+            ),
         }
         # Setup route (direct connection)
-        mock_repository.routes = {
-            (from_system_id, to_system_id): [from_system_id, to_system_id]
-        }
+        mock_repository.routes = {(from_system_id, to_system_id): [from_system_id, to_system_id]}
 
         result = await deals_service.find_system_to_system_deals(
             from_system_id, to_system_id, min_profit_isk=5.0, group_id=group_id
         )
 
         # Should only find deals for type_id_in_group
-        assert len(result["deals"]) == 1
-        assert result["deals"][0]["type_id"] == type_id_in_group
+        assert len(result.deals) == 1
+        assert result.deals[0].type_id == type_id_in_group
 
     async def test_find_system_to_system_deals_with_max_detour_jumps_zero(
         self, deals_service, mock_repository
@@ -1035,86 +1453,100 @@ class TestDealsServiceSystemToSystem:
         type_id = 101
 
         mock_repository.system_details = {
-            from_system_id: {
-                "system_id": from_system_id,
-                "name": "From System",
-                "constellation_id": 20000001,
-            },
-            to_system_id: {
-                "system_id": to_system_id,
-                "name": "To System",
-                "constellation_id": 20000002,
-            },
-            detour_system_id: {
-                "system_id": detour_system_id,
-                "name": "Detour System",
-                "constellation_id": 20000001,
-            },
+            from_system_id: create_system_details(
+                system_id=from_system_id,
+                name="From System",
+                constellation_id=20000001,
+            ),
+            to_system_id: create_system_details(
+                system_id=to_system_id,
+                name="To System",
+                constellation_id=20000002,
+            ),
+            detour_system_id: create_system_details(
+                system_id=detour_system_id,
+                name="Detour System",
+                constellation_id=20000001,
+            ),
         }
 
         mock_repository.constellation_details = {
-            20000001: {"constellation_id": 20000001, "region_id": from_region_id},
-            20000002: {"constellation_id": 20000002, "region_id": to_region_id},
+            20000001: create_constellation_details(
+                constellation_id=20000001, region_id=from_region_id
+            ),
+            20000002: create_constellation_details(
+                constellation_id=20000002, region_id=to_region_id
+            ),
         }
 
         from_station_id = 60008494
         to_station_id = 60000004
         detour_station_id = 60000005
         mock_repository.station_details = {
-            from_station_id: {"station_id": from_station_id, "system_id": from_system_id},
-            to_station_id: {"station_id": to_station_id, "system_id": to_system_id},
-            detour_station_id: {"station_id": detour_station_id, "system_id": detour_system_id},
+            from_station_id: create_station_details(
+                station_id=from_station_id, system_id=from_system_id
+            ),
+            to_station_id: create_station_details(station_id=to_station_id, system_id=to_system_id),
+            detour_station_id: create_station_details(
+                station_id=detour_station_id, system_id=detour_system_id
+            ),
         }
 
         mock_repository.market_orders = {
             (from_region_id, type_id): [
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": from_station_id,
-                },
+                create_order(
+                    order_id=1,
+                    type_id=type_id,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=from_station_id,
+                ),
             ],
             (to_region_id, type_id): [
-                {
-                    "is_buy_order": True,
-                    "price": 110,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": to_station_id,
-                },
+                create_order(
+                    order_id=2,
+                    type_id=type_id,
+                    is_buy_order=True,
+                    price=110,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=to_station_id,
+                ),
             ],
         }
 
-        mock_repository.item_types = {type_id: {"name": "Item 101", "volume": 1.0}}
-        mock_repository.routes = {
-            (from_system_id, to_system_id): [from_system_id, to_system_id]
+        mock_repository.item_types = {
+            type_id: create_item_type(type_id=type_id, name="Item 101", volume=1.0)
         }
+        mock_repository.routes = {(from_system_id, to_system_id): [from_system_id, to_system_id]}
 
         stargate_id = 50000001
         mock_repository.system_connections = {
             from_system_id: [stargate_id],
         }
         mock_repository.stargate_details = {
-            stargate_id: {"destination": {"system_id": detour_system_id}},
+            stargate_id: create_stargate_details(
+                stargate_id=stargate_id,
+                system_id=from_system_id,
+                destination_system_id=detour_system_id,
+            ),
         }
 
         mock_repository.market_groups_list = [1]
-        mock_repository.market_groups_details = {
-            1: {"types": [type_id], "parent_group_id": None}
-        }
+        mock_repository.market_groups_details = {1: {"types": [type_id], "parent_group_id": None}}
 
         result = await deals_service.find_system_to_system_deals(
             from_system_id, to_system_id, min_profit_isk=5.0, max_detour_jumps=0
         )
 
-        assert result["from_system_id"] == from_system_id
-        assert result["to_system_id"] == to_system_id
-        assert result["route"] == [from_system_id, to_system_id]
-        assert len(result["deals"]) == 1
-        assert result["deals"][0]["buy_system_id"] == from_system_id
-        assert result["deals"][0]["sell_system_id"] == to_system_id
+        assert result.from_system_id == from_system_id
+        assert result.to_system_id == to_system_id
+        assert result.route == [from_system_id, to_system_id]
+        assert len(result.deals) == 1
+        assert result.deals[0].buy_system_id == from_system_id
+        assert result.deals[0].sell_system_id == to_system_id
 
     async def test_find_system_to_system_deals_with_max_detour_jumps_one(
         self, deals_service, mock_repository
@@ -1128,85 +1560,102 @@ class TestDealsServiceSystemToSystem:
         type_id = 101
 
         mock_repository.system_details = {
-            from_system_id: {
-                "system_id": from_system_id,
-                "name": "From System",
-                "constellation_id": 20000001,
-            },
-            to_system_id: {
-                "system_id": to_system_id,
-                "name": "To System",
-                "constellation_id": 20000002,
-            },
-            detour_system_id: {
-                "system_id": detour_system_id,
-                "name": "Detour System",
-                "constellation_id": 20000001,
-            },
+            from_system_id: create_system_details(
+                system_id=from_system_id,
+                name="From System",
+                constellation_id=20000001,
+            ),
+            to_system_id: create_system_details(
+                system_id=to_system_id,
+                name="To System",
+                constellation_id=20000002,
+            ),
+            detour_system_id: create_system_details(
+                system_id=detour_system_id,
+                name="Detour System",
+                constellation_id=20000001,
+            ),
         }
 
         mock_repository.constellation_details = {
-            20000001: {"constellation_id": 20000001, "region_id": from_region_id},
-            20000002: {"constellation_id": 20000002, "region_id": to_region_id},
+            20000001: create_constellation_details(
+                constellation_id=20000001, region_id=from_region_id
+            ),
+            20000002: create_constellation_details(
+                constellation_id=20000002, region_id=to_region_id
+            ),
         }
 
         from_station_id = 60008494
         detour_station_id = 60000005
         mock_repository.station_details = {
-            from_station_id: {"station_id": from_station_id, "system_id": from_system_id},
-            detour_station_id: {"station_id": detour_station_id, "system_id": detour_system_id},
+            from_station_id: create_station_details(
+                station_id=from_station_id, system_id=from_system_id
+            ),
+            detour_station_id: create_station_details(
+                station_id=detour_station_id, system_id=detour_system_id
+            ),
         }
 
         mock_repository.market_orders = {
             (from_region_id, type_id): [
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": from_station_id,
-                },
+                create_order(
+                    order_id=1,
+                    type_id=type_id,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=from_station_id,
+                ),
             ],
             (to_region_id, type_id): [
-                {
-                    "is_buy_order": True,
-                    "price": 110,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": detour_station_id,
-                },
+                create_order(
+                    order_id=2,
+                    type_id=type_id,
+                    is_buy_order=True,
+                    price=110,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=detour_station_id,
+                ),
             ],
         }
 
-        mock_repository.item_types = {type_id: {"name": "Item 101", "volume": 1.0}}
-        mock_repository.routes = {
-            (from_system_id, to_system_id): [from_system_id, to_system_id]
+        mock_repository.item_types = {
+            type_id: create_item_type(type_id=type_id, name="Item 101", volume=1.0)
         }
+        mock_repository.routes = {(from_system_id, to_system_id): [from_system_id, to_system_id]}
 
         stargate_id = 50000001
         mock_repository.system_connections = {
             from_system_id: [stargate_id],
         }
         mock_repository.stargate_details = {
-            stargate_id: {"destination": {"system_id": detour_system_id}},
+            stargate_id: create_stargate_details(
+                stargate_id=stargate_id,
+                system_id=from_system_id,
+                destination_system_id=detour_system_id,
+            ),
         }
 
         mock_repository.market_groups_list = [1]
-        mock_repository.market_groups_details = {
-            1: {"types": [type_id], "parent_group_id": None}
-        }
+        mock_repository.market_groups_details = {1: {"types": [type_id], "parent_group_id": None}}
 
         result = await deals_service.find_system_to_system_deals(
             from_system_id, to_system_id, min_profit_isk=5.0, max_detour_jumps=1
         )
 
-        assert result["from_system_id"] == from_system_id
-        assert result["to_system_id"] == to_system_id
-        assert result["route"] == [from_system_id, to_system_id]
-        assert detour_system_id in result["deals"][0].values() or any(
-            deal.get("buy_system_id") == detour_system_id
-            or deal.get("sell_system_id") == detour_system_id
-            for deal in result["deals"]
+        assert result.from_system_id == from_system_id
+        assert result.to_system_id == to_system_id
+        assert result.route == [from_system_id, to_system_id]
+        assert (
+            detour_system_id == result.deals[0].buy_system_id
+            or detour_system_id == result.deals[0].sell_system_id
+            or any(
+                deal.buy_system_id == detour_system_id or deal.sell_system_id == detour_system_id
+                for deal in result.deals
+            )
         )
 
     async def test_find_system_to_system_deals_no_constellation(
@@ -1217,18 +1666,18 @@ class TestDealsServiceSystemToSystem:
         to_system_id = 30000143
 
         mock_repository.system_details = {
-            from_system_id: {"system_id": from_system_id, "name": "From System"},
-            to_system_id: {"system_id": to_system_id, "name": "To System"},
+            from_system_id: create_system_details(system_id=from_system_id, name="From System"),
+            to_system_id: create_system_details(system_id=to_system_id, name="To System"),
         }
 
         result = await deals_service.find_system_to_system_deals(
             from_system_id, to_system_id, min_profit_isk=5.0
         )
 
-        assert result["from_system_id"] == from_system_id
-        assert result["to_system_id"] == to_system_id
-        assert result["total_types"] == 0
-        assert result["deals"] == []
+        assert result.from_system_id == from_system_id
+        assert result.to_system_id == to_system_id
+        assert result.total_types == 0
+        assert result.deals == []
 
     async def test_find_system_to_system_deals_with_volume_limit(
         self, deals_service, mock_repository
@@ -1241,71 +1690,89 @@ class TestDealsServiceSystemToSystem:
         type_id = 101
 
         mock_repository.system_details = {
-            from_system_id: {
-                "system_id": from_system_id,
-                "name": "From System",
-                "constellation_id": 20000001,
-            },
-            to_system_id: {
-                "system_id": to_system_id,
-                "name": "To System",
-                "constellation_id": 20000002,
-            },
+            from_system_id: create_system_details(
+                system_id=from_system_id,
+                name="From System",
+                constellation_id=20000001,
+            ),
+            to_system_id: create_system_details(
+                system_id=to_system_id,
+                name="To System",
+                constellation_id=20000002,
+            ),
         }
 
         mock_repository.constellation_details = {
-            20000001: {"constellation_id": 20000001, "region_id": from_region_id},
-            20000002: {"constellation_id": 20000002, "region_id": to_region_id},
+            20000001: create_constellation_details(
+                constellation_id=20000001, region_id=from_region_id
+            ),
+            20000002: create_constellation_details(
+                constellation_id=20000002, region_id=to_region_id
+            ),
         }
 
         # Use station IDs that are >= STATION_ID_THRESHOLD (60000000)
         from_station_id = 60008494  # Known valid station ID
-        to_station_id = 60000004  # Another known valid station ID
+        to_station_id = 60008495  # Another known valid station ID (>= 60000000)
         mock_repository.station_details = {
-            from_station_id: {"station_id": from_station_id, "system_id": from_system_id},
-            to_station_id: {"station_id": to_station_id, "system_id": to_system_id},
+            from_station_id: create_station_details(
+                station_id=from_station_id, system_id=from_system_id
+            ),
+            to_station_id: create_station_details(station_id=to_station_id, system_id=to_system_id),
         }
 
+        # Price calculation: with volume 2.0, max_transport_volume 5.0, we can transport 2 units
+        # To have profit >= 5.0 ISK after 8% sale fee:
+        # Profit = (sell_price - buy_price) * volume - sell_price * volume * 0.08
+        # 5.0 <= (sell_price - buy_price) * 2 - sell_price * 2 * 0.08
+        # 5.0 <= 2 * sell_price - 2 * buy_price - 0.16 * sell_price
+        # 5.0 <= 1.84 * sell_price - 2 * buy_price
+        # With buy_price = 100: 5.0 <= 1.84 * sell_price - 200
+        # sell_price >= (5.0 + 200) / 1.84 = 111.41
+        # Let's use sell_price = 115 to have a clear margin
+        # Profit = (115 - 100) * 2 - 115 * 2 * 0.08 = 30 - 18.4 = 11.6 ISK
         mock_repository.market_orders = {
             (from_region_id, type_id): [
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": from_station_id,
-                },
+                create_order(
+                    order_id=1,
+                    type_id=type_id,
+                    is_buy_order=False,
+                    price=100,
+                    location_id=from_station_id,
+                    volume_remain=10,
+                    volume_total=10,
+                ),
             ],
             (to_region_id, type_id): [
-                {
-                    "is_buy_order": True,
-                    "price": 110,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": to_station_id,
-                },
+                create_order(
+                    order_id=2,
+                    type_id=type_id,
+                    is_buy_order=True,
+                    price=115,
+                    location_id=to_station_id,
+                    volume_remain=10,
+                    volume_total=10,
+                ),
             ],
         }
 
         # Item volume is 2.0, max_transport_volume is 5.0, so max tradable is 2
-        mock_repository.item_types = {type_id: {"name": "Item 101", "volume": 2.0}}
-        # Setup route (direct connection)
-        mock_repository.routes = {
-            (from_system_id, to_system_id): [from_system_id, to_system_id]
+        mock_repository.item_types = {
+            type_id: create_item_type(type_id=type_id, name="Item 101", volume=2.0)
         }
+        # Setup route (direct connection)
+        mock_repository.routes = {(from_system_id, to_system_id): [from_system_id, to_system_id]}
 
         # Setup market groups to collect all types (group_id=None means all groups)
         mock_repository.market_groups_list = [1]
-        mock_repository.market_groups_details = {
-            1: {"types": [type_id], "parent_group_id": None}
-        }
+        mock_repository.market_groups_details = {1: {"types": [type_id], "parent_group_id": None}}
 
         result = await deals_service.find_system_to_system_deals(
             from_system_id, to_system_id, min_profit_isk=5.0, max_transport_volume=5.0
         )
 
-        assert len(result["deals"]) == 1
-        assert result["deals"][0]["tradable_volume"] == 2
+        assert len(result.deals) == 1
+        assert result.deals[0].tradable_volume == 2
 
     async def test_find_system_to_system_deals_with_multiple_segments(
         self, deals_service, mock_repository
@@ -1321,33 +1788,37 @@ class TestDealsServiceSystemToSystem:
 
         # Setup route: source -> intermediate -> destination
         route = [source_system, intermediate_system, destination_system]
-        mock_repository.routes = {
-            (source_system, destination_system): route
-        }
+        mock_repository.routes = {(source_system, destination_system): route}
 
         # Setup system and constellation data
         mock_repository.system_details = {
-            source_system: {
-                "system_id": source_system,
-                "name": "Source System",
-                "constellation_id": 20000001,
-            },
-            intermediate_system: {
-                "system_id": intermediate_system,
-                "name": "Intermediate System",
-                "constellation_id": 20000002,
-            },
-            destination_system: {
-                "system_id": destination_system,
-                "name": "Destination System",
-                "constellation_id": 20000003,
-            },
+            source_system: create_system_details(
+                system_id=source_system,
+                name="Source System",
+                constellation_id=20000001,
+            ),
+            intermediate_system: create_system_details(
+                system_id=intermediate_system,
+                name="Intermediate System",
+                constellation_id=20000002,
+            ),
+            destination_system: create_system_details(
+                system_id=destination_system,
+                name="Destination System",
+                constellation_id=20000003,
+            ),
         }
 
         mock_repository.constellation_details = {
-            20000001: {"constellation_id": 20000001, "region_id": source_region},
-            20000002: {"constellation_id": 20000002, "region_id": intermediate_region},
-            20000003: {"constellation_id": 20000003, "region_id": destination_region},
+            20000001: create_constellation_details(
+                constellation_id=20000001, region_id=source_region
+            ),
+            20000002: create_constellation_details(
+                constellation_id=20000002, region_id=intermediate_region
+            ),
+            20000003: create_constellation_details(
+                constellation_id=20000003, region_id=destination_region
+            ),
         }
 
         # Setup stations
@@ -1355,40 +1826,56 @@ class TestDealsServiceSystemToSystem:
         intermediate_station = 60000004
         destination_station = 60000005
         mock_repository.station_details = {
-            source_station: {"station_id": source_station, "system_id": source_system, "name": "Source Station"},
-            intermediate_station: {"station_id": intermediate_station, "system_id": intermediate_system, "name": "Intermediate Station"},
-            destination_station: {"station_id": destination_station, "system_id": destination_system, "name": "Destination Station"},
+            source_station: create_station_details(
+                station_id=source_station,
+                system_id=source_system,
+                name="Source Station",
+            ),
+            intermediate_station: create_station_details(
+                station_id=intermediate_station,
+                system_id=intermediate_system,
+                name="Intermediate Station",
+            ),
+            destination_station: create_station_details(
+                station_id=destination_station,
+                system_id=destination_system,
+                name="Destination Station",
+            ),
         }
 
         # Setup market orders: profitable deal from source to intermediate
         mock_repository.market_orders = {
             (source_region, type_id): [
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": source_station,
-                },
+                create_order(
+                    order_id=1,
+                    type_id=type_id,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=source_station,
+                ),
             ],
             (intermediate_region, type_id): [
-                {
-                    "is_buy_order": True,
-                    "price": 110,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": intermediate_station,
-                },
+                create_order(
+                    order_id=2,
+                    type_id=type_id,
+                    is_buy_order=True,
+                    price=110,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=intermediate_station,
+                ),
             ],
         }
 
-        mock_repository.item_types = {type_id: {"name": "Item 101", "volume": 1.0}}
+        mock_repository.item_types = {
+            type_id: create_item_type(type_id=type_id, name="Item 101", volume=1.0)
+        }
 
         # Setup market groups
         mock_repository.market_groups_list = [1]
-        mock_repository.market_groups_details = {
-            1: {"types": [type_id], "parent_group_id": None}
-        }
+        mock_repository.market_groups_details = {1: {"types": [type_id], "parent_group_id": None}}
 
         result = await deals_service.find_system_to_system_deals(
             source_system, destination_system, min_profit_isk=5.0
@@ -1396,15 +1883,15 @@ class TestDealsServiceSystemToSystem:
 
         # Should find deals for all route segments
         # Route segments: (source, intermediate), (source, destination), (intermediate, destination)
-        assert result["from_system_id"] == source_system
-        assert result["to_system_id"] == destination_system
-        assert result["route"] == route
-        assert len(result["route_segments"]) == 3
-        assert (source_system, intermediate_system) in result["route_segments"]
-        assert (source_system, destination_system) in result["route_segments"]
-        assert (intermediate_system, destination_system) in result["route_segments"]
+        assert result.from_system_id == source_system
+        assert result.to_system_id == destination_system
+        assert result.route == route
+        assert len(result.route_segments) == 3
+        assert (source_system, intermediate_system) in result.route_segments
+        assert (source_system, destination_system) in result.route_segments
+        assert (intermediate_system, destination_system) in result.route_segments
         # Should find at least one deal (source -> intermediate)
-        assert len(result["deals"]) >= 1
+        assert len(result.deals) >= 1
 
     async def test_collect_types_for_deals_with_top_level_groups(
         self, deals_service, mock_repository
@@ -1505,26 +1992,34 @@ class TestDealsServiceAnalyzeTypeProfitability:
 
         mock_repository.market_orders = {
             (region_id, type_id): [
-                {
-                    "is_buy_order": True,
-                    "price": 110,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
+                create_order(
+                    order_id=1,
+                    type_id=type_id,
+                    is_buy_order=True,
+                    price=110,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
+                create_order(
+                    order_id=2,
+                    type_id=type_id,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
             ]
         }
 
-        mock_repository.item_types = {type_id: {"name": "Test Item", "volume": 1.0}}
+        mock_repository.item_types = {
+            type_id: create_item_type(type_id=type_id, name="Test Item", volume=1.0)
+        }
         mock_repository.system_details = {
-            30000142: {"system_id": 30000142, "name": "Test System", "security_status": 0.9}
+            30000142: create_system_details(
+                system_id=30000142, name="Test System", security_status=0.9
+            )
         }
 
         result = await deals_service.analyze_type_profitability(
@@ -1535,7 +2030,7 @@ class TestDealsServiceAnalyzeTypeProfitability:
             assert result is None
         else:
             assert result is not None
-            assert result["tradable_volume"] == expected_volume
+            assert result.tradable_volume == expected_volume
 
     @pytest.mark.parametrize(
         "max_buy_cost,expected_volume",
@@ -1550,26 +2045,34 @@ class TestDealsServiceAnalyzeTypeProfitability:
 
         mock_repository.market_orders = {
             (region_id, type_id): [
-                {
-                    "is_buy_order": True,
-                    "price": 110,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
+                create_order(
+                    order_id=1,
+                    type_id=type_id,
+                    is_buy_order=True,
+                    price=110,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
+                create_order(
+                    order_id=2,
+                    type_id=type_id,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
             ]
         }
 
-        mock_repository.item_types = {type_id: {"name": "Test Item", "volume": 1.0}}
+        mock_repository.item_types = {
+            type_id: create_item_type(type_id=type_id, name="Test Item", volume=1.0)
+        }
         mock_repository.system_details = {
-            30000142: {"system_id": 30000142, "name": "Test System", "security_status": 0.9}
+            30000142: create_system_details(
+                system_id=30000142, name="Test System", security_status=0.9
+            )
         }
 
         result = await deals_service.analyze_type_profitability(
@@ -1580,7 +2083,7 @@ class TestDealsServiceAnalyzeTypeProfitability:
             assert result is None
         else:
             assert result is not None
-            assert result["tradable_volume"] == expected_volume
+            assert result.tradable_volume == expected_volume
 
     async def test_analyze_type_profitability_with_additional_regions(
         self, deals_service, mock_repository
@@ -1593,29 +2096,39 @@ class TestDealsServiceAnalyzeTypeProfitability:
         # Best buy order in additional region, best sell order in main region
         mock_repository.market_orders = {
             (region_id, type_id): [
-                {
-                    "is_buy_order": True,
-                    "price": 110,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000142,
-                },
+                create_order(
+                    order_id=1,
+                    type_id=type_id,
+                    is_buy_order=True,
+                    price=110,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000142,
+                ),
             ],
             (additional_region_id, type_id): [
-                {
-                    "is_buy_order": False,
-                    "price": 100,
-                    "volume_remain": 10,
-                    "volume_total": 10,
-                    "location_id": 30000143,
-                },
+                create_order(
+                    order_id=2,
+                    type_id=type_id,
+                    is_buy_order=False,
+                    price=100,
+                    volume_remain=10,
+                    volume_total=10,
+                    location_id=30000143,
+                ),
             ],
         }
 
-        mock_repository.item_types = {type_id: {"name": "Test Item", "volume": 1.0}}
+        mock_repository.item_types = {
+            type_id: create_item_type(type_id=type_id, name="Test Item", volume=1.0)
+        }
         mock_repository.system_details = {
-            30000142: {"system_id": 30000142, "name": "Test System 1", "security_status": 0.9},
-            30000143: {"system_id": 30000143, "name": "Test System 2", "security_status": 0.9},
+            30000142: create_system_details(
+                system_id=30000142, name="Test System 1", security_status=0.9
+            ),
+            30000143: create_system_details(
+                system_id=30000143, name="Test System 2", security_status=0.9
+            ),
         }
 
         result = await deals_service.analyze_type_profitability(
@@ -1623,7 +2136,7 @@ class TestDealsServiceAnalyzeTypeProfitability:
         )
 
         assert result is not None
-        assert result["buy_price"] == 100
-        assert result["sell_price"] == 110
-        assert result["buy_region_id"] == additional_region_id
-        assert result["sell_region_id"] == region_id
+        assert result.buy_price == 100
+        assert result.sell_price == 110
+        assert result.buy_region_id == additional_region_id
+        assert result.sell_region_id == region_id

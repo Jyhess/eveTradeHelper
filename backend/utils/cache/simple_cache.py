@@ -201,6 +201,18 @@ class SimpleCache:
         except Exception as e:
             raise Exception(f"Error writing to Redis cache: {e}") from e
 
+    def delete_raw_value(self, key: str) -> None:
+        """
+        Deletes a raw string value from cache
+
+        Args:
+            key: Cache key to delete
+        """
+        try:
+            self.redis_client.delete(key)
+        except Exception as e:
+            raise Exception(f"Error deleting from Redis cache: {e}") from e
+
     def clear(self, key: str | None = None):
         """
         Clears cache for a specific key or all cache

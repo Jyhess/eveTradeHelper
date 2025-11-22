@@ -5,10 +5,10 @@ Provides in-memory caching and optimized access patterns for orders
 
 import asyncio
 import logging
-from typing import Any
 
 from .location_validator import LocationValidator
 from .repository import EveRepository
+from .types import Order
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +26,11 @@ class OrdersService:
         """
         self.repository = repository
         self.location_validator = location_validator
-        self._cache: dict[tuple[int, int | None], list[dict[str, Any]]] = {}
+        self._cache: dict[tuple[int, int | None], list[Order]] = {}
 
     async def _filter_valid_orders(
-        self, orders: list[dict[str, Any]], region_id: int, type_id: int | None = None
-    ) -> list[dict[str, Any]]:
+        self, orders: list[Order], region_id: int, type_id: int | None = None
+    ) -> list[Order]:
         """
         Filter out orders with invalid location_id
 
@@ -45,20 +45,17 @@ class OrdersService:
         valid_orders = []
 
         for order in orders:
-            location_id = order.get("location_id")
-            if await self.location_validator.is_valid_location_id(location_id):
+            if await self.location_validator.is_valid_location_id(order.location_id):
                 valid_orders.append(order)
             else:
                 logger.error(
-                    f"Invalid location_id {location_id} in market order from "
+                    f"Invalid location_id {order.location_id} in market order from "
                     f"region_id={region_id}, type_id={type_id}. Order ignored: {order}"
                 )
 
         return valid_orders
 
-    async def get_orders(
-        self, region_id: int, type_id: int | None = None
-    ) -> list[dict[str, Any]]:
+    async def get_orders(self, region_id: int, type_id: int | None = None) -> list[Order]:
         """
         Get orders for a region and optional type
         Results are cached in memory for fast access
@@ -84,7 +81,7 @@ class OrdersService:
 
     async def get_orders_separated(
         self, region_id: int, type_id: int | None = None
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    ) -> tuple[list[Order], list[Order]]:
         """
         Get orders separated by buy/sell type
         Results are cached in memory
@@ -98,14 +95,14 @@ class OrdersService:
         """
         orders = await self.get_orders(region_id, type_id)
 
-        buy_orders = [o for o in orders if o.get("is_buy_order", False)]
-        sell_orders = [o for o in orders if not o.get("is_buy_order", False)]
+        buy_orders = [o for o in orders if o.is_buy_order]
+        sell_orders = [o for o in orders if not o.is_buy_order]
 
         return buy_orders, sell_orders
 
     async def get_orders_separated_with_region(
         self, region_id: int, type_id: int | None = None
-    ) -> tuple[list[tuple[dict[str, Any], int]], list[tuple[dict[str, Any], int]]]:
+    ) -> tuple[list[tuple[Order, int]], list[tuple[Order, int]]]:
         """
         Get orders separated by buy/sell type with region_id attached
         Results are cached in memory
@@ -116,22 +113,18 @@ class OrdersService:
 
         Returns:
             Tuple of (buy_orders_with_region, sell_orders_with_region)
-            Each order is a tuple (order_dict, region_id)
+            Each order is a tuple (order, region_id)
         """
         orders = await self.get_orders(region_id, type_id)
 
-        buy_orders = [
-            (o, region_id) for o in orders if o.get("is_buy_order", False)
-        ]
-        sell_orders = [
-            (o, region_id) for o in orders if not o.get("is_buy_order", False)
-        ]
+        buy_orders = [(o, region_id) for o in orders if o.is_buy_order]
+        sell_orders = [(o, region_id) for o in orders if not o.is_buy_order]
 
         return buy_orders, sell_orders
 
     async def get_orders_for_regions(
         self, region_ids: list[int], type_id: int | None = None
-    ) -> tuple[list[tuple[dict[str, Any], int]], list[tuple[dict[str, Any], int]]]:
+    ) -> tuple[list[tuple[Order, int]], list[tuple[Order, int]]]:
         """
         Get orders from multiple regions, separated by buy/sell type with region_id
         Results are cached per region for fast access
@@ -143,7 +136,7 @@ class OrdersService:
 
         Returns:
             Tuple of (buy_orders_with_region, sell_orders_with_region)
-            Each order is a tuple (order_dict, region_id)
+            Each order is a tuple (order, region_id)
         """
         all_orders_promises = [
             self.get_orders_separated_with_region(reg_id, type_id) for reg_id in region_ids
@@ -176,4 +169,3 @@ class OrdersService:
         cache_key = (region_id, type_id)
         if cache_key in self._cache:
             del self._cache[cache_key]
-

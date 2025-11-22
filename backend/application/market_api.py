@@ -10,7 +10,10 @@ from typing import Any
 from cachetools import TTLCache
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from domain.constants import MARKET_CATEGORIES_CACHE_TTL
+from domain.constants import (
+    MARKET_CATEGORIES_CACHE_KEY,
+    MARKET_CATEGORIES_CACHE_TTL,
+)
 from domain.market_service import MarketService
 
 from .services_provider import ServicesProvider
@@ -36,11 +39,9 @@ async def get_market_categories(
     Returns:
         JSON response with market categories
     """
-    # Check LRU cache (fixed key as there are no variable parameters)
-    cache_key = "market_categories"
-    if cache_key in _market_categories_cache:
+    if MARKET_CATEGORIES_CACHE_KEY in _market_categories_cache:
         logger.info("Retrieving categories from LRU cache")
-        return _market_categories_cache[cache_key]
+        return _market_categories_cache[MARKET_CATEGORIES_CACHE_KEY]
 
     try:
         logger.info("Retrieving market categories (not cached)")
@@ -49,11 +50,10 @@ async def get_market_categories(
 
         result = {
             "total": len(categories),
-            "categories": categories,
+            "categories": [cat.to_dict() for cat in categories],
         }
 
-        # Store in LRU cache
-        _market_categories_cache[cache_key] = result
+        _market_categories_cache[MARKET_CATEGORIES_CACHE_KEY] = result
 
         return result
 
@@ -84,7 +84,7 @@ async def get_item_type(
         logger.info(f"Retrieving type details for {type_id}")
         type_data = await market_service.get_item_type(type_id)
 
-        return type_data
+        return type_data.to_dict()
 
     except Exception as e:
         logger.error(f"Error retrieving type: {e}")
@@ -120,11 +120,11 @@ async def get_market_orders(
 
         enriched_orders = await market_service.get_enriched_market_orders(region_id, type_id)
 
-        return {
-            "region_id": region_id,
-            "type_id": type_id,
-            **enriched_orders,
-        }
+        result = enriched_orders.to_dict()
+        result["region_id"] = region_id
+        if type_id is not None:
+            result["type_id"] = type_id
+        return result
 
     except Exception as e:
         logger.error(f"Error retrieving orders: {e}")
@@ -157,17 +157,15 @@ async def refresh_market_orders(
             + (f" and type {type_id}" if type_id else "")
         )
 
-        # Invalidate cache for this region and type
         market_service.orders_service.clear_cache_for_region(region_id, type_id)
 
-        # Reload orders
         enriched_orders = await market_service.get_enriched_market_orders(region_id, type_id)
 
-        return {
-            "region_id": region_id,
-            "type_id": type_id,
-            **enriched_orders,
-        }
+        result = enriched_orders.to_dict()
+        result["region_id"] = region_id
+        if type_id is not None:
+            result["type_id"] = type_id
+        return result
 
     except Exception as e:
         logger.error(f"Error refreshing orders: {e}")
@@ -197,7 +195,7 @@ async def get_item_types(
     """
     try:
         results = await market_service.search_item_types(name_filter, limit)
-        return {"total": len(results), "types": results}
+        return {"total": len(results), "types": [r.to_dict() for r in results]}
     except Exception as e:  # pragma: no cover - FastAPI handles errors
         logger.error(f"Error retrieving item types: {e}")
         raise HTTPException(
@@ -227,7 +225,7 @@ async def get_type_prices_by_region(
 
         return {
             "type_id": type_id,
-            "regions": prices,
+            "regions": [p.to_dict() for p in prices],
         }
 
     except Exception as e:

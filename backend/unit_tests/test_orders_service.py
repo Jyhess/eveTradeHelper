@@ -7,6 +7,7 @@ import pytest
 from domain.location_validator import LocationValidator
 from domain.orders_service import OrdersService
 from domain.repository import EveRepository
+from domain.types import Order
 
 
 class MockRepository(EveRepository):
@@ -15,11 +16,14 @@ class MockRepository(EveRepository):
     def __init__(self):
         self.market_orders = {}
 
-    async def get_market_orders(
-        self, region_id: int, type_id: int | None = None
-    ) -> list[dict]:
+    async def get_market_orders(self, region_id: int, type_id: int | None = None) -> list[Order]:
         key = (region_id, type_id)
-        return self.market_orders.get(key, [])
+        orders_data = self.market_orders.get(key, [])
+        # Convert dictionaries to Order objects
+        return [
+            Order.from_dict(order_data) if isinstance(order_data, dict) else order_data
+            for order_data in orders_data
+        ]
 
     async def get_regions_list(self) -> list[int]:
         return []
@@ -55,6 +59,29 @@ class MockRepository(EveRepository):
         return []
 
 
+def create_order_dict(
+    order_id: int = 1,
+    type_id: int = 123,
+    is_buy_order: bool = True,
+    price: float = 100.0,
+    location_id: int = 30000142,
+) -> dict:
+    """Helper function to create a complete order dictionary"""
+    return {
+        "order_id": order_id,
+        "type_id": type_id,
+        "is_buy_order": is_buy_order,
+        "price": price,
+        "location_id": location_id,
+        "volume_total": 1000,
+        "volume_remain": 1000,
+        "min_volume": 1,
+        "duration": 90,
+        "issued": "2024-01-01T00:00:00Z",
+        "range": "region",
+    }
+
+
 @pytest.fixture
 def mock_repository():
     """Fixture to create a mock repository"""
@@ -80,16 +107,16 @@ class TestOrdersService:
 
         mock_repository.market_orders = {
             (region_id, type_id): [
-                {"is_buy_order": True, "price": 100, "location_id": 30000142},
-                {"is_buy_order": False, "price": 90, "location_id": 30000142},
+                create_order_dict(order_id=1, is_buy_order=True, price=100.0),
+                create_order_dict(order_id=2, is_buy_order=False, price=90.0),
             ]
         }
 
         orders = await orders_service.get_orders(region_id, type_id)
 
         assert len(orders) == 2
-        assert orders[0]["is_buy_order"] is True
-        assert orders[1]["is_buy_order"] is False
+        assert orders[0].is_buy_order is True
+        assert orders[1].is_buy_order is False
 
     async def test_get_orders_caches_results(self, orders_service, mock_repository):
         """Test that orders are cached in memory"""
@@ -97,9 +124,7 @@ class TestOrdersService:
         type_id = 123
 
         mock_repository.market_orders = {
-            (region_id, type_id): [
-                {"is_buy_order": True, "price": 100, "location_id": 30000142},
-            ]
+            (region_id, type_id): [create_order_dict(order_id=1, is_buy_order=True, price=100.0)]
         }
 
         # First call
@@ -121,11 +146,9 @@ class TestOrdersService:
         type_id = 123
 
         mock_repository.market_orders = {
-            (region_id_1, type_id): [
-                {"is_buy_order": True, "price": 100, "location_id": 30000142},
-            ],
+            (region_id_1, type_id): [create_order_dict(order_id=1, is_buy_order=True, price=100.0)],
             (region_id_2, type_id): [
-                {"is_buy_order": False, "price": 90, "location_id": 30000143},
+                create_order_dict(order_id=2, is_buy_order=False, price=90.0, location_id=30000143)
             ],
         }
 
@@ -134,8 +157,8 @@ class TestOrdersService:
 
         assert len(orders1) == 1
         assert len(orders2) == 1
-        assert orders1[0]["is_buy_order"] is True
-        assert orders2[0]["is_buy_order"] is False
+        assert orders1[0].is_buy_order is True
+        assert orders2[0].is_buy_order is False
 
     async def test_get_orders_separated_by_type(self, orders_service, mock_repository):
         """Test that orders are separated correctly by buy/sell type"""
@@ -144,10 +167,10 @@ class TestOrdersService:
 
         mock_repository.market_orders = {
             (region_id, type_id): [
-                {"is_buy_order": True, "price": 100, "location_id": 30000142},
-                {"is_buy_order": True, "price": 105, "location_id": 30000142},
-                {"is_buy_order": False, "price": 90, "location_id": 30000142},
-                {"is_buy_order": False, "price": 95, "location_id": 30000142},
+                create_order_dict(order_id=1, is_buy_order=True, price=100.0),
+                create_order_dict(order_id=2, is_buy_order=True, price=105.0),
+                create_order_dict(order_id=3, is_buy_order=False, price=90.0),
+                create_order_dict(order_id=4, is_buy_order=False, price=95.0),
             ]
         }
 
@@ -155,8 +178,8 @@ class TestOrdersService:
 
         assert len(buy_orders) == 2
         assert len(sell_orders) == 2
-        assert all(order["is_buy_order"] for order in buy_orders)
-        assert all(not order["is_buy_order"] for order in sell_orders)
+        assert all(order.is_buy_order for order in buy_orders)
+        assert all(not order.is_buy_order for order in sell_orders)
 
     async def test_get_orders_separated_with_region_id(self, orders_service, mock_repository):
         """Test get_orders_separated_with_region returns orders with region_id"""
@@ -165,8 +188,8 @@ class TestOrdersService:
 
         mock_repository.market_orders = {
             (region_id, type_id): [
-                {"is_buy_order": True, "price": 100, "location_id": 30000142},
-                {"is_buy_order": False, "price": 90, "location_id": 30000142},
+                create_order_dict(order_id=1, is_buy_order=True, price=100.0),
+                create_order_dict(order_id=2, is_buy_order=False, price=90.0),
             ]
         }
 
@@ -188,11 +211,9 @@ class TestOrdersService:
         type_id = 123
 
         mock_repository.market_orders = {
-            (region_id_1, type_id): [
-                {"is_buy_order": True, "price": 100, "location_id": 30000142},
-            ],
+            (region_id_1, type_id): [create_order_dict(order_id=1, is_buy_order=True, price=100.0)],
             (region_id_2, type_id): [
-                {"is_buy_order": False, "price": 90, "location_id": 30000143},
+                create_order_dict(order_id=2, is_buy_order=False, price=90.0, location_id=30000143)
             ],
         }
 
@@ -211,9 +232,7 @@ class TestOrdersService:
         type_id = 123
 
         mock_repository.market_orders = {
-            (region_id, type_id): [
-                {"is_buy_order": True, "price": 100, "location_id": 30000142},
-            ]
+            (region_id, type_id): [create_order_dict(order_id=1, is_buy_order=True, price=100.0)]
         }
 
         # First call - cache the result
@@ -240,9 +259,7 @@ class TestOrdersService:
 
         assert orders == []
 
-    async def test_get_orders_separated_handles_empty_result(
-        self, orders_service, mock_repository
-    ):
+    async def test_get_orders_separated_handles_empty_result(self, orders_service, mock_repository):
         """Test that get_orders_separated handles empty results"""
         region_id = 10000002
         type_id = 123
@@ -267,8 +284,10 @@ class TestOrdersService:
 
         mock_repository.market_orders = {
             (region_id, type_id): [
-                {"is_buy_order": True, "price": 100, "location_id": 30000142},  # Valid
-                {"is_buy_order": False, "price": 90, "location_id": invalid_location_id},  # Invalid
+                create_order_dict(order_id=1, is_buy_order=True, price=100.0),  # Valid
+                create_order_dict(
+                    order_id=2, is_buy_order=False, price=90.0, location_id=invalid_location_id
+                ),  # Invalid
             ]
         }
 
@@ -276,5 +295,4 @@ class TestOrdersService:
 
         # Only the valid order should be returned
         assert len(orders) == 1
-        assert orders[0]["location_id"] == 30000142
-
+        assert orders[0].location_id == 30000142

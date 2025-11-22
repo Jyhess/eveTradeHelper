@@ -65,18 +65,19 @@ class TestEveRepositoryImplRegions:
         region_id = 10000002
         result = await repository.get_region_details(region_id)
 
-        # Basic checks
-        assert isinstance(result, dict), "Result must be a dictionary"
-        assert "name" in result, "Result must contain 'name'"
-        assert "region_id" not in result or result.get("name") is not None, "Name must be defined"
+        # Basic checks - result is now a RegionDetails object
+        assert hasattr(result, "name"), "Result must have 'name' attribute"
+        assert hasattr(result, "region_id"), "Result must have 'region_id' attribute"
+        assert result.name is not None, "Name must be defined"
 
         # Compare with reference
         ref_key = f"region_details_{region_id}"
         reference = load_reference(ref_key)
 
         if reference:
-            # Normalize for comparison
-            result_normalized = normalize_for_comparison(result)
+            # Normalize for comparison (convert to dict)
+            result_dict = result.to_dict() if hasattr(result, "to_dict") else result
+            result_normalized = normalize_for_comparison(result_dict)
             ref_normalized = normalize_for_comparison(reference)
 
             # Compare key fields
@@ -112,21 +113,21 @@ class TestEveRepositoryImplRegions:
 
         result = await region_service.get_regions_with_details()
 
-        # Basic checks
+        # Basic checks - result is now a list of RegionDetails objects
         assert isinstance(result, list), "Result must be a list"
 
         for region in result:
-            assert isinstance(region, dict), "Each region must be a dictionary"
-            assert "region_id" in region, "Each region must have a region_id"
-            assert "name" in region, "Each region must have a name"
+            assert hasattr(region, "region_id"), "Each region must have a region_id attribute"
+            assert hasattr(region, "name"), "Each region must have a name attribute"
 
         # Compare with reference
         ref_key = "regions_with_details"
         reference = load_reference(ref_key)
 
         if reference:
-            # Normalize for comparison
-            result_normalized = normalize_for_comparison(result)
+            # Normalize for comparison (convert to dicts)
+            result_dicts = [r.to_dict() if hasattr(r, "to_dict") else r for r in result]
+            result_normalized = normalize_for_comparison(result_dicts)
             ref_normalized = normalize_for_comparison(reference)
 
             assert len(result_normalized) == len(ref_normalized), (
@@ -210,20 +211,18 @@ class TestEveRepositoryImplStructure:
         region_id = 10000002
         result = await repository.get_region_details(region_id)
 
-        # Expected structure
-        expected_keys = ["name", "constellations"]
-
-        for key in expected_keys:
-            assert key in result, f"Key '{key}' must be present in result"
+        # Expected structure - result is now a RegionDetails object
+        assert hasattr(result, "name"), "Result must have 'name' attribute"
+        assert hasattr(result, "constellations"), "Result must have 'constellations' attribute"
 
         # Verify types
-        assert isinstance(result["name"], str), "name must be a string"
-        assert isinstance(result["constellations"], list), "constellations must be a list"
+        assert isinstance(result.name, str), "name must be a string"
+        assert isinstance(result.constellations, list), "constellations must be a list"
 
         # Verify constellations are integers
-        if result["constellations"]:
+        if result.constellations:
             assert all(
-                isinstance(c, int) for c in result["constellations"]
+                isinstance(c, int) for c in result.constellations
             ), "Constellations must be integers"
 
     @pytest.mark.asyncio

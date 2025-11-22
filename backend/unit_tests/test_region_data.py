@@ -6,6 +6,7 @@ import pytest
 
 from domain.region_data import RegionData
 from domain.repository import EveRepository
+from domain.types import ConstellationDetails, RegionDetails, SystemDetails
 
 
 class MockRepository(EveRepository):
@@ -14,66 +15,129 @@ class MockRepository(EveRepository):
     def __init__(self):
         self.regions = [10000001, 10000002]
         self.constellations_data = {
-            20000001: {"name": "Kimotoro", "region_id": 10000001, "systems": [30000142, 30000143]},
+            20000001: {
+                "constellation_id": 20000001,
+                "name": "Kimotoro",
+                "region_id": 10000001,
+                "systems": [30000142, 30000143],
+                "position": {},
+            },
             20000002: {
+                "constellation_id": 20000002,
                 "name": "Kimotoro II",
                 "region_id": 10000001,
                 "systems": [30000144],
+                "position": {},
             },
-            20000003: {"name": "Other", "region_id": 10000002, "systems": [30000145]},
+            20000003: {
+                "constellation_id": 20000003,
+                "name": "Other",
+                "region_id": 10000002,
+                "systems": [30000145],
+                "position": {},
+            },
         }
         self.systems_data = {
             30000142: {
+                "system_id": 30000142,
                 "name": "Jita",
                 "constellation_id": 20000001,
                 "security_status": 0.9,
                 "security_class": "B",
+                "position": {},
+                "planets": [],
+                "star_id": None,
             },
             30000143: {
+                "system_id": 30000143,
                 "name": "Perimeter",
                 "constellation_id": 20000001,
                 "security_status": 0.9,
                 "security_class": "B",
+                "position": {},
+                "planets": [],
+                "star_id": None,
             },
             30000144: {
+                "system_id": 30000144,
                 "name": "Jita IV",
                 "constellation_id": 20000002,
                 "security_status": 0.8,
                 "security_class": "B",
+                "position": {},
+                "planets": [],
+                "star_id": None,
             },
             30000145: {
+                "system_id": 30000145,
                 "name": "Other System",
                 "constellation_id": 20000003,
                 "security_status": 0.7,
                 "security_class": "C",
+                "position": {},
+                "planets": [],
+                "star_id": None,
             },
         }
         self.regions_data = {
-            10000001: {"name": "The Forge", "constellations": [20000001, 20000002]},
-            10000002: {"name": "Other Region", "constellations": [20000003]},
+            10000001: {
+                "region_id": 10000001,
+                "name": "The Forge",
+                "description": "",
+                "constellations": [20000001, 20000002],
+            },
+            10000002: {
+                "region_id": 10000002,
+                "name": "Other Region",
+                "description": "",
+                "constellations": [20000003],
+            },
         }
 
     async def get_regions_list(self):
         return self.regions
 
     async def get_region_details(self, region_id):
-        return self.regions_data.get(region_id, {"name": "Unknown", "constellations": []})
+        region_data = self.regions_data.get(
+            region_id,
+            {"region_id": region_id, "name": "Unknown", "description": "", "constellations": []},
+        )
+        if isinstance(region_data, dict):
+            return RegionDetails.from_dict(region_data)
+        return region_data
 
     async def get_constellation_details(self, constellation_id):
-        return self.constellations_data.get(
-            constellation_id, {"name": "Unknown", "region_id": None, "systems": []}
+        constellation_data = self.constellations_data.get(
+            constellation_id,
+            {
+                "constellation_id": constellation_id,
+                "name": "Unknown",
+                "region_id": None,
+                "systems": [],
+                "position": {},
+            },
         )
+        if isinstance(constellation_data, dict):
+            return ConstellationDetails.from_dict(constellation_data)
+        return constellation_data
 
     async def get_system_details(self, system_id):
-        return self.systems_data.get(
+        system_data = self.systems_data.get(
             system_id,
             {
+                "system_id": system_id,
                 "name": "Unknown",
                 "constellation_id": None,
                 "security_status": 0.0,
                 "security_class": "",
+                "position": {},
+                "planets": [],
+                "star_id": None,
             },
         )
+        if isinstance(system_data, dict):
+            return SystemDetails.from_dict(system_data)
+        return system_data
 
     async def get_item_type(self, type_id):
         return {}
@@ -106,10 +170,9 @@ def mock_repository():
 
 
 @pytest.fixture
-async def region_data(mock_repository):
-    region_data = RegionData(mock_repository)
-    await region_data._ensure_initialized()
-    return region_data
+def region_data(mock_repository):
+    """Fixture to create a RegionData instance"""
+    return RegionData(mock_repository)
 
 
 @pytest.mark.unit
@@ -239,4 +302,3 @@ class TestRegionData:
 
         assert len(systems) == 1
         assert systems[0]["name"] == "Perimeter"
-

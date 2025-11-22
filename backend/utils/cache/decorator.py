@@ -8,6 +8,7 @@ import hashlib
 import inspect
 import logging
 from collections.abc import Callable
+from dataclasses import asdict, is_dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 from .manager import CacheManager
@@ -96,6 +97,92 @@ def _get_cache_instance(expiry_hours: int | None) -> SimpleCache | Any | None:
     return cache_instance
 
 
+def _restore_dataclass_from_dict(type_name: str, value: dict[str, Any]) -> Any:
+    """
+    Restores a dataclass instance from a dictionary
+    Handles nested dataclasses and from_dict methods
+
+    Args:
+        type_name: Full qualified name of the dataclass type (e.g., 'domain.types.Deal')
+        value: Dictionary containing the dataclass fields
+
+    Returns:
+        Restored dataclass instance or the value if restoration fails
+    """
+    try:
+        # Try to import and instantiate the dataclass
+        # Format: 'domain.types.Deal' -> module='domain.types', class_name='Deal'
+        if "." in type_name:
+            module_path, class_name = type_name.rsplit(".", 1)
+            module = __import__(module_path, fromlist=[class_name])
+            dataclass_type = getattr(module, class_name, None)
+            # Check if it's a dataclass type (not an instance)
+            if (
+                dataclass_type is not None
+                and isinstance(dataclass_type, type)
+                and is_dataclass(dataclass_type)
+            ):
+                # Recursively restore nested dataclasses in the value
+                restored_value = _restore_nested_dataclasses(value)
+
+                # Try to use from_dict if available
+                if hasattr(dataclass_type, "from_dict"):
+                    try:
+                        result = dataclass_type.from_dict(restored_value)
+                        if result is not None:
+                            return result
+                    except (TypeError, AttributeError) as e:
+                        logger.error(f"Failed to restore dataclass {type_name} with error {e} from dict: {restored_value}")
+                        pass
+
+                # Direct instantiation from dict (fallback only if from_dict doesn't exist or failed)
+                if not hasattr(dataclass_type, "from_dict"):
+                    try:
+                        return dataclass_type(**restored_value)
+                    except (TypeError, ValueError) as e:
+                        logger.warning(
+                            f"Failed to instantiate dataclass {type_name} from dict: {e}"
+                        )
+                        return value
+    except (ImportError, AttributeError, TypeError) as e:
+        logger.warning(f"Failed to restore dataclass {type_name}: {e}")
+        # Return the dict if we can't restore the dataclass
+        # This handles cases like locally defined dataclasses in tests
+        return value
+
+    # If type_name doesn't contain a dot, it's not a valid module path
+    # Return the value as-is (likely a dict)
+    return value
+
+
+def _restore_nested_dataclasses(value: Any) -> Any:
+    """
+    Recursively restores nested dataclasses in a dictionary or list
+
+    Args:
+        value: Value that may contain nested dataclass data
+
+    Returns:
+        Value with nested dataclasses restored
+    """
+    if isinstance(value, dict):
+        # Check if it's a dataclass wrapper
+        if "_dataclass" in value and "value" in value:
+            return _restore_dataclass_from_dict(value["_dataclass"], value["value"])
+
+        # Regular dict - recursively process values
+        return {k: _restore_nested_dataclasses(v) for k, v in value.items()}
+    elif isinstance(value, list):
+        # List - recursively process items
+        return [_restore_nested_dataclasses(item) for item in value]
+    elif isinstance(value, tuple):
+        # Tuple - recursively process items
+        return tuple(_restore_nested_dataclasses(item) for item in value)
+    else:
+        # Primitive type - return as is
+        return value
+
+
 def _get_cached_result(cache_instance: SimpleCache | Any, cache_key: str) -> Any | None:
     """
     Retrieves the result from cache if available and valid
@@ -118,6 +205,17 @@ def _get_cached_result(cache_instance: SimpleCache | Any, cache_key: str) -> Any
     if isinstance(cached_result, list):
         # If the list has multiple elements or is empty, it's an original list
         if len(cached_result) != 1:
+            # Check if it's a list of dataclasses
+            if (
+                cached_result
+                and isinstance(cached_result[0], dict)
+                and "_dataclass" in cached_result[0]
+            ):
+                # List of dataclasses
+                return [
+                    _restore_dataclass_from_dict(item["_dataclass"], item["value"])
+                    for item in cached_result
+                ]
             return cached_result
         # If the list has a single element, check if it's a normalized wrapper
         single_item = cached_result[0]
@@ -126,9 +224,24 @@ def _get_cached_result(cache_instance: SimpleCache | Any, cache_key: str) -> Any
             original_type = single_item["_type"]
             value = single_item["value"]
 
+            # Check if it's a dataclass
+            if original_type == "dataclass":
+                return _restore_dataclass_from_dict(single_item["_dataclass_type"], value)
+
             # Check if it's an original value (list or dict) to preserve
             if single_item.get("_original", False):
                 if original_type == "list":
+                    # Check if it's a list of dataclasses
+                    if (
+                        isinstance(value, list)
+                        and value
+                        and isinstance(value[0], dict)
+                        and "_dataclass" in value[0]
+                    ):
+                        return [
+                            _restore_dataclass_from_dict(item["_dataclass"], item["value"])
+                            for item in value
+                        ]
                     # Original list with a single element
                     return value
                 elif original_type == "dict":
@@ -137,8 +250,30 @@ def _get_cached_result(cache_instance: SimpleCache | Any, cache_key: str) -> Any
 
             # Restore original type for normalized wrappers
             if original_type == "tuple":
+                # Check if it's a tuple of dataclasses
+                if (
+                    isinstance(value, list)
+                    and value
+                    and isinstance(value[0], dict)
+                    and "_dataclass" in value[0]
+                ):
+                    return tuple(
+                        _restore_dataclass_from_dict(item["_dataclass"], item["value"])
+                        for item in value
+                    )
                 return tuple(value)
             elif original_type == "set":
+                # Check if it's a set of dataclasses
+                if (
+                    isinstance(value, list)
+                    and value
+                    and isinstance(value[0], dict)
+                    and "_dataclass" in value[0]
+                ):
+                    return {
+                        _restore_dataclass_from_dict(item["_dataclass"], item["value"])
+                        for item in value
+                    }
                 return set(value)
             elif original_type == "int":
                 return int(value)
@@ -170,19 +305,59 @@ def _normalize_result_for_cache(result: Any) -> list:
     Returns:
         Normalized list for cache with type metadata
     """
+    # Check if it's a dataclass instance (not a class)
+    if is_dataclass(result) and not isinstance(result, type):
+        # Convert dataclass to dict
+        value = result.to_dict() if hasattr(result, "to_dict") else asdict(result)
+        # Store with dataclass type information
+        type_name = f"{result.__class__.__module__}.{result.__class__.__name__}"
+        return [{"_type": "dataclass", "_dataclass_type": type_name, "value": value}]
+
     if isinstance(result, list):
+        # Check if it's a list of dataclasses
+        if result and is_dataclass(result[0]) and not isinstance(result[0], type):
+            # List of dataclasses
+            normalized_list = []
+            for item in result:
+                value = item.to_dict() if hasattr(item, "to_dict") else asdict(item)
+                type_name = f"{item.__class__.__module__}.{item.__class__.__name__}"
+                normalized_list.append({"_dataclass": type_name, "value": value})
+            return normalized_list
+
         # List: if single element, mark as original list
         if len(result) == 1:
             return [{"_type": "list", "_original": True, "value": result}]
         # List with multiple elements or empty: return as is
         return result
     elif isinstance(result, tuple):
+        # Check if it's a tuple of dataclasses
+        if result and is_dataclass(result[0]) and not isinstance(result[0], type):
+            # Tuple of dataclasses - convert to list of normalized dataclasses
+            normalized_list = []
+            for item in result:
+                value = item.to_dict() if hasattr(item, "to_dict") else asdict(item)
+                type_name = f"{item.__class__.__module__}.{item.__class__.__name__}"
+                normalized_list.append({"_dataclass": type_name, "value": value})
+            return [{"_type": "tuple", "value": normalized_list}]
+
         # Tuple: store with type metadata to restore it
         return [{"_type": "tuple", "value": list(result)}]
     elif isinstance(result, dict):
         # Dict: return in a list with marker to distinguish from wrappers
         return [{"_type": "dict", "_original": True, "value": result}]
     elif isinstance(result, set):
+        # Check if it's a set of dataclasses
+        if result:
+            first_item = next(iter(result))
+            if is_dataclass(first_item) and not isinstance(first_item, type):
+                # Set of dataclasses - convert to list of normalized dataclasses
+                normalized_list = []
+                for item in result:
+                    value = item.to_dict() if hasattr(item, "to_dict") else asdict(item)
+                    type_name = f"{item.__class__.__module__}.{item.__class__.__name__}"
+                    normalized_list.append({"_dataclass": type_name, "value": value})
+                return [{"_type": "set", "value": normalized_list}]
+
         # Set: store as list with type metadata
         return [{"_type": "set", "value": list(result)}]
     else:

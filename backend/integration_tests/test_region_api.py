@@ -1,5 +1,7 @@
 import pytest
 
+from domain.constants import INTEGRATION_TEST_SLOW_TIMEOUT
+
 
 @pytest.mark.integration
 class TestRegionAPI:
@@ -81,9 +83,14 @@ class TestRegionAPI:
                 names = [r["name"] for r in data["adjacent_regions"]]
                 assert names == sorted(names), "Les régions doivent être triées par nom"
 
+    @pytest.mark.slow
     def test_get_all_systems_endpoint_structure(self, client):
-        """Test the structure of the /api/v1/systems/ endpoint"""
-        response = client.get("/api/v1/systems/")
+        """Test the structure of the /api/v1/systems/ endpoint
+
+        Note: This test is slow because it initializes RegionData cache
+        by loading all regions, constellations, and systems from the API.
+        """
+        response = client.get("/api/v1/systems/", timeout=INTEGRATION_TEST_SLOW_TIMEOUT)
 
         assert response.status_code == 200
         data = response.json()
@@ -100,9 +107,18 @@ class TestRegionAPI:
             assert isinstance(system["system_id"], int)
             assert isinstance(system["name"], str)
 
+    @pytest.mark.slow
     def test_get_all_systems_with_filter(self, client):
-        """Test filtering systems by name"""
-        response = client.get("/api/v1/systems/", params={"name_filter": "Jita"})
+        """Test filtering systems by name
+
+        Note: This test is slow because it initializes RegionData cache
+        by loading all regions, constellations, and systems from the API.
+        """
+        response = client.get(
+            "/api/v1/systems/",
+            params={"name_filter": "Jita"},
+            timeout=INTEGRATION_TEST_SLOW_TIMEOUT,
+        )
 
         assert response.status_code == 200
         data = response.json()

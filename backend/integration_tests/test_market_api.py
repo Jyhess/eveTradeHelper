@@ -71,14 +71,13 @@ class TestMarketAPI:
         # Vérifier la structure de la réponse
         data = response.json()
         assert "region_id" in data
-        assert "type_id" in data
+        assert "type_id" not in data  # type_id should not be present when not specified
         assert "total" in data
         assert "buy_orders" in data
         assert "sell_orders" in data
 
         assert isinstance(data["region_id"], int)
         assert data["region_id"] == region_id
-        assert data["type_id"] is None  # Pas de filtre par défaut
         assert isinstance(data["total"], int)
         assert isinstance(data["buy_orders"], list)
         assert isinstance(data["sell_orders"], list)
@@ -179,3 +178,132 @@ class TestMarketAPI:
         assert isinstance(data["types"], list)
         assert isinstance(data["total"], int)
         assert len(data["types"]) <= 10
+
+    @pytest.mark.slow
+    def test_get_type_prices_by_region_endpoint_structure(self, client):
+        """Test the structure of the type prices by region endpoint"""
+        # Use a common type_id (Tritanium)
+        type_id = 34
+        response = client.get(f"/api/v1/markets/types/{type_id}/prices")
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verify response structure
+        assert "type_id" in data
+        assert "regions" in data
+        assert data["type_id"] == type_id
+        assert isinstance(data["regions"], list)
+
+        # Verify that regions without prices are not included
+        # All returned regions should have at least one price
+        for region in data["regions"]:
+            assert "region_id" in region
+            assert "region_name" in region
+            assert "max_buy_price" in region  # Must be present (can be null)
+            assert "min_sell_price" in region  # Must be present (can be null)
+
+            # At least one price must be non-null
+            assert (
+                region["max_buy_price"] is not None or region["min_sell_price"] is not None
+            ), "Regions without any prices should not be returned"
+
+    @pytest.mark.slow
+    def test_get_type_prices_by_region_price_fields_always_present(self, client):
+        """Test that max_buy_price and min_sell_price are always present in the response"""
+        type_id = 34  # Tritanium
+        response = client.get(f"/api/v1/markets/types/{type_id}/prices")
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verify that all regions have both price fields (even if null)
+        for region in data["regions"]:
+            # Fields must be present in the JSON (not undefined)
+            assert "max_buy_price" in region, "max_buy_price field must always be present"
+            assert "min_sell_price" in region, "min_sell_price field must always be present"
+
+            # Fields can be null, but must be present
+            assert region["max_buy_price"] is None or isinstance(
+                region["max_buy_price"], int | float
+            )
+            assert region["min_sell_price"] is None or isinstance(
+                region["min_sell_price"], int | float
+            )
+
+    @pytest.mark.slow
+    def test_get_type_prices_by_region_statistics_calculable(self, client):
+        """Test that the response data can be used to calculate statistics"""
+        type_id = 34  # Tritanium
+        response = client.get(f"/api/v1/markets/types/{type_id}/prices")
+
+        assert response.status_code == 200
+        data = response.json()
+
+        if not data["regions"]:
+            pytest.skip("No regions with prices found for this type")
+
+        # Extract prices (filtering out null values)
+        buy_prices = [r["max_buy_price"] for r in data["regions"] if r["max_buy_price"] is not None]
+        sell_prices = [
+            r["min_sell_price"] for r in data["regions"] if r["min_sell_price"] is not None
+        ]
+        spreads = [
+            r["min_sell_price"] - r["max_buy_price"]
+            for r in data["regions"]
+            if r["max_buy_price"] is not None and r["min_sell_price"] is not None
+        ]
+
+        # Verify that statistics can be calculated
+        # At least one price type should be available
+        assert len(buy_prices) > 0 or len(sell_prices) > 0, "At least one region should have prices"
+
+        # If we have buy prices, verify they are valid numbers
+        if buy_prices:
+            assert all(isinstance(p, int | float) and p > 0 for p in buy_prices)
+            # Statistics should be calculable
+            min_buy = min(buy_prices)
+            max_buy = max(buy_prices)
+            avg_buy = sum(buy_prices) / len(buy_prices)
+            assert min_buy > 0
+            assert max_buy >= min_buy
+            assert avg_buy >= min_buy and avg_buy <= max_buy
+
+        # If we have sell prices, verify they are valid numbers
+        if sell_prices:
+            assert all(isinstance(p, int | float) and p > 0 for p in sell_prices)
+            # Statistics should be calculable
+            min_sell = min(sell_prices)
+            max_sell = max(sell_prices)
+            avg_sell = sum(sell_prices) / len(sell_prices)
+            assert min_sell > 0
+            assert max_sell >= min_sell
+            assert avg_sell >= min_sell and avg_sell <= max_sell
+
+        # If we have spreads, verify they are valid
+        if spreads:
+            assert all(isinstance(s, int | float) for s in spreads)
+            # Spreads can be negative (arbitrage opportunity: sell < buy)
+            # Statistics should be calculable
+            min_spread = min(spreads)
+            max_spread = max(spreads)
+            avg_spread = sum(spreads) / len(spreads)
+            assert max_spread >= min_spread
+            assert avg_spread >= min_spread and avg_spread <= max_spread
+
+    @pytest.mark.slow
+    def test_get_type_prices_by_region_no_regions_without_prices(self, client):
+        """Test that regions without any prices are filtered out"""
+        type_id = 34  # Tritanium
+        response = client.get(f"/api/v1/markets/types/{type_id}/prices")
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verify that no region has both prices as null
+        for region in data["regions"]:
+            has_buy_price = region["max_buy_price"] is not None
+            has_sell_price = region["min_sell_price"] is not None
+            assert (
+                has_buy_price or has_sell_price
+            ), f"Region {region['region_id']} ({region['region_name']}) should have at least one price"

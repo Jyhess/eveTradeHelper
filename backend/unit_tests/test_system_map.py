@@ -25,17 +25,16 @@ class TestSystemMap:
 
         result = await region_service.get_systems_within_jumps(system_id, max_jumps)
 
-        assert isinstance(result, dict), "Result must be a dictionary"
-        assert "systems" in result, "Result must contain 'systems' key"
-        assert "connections" in result, "Result must contain 'connections' key"
+        assert hasattr(result, "systems"), "Result must contain 'systems' attribute"
+        assert hasattr(result, "connections"), "Result must contain 'connections' attribute"
 
-        systems = result["systems"]
+        systems = result.systems
         assert isinstance(systems, list), "Systems must be a list"
         assert len(systems) > 0, "Result must contain at least the source system"
 
-        source_system = next((s for s in systems if s["system_id"] == system_id), None)
+        source_system = next((s for s in systems if s.system_id == system_id), None)
         assert source_system is not None, "Source system must be included in result"
-        assert source_system["name"] is not None, "Source system must have a name"
+        assert source_system.name is not None, "Source system must have a name"
 
     @pytest.mark.asyncio
     async def test_get_systems_within_jumps_includes_connected_systems(self, region_service):
@@ -45,8 +44,8 @@ class TestSystemMap:
 
         result = await region_service.get_systems_within_jumps(system_id, max_jumps)
 
-        systems = result["systems"]
-        connections = result["connections"]
+        systems = result.systems
+        connections = result.connections
 
         assert (
             len(systems) > 1
@@ -54,13 +53,13 @@ class TestSystemMap:
         assert len(connections) > 0, "Result must contain at least one connection"
 
         for connection in connections:
-            assert "from_system_id" in connection, "Connection must have 'from_system_id'"
-            assert "to_system_id" in connection, "Connection must have 'to_system_id'"
-            assert connection["from_system_id"] in [
-                s["system_id"] for s in systems
+            assert hasattr(connection, "from_system_id"), "Connection must have 'from_system_id'"
+            assert hasattr(connection, "to_system_id"), "Connection must have 'to_system_id'"
+            assert connection.from_system_id in [
+                s.system_id for s in systems
             ], "From system must be in systems list"
-            assert connection["to_system_id"] in [
-                s["system_id"] for s in systems
+            assert connection.to_system_id in [
+                s.system_id for s in systems
             ], "To system must be in systems list"
 
     @pytest.mark.asyncio
@@ -71,19 +70,18 @@ class TestSystemMap:
 
         result = await region_service.get_systems_within_jumps(system_id, max_jumps)
 
-        systems = result["systems"]
-        connections = result["connections"]
+        systems = result.systems
 
         assert len(systems) > 0, "Result must contain systems"
 
         for system in systems:
-            assert "system_id" in system, "System must have system_id"
-            assert "name" in system, "System must have name"
-            assert "jumps" in system, "System must have jumps count"
-            assert isinstance(system["jumps"], int), "Jumps must be an integer"
+            assert hasattr(system, "system_id"), "System must have system_id"
+            assert hasattr(system, "name"), "System must have name"
+            assert hasattr(system, "jumps"), "System must have jumps count"
+            assert isinstance(system.jumps, int), "Jumps must be an integer"
             assert (
-                system["jumps"] <= max_jumps
-            ), f"System jumps ({system['jumps']}) must not exceed max_jumps ({max_jumps})"
+                system.jumps <= max_jumps
+            ), f"System jumps ({system.jumps}) must not exceed max_jumps ({max_jumps})"
 
     @pytest.mark.asyncio
     async def test_get_systems_within_jumps_default_max_jumps(self, region_service):
@@ -92,11 +90,11 @@ class TestSystemMap:
 
         result = await region_service.get_systems_within_jumps(system_id)
 
-        systems = result["systems"]
+        systems = result.systems
 
         for system in systems:
             assert (
-                system["jumps"] <= DEFAULT_MAX_JUMPS
+                system.jumps <= DEFAULT_MAX_JUMPS
             ), f"System jumps must not exceed default max_jumps ({DEFAULT_MAX_JUMPS})"
 
     @pytest.mark.asyncio
@@ -107,16 +105,16 @@ class TestSystemMap:
 
         result = await region_service.get_systems_within_jumps(system_id, max_jumps)
 
-        systems = result["systems"]
+        systems = result.systems
 
         for system in systems:
-            assert "system_id" in system, "System must have system_id"
-            assert "name" in system, "System must have name"
-            assert "security_status" in system, "System must have security_status"
-            assert "jumps" in system, "System must have jumps"
-            assert isinstance(system["system_id"], int), "system_id must be an integer"
-            assert isinstance(system["name"], str), "name must be a string"
+            assert hasattr(system, "system_id"), "System must have system_id"
+            assert hasattr(system, "name"), "System must have name"
+            assert hasattr(system, "security_status"), "System must have security_status"
+            assert hasattr(system, "jumps"), "System must have jumps"
+            assert isinstance(system.system_id, int), "system_id must be an integer"
+            assert isinstance(system.name, str), "name must be a string"
             assert isinstance(
-                system["security_status"], (int, float)
+                system.security_status, int | float
             ), "security_status must be a number"
-            assert isinstance(system["jumps"], int), "jumps must be an integer"
+            assert isinstance(system.jumps, int), "jumps must be an integer"

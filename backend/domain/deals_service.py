@@ -7,9 +7,8 @@ import asyncio
 import logging
 from typing import Any
 
-from utils.cache import cached
-
 from repositories.local_data import LocalDataRepository
+from utils.cache import cached
 
 from .constants import (
     DEFAULT_MAX_CONCURRENT_ANALYSES,
@@ -24,6 +23,14 @@ from .helpers import (
 from .location_validator import LocationValidator
 from .orders_service import OrdersService
 from .repository import EveRepository
+from .types import (
+    ContrabandSystem,
+    Deal,
+    MarketDealsResult,
+    Order,
+    RouteDetail,
+    SystemToSystemDealsResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +52,7 @@ class DealsService:
 
     async def _collect_orders_from_regions(
         self, region_ids: list[int], type_id: int
-    ) -> tuple[list[tuple[dict[str, Any], int]], list[tuple[dict[str, Any], int]]]:
-        # Fetch orders from all regions using OrdersService (with caching and validation)
-        # OrdersService already filters out invalid orders
+    ) -> tuple[list[tuple[Order, int]], list[tuple[Order, int]]]:
         all_buy_orders, all_sell_orders = await self.orders_service.get_orders_for_regions(
             region_ids, type_id
         )
@@ -56,7 +61,7 @@ class DealsService:
 
     async def _calculate_route_details(
         self, buy_location_id: int, sell_location_id: int, type_id: int
-    ) -> tuple[int | None, int | None, int | None, list[dict[str, Any]]]:
+    ) -> tuple[int | None, int | None, int | None, list[RouteDetail]]:
         if not buy_location_id or not sell_location_id:
             return None, None, None, []
 
@@ -75,11 +80,12 @@ class DealsService:
             if buy_system_id == sell_system_id:
                 system_data = await self.repository.get_system_details(buy_system_id)
                 route_details = [
-                    {
-                        "system_id": buy_system_id,
-                        "name": system_data.get("name", f"Système {buy_system_id}"),
-                        "security_status": system_data.get("security_status", 0.0),
-                    }
+                    RouteDetail(
+                        system_id=buy_system_id,
+                        name=system_data.name,
+                        security_status=system_data.security_status,
+                        faction_id=None,
+                    )
                 ]
                 return buy_system_id, sell_system_id, 0, route_details
 
@@ -88,51 +94,53 @@ class DealsService:
                 buy_system_id, sell_system_id
             )
             jumps = len(route_with_details) - 1 if route_with_details else None
-            return buy_system_id, sell_system_id, jumps, route_with_details or []
+            route_details = list(route_with_details) if route_with_details else []
+            return buy_system_id, sell_system_id, jumps, route_details
 
         except Exception as e:
             logger.warning(f"Error calculating route for {type_id}: {e}")
             return None, None, None, []
 
     async def _check_contraband_in_route(
-        self, type_id: int, route_details: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+        self, type_id: int, route_details: list[RouteDetail]
+    ) -> list[ContrabandSystem]:
         """Check which systems in the route consider this item as contraband"""
         if not self.local_data_repository:
             return []
 
         contraband_systems = []
         for system in route_details:
-            faction_id = system.get("faction_id")
-            if faction_id is not None:
-                if self.local_data_repository.is_contraband_for_faction(type_id, faction_id):
-                    contraband_systems.append(
-                        {
-                            "system_id": system.get("system_id"),
-                            "system_name": system.get("name"),
-                            "faction_id": faction_id,
-                        }
+            if (
+                system.faction_id is not None
+                and self.local_data_repository.is_contraband_for_faction(type_id, system.faction_id)
+            ):
+                contraband_systems.append(
+                    ContrabandSystem(
+                        system_id=system.system_id,
+                        system_name=system.name,
+                        faction_id=system.faction_id,
                     )
+                )
 
         return contraband_systems
 
-    def _filter_valid_deals(self, results: list[Any]) -> list[dict[str, Any]]:
-        return [r for r in results if isinstance(r, dict) and r is not None]
+    def _filter_valid_deals(self, results: list[Deal | None]) -> list[Deal]:
+        return [r for r in results if r is not None]
 
-    def _sort_deals_by_profit(self, deals: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _sort_deals_by_profit(self, deals: list[Deal]) -> list[Deal]:
         deals.sort(
-            key=lambda x: (x.get("profit_isk", 0), x.get("profit_percent", 0)),
+            key=lambda x: (x.profit_isk, x.profit_percent),
             reverse=True,
         )
         return deals
 
-    def _calculate_total_profit(self, deals: list[dict[str, Any]]) -> float:
-        return sum(deal.get("profit_isk", 0) for deal in deals)
+    def _calculate_total_profit(self, deals: list[Deal]) -> float:
+        return sum(deal.profit_isk for deal in deals)
 
     async def _filter_orders_by_system(
         self,
-        all_buy_orders: list[tuple[dict[str, Any], int]],
-        all_sell_orders: list[tuple[dict[str, Any], int]],
+        all_buy_orders: list[tuple[Order, int]],
+        all_sell_orders: list[tuple[Order, int]],
         from_system_id: int | None,
         to_system_id: int | None,
     ) -> tuple[list[tuple[dict[str, Any], int]], list[tuple[dict[str, Any], int]]]:
@@ -151,11 +159,9 @@ class DealsService:
         filtered_buy_orders = []
         filtered_sell_orders = []
 
-        # Filter sell_orders (is_buy_order=False) by from_system_id if provided
-        # These are orders we can BUY from
         for order, region_id in all_sell_orders:
             if from_system_id is not None:
-                location_id = order.get("location_id")
+                location_id = order.location_id
                 if location_id:
                     try:
                         order_system_id = await get_system_id_from_location(
@@ -164,18 +170,15 @@ class DealsService:
                         if order_system_id == from_system_id:
                             filtered_sell_orders.append((order, region_id))
                     except (ValueError, Exception):
-                        # Skip orders with invalid locations
                         continue
                 else:
                     continue
             else:
                 filtered_sell_orders.append((order, region_id))
 
-        # Filter buy_orders (is_buy_order=True) by to_system_id if provided
-        # These are orders we can SELL to
         for order, region_id in all_buy_orders:
             if to_system_id is not None:
-                location_id = order.get("location_id")
+                location_id = order.location_id
                 if location_id:
                     try:
                         order_system_id = await get_system_id_from_location(
@@ -184,7 +187,6 @@ class DealsService:
                         if order_system_id == to_system_id:
                             filtered_buy_orders.append((order, region_id))
                     except (ValueError, Exception):
-                        # Skip orders with invalid locations
                         continue
                 else:
                     continue
@@ -222,7 +224,7 @@ class DealsService:
             profit_percent,
         )
 
-    def _build_deal_dict(
+    def _build_deal(
         self,
         type_id: int,
         type_name: str,
@@ -240,46 +242,41 @@ class DealsService:
         buy_system_id: int | None,
         sell_system_id: int | None,
         jumps: int | None,
-        route_details: list[dict[str, Any]],
+        route_details: list[RouteDetail],
         buy_region_id: int | None = None,
         sell_region_id: int | None = None,
-        contraband_systems: list[dict[str, Any]] | None = None,
-    ) -> dict[str, Any]:
+        contraband_systems: list[ContrabandSystem] | None = None,
+    ) -> Deal:
         """
-        Build a deal dictionary with all required fields
+        Build a Deal object with all required fields
 
         Returns:
-            Dictionary containing deal information
+            Deal object containing deal information
         """
-        deal = {
-            "type_id": type_id,
-            "type_name": type_name,
-            "buy_price": buy_price,
-            "sell_price": sell_price,
-            "profit_percent": round(profit_percent, 2),
-            "profit_isk": round(profit_isk, 2),
-            "tradable_volume": tradable_volume,
-            "item_volume": item_volume,
-            "total_buy_cost": round(total_buy_cost, 2),
-            "total_sell_revenue": round(total_sell_revenue, 2),
-            "total_transport_volume": round(total_transport_volume, 2),
-            "buy_order_count": buy_order_count,
-            "sell_order_count": sell_order_count,
-            "jumps": jumps,
-            "estimated_time_minutes": jumps if jumps is not None else None,
-            "route_details": route_details,
-            "buy_system_id": buy_system_id,
-            "sell_system_id": sell_system_id,
-            "contraband_systems": contraband_systems or [],
-            "is_contraband": len(contraband_systems or []) > 0,
-        }
-
-        if buy_region_id is not None:
-            deal["buy_region_id"] = buy_region_id
-        if sell_region_id is not None:
-            deal["sell_region_id"] = sell_region_id
-
-        return deal
+        return Deal(
+            type_id=type_id,
+            type_name=type_name,
+            buy_price=buy_price,
+            sell_price=sell_price,
+            profit_percent=profit_percent,
+            profit_isk=profit_isk,
+            tradable_volume=tradable_volume,
+            item_volume=item_volume,
+            total_buy_cost=total_buy_cost,
+            total_sell_revenue=total_sell_revenue,
+            total_transport_volume=total_transport_volume,
+            buy_order_count=buy_order_count,
+            sell_order_count=sell_order_count,
+            jumps=jumps,
+            estimated_time_minutes=jumps if jumps is not None else None,
+            route_details=route_details,
+            buy_system_id=buy_system_id,
+            sell_system_id=sell_system_id,
+            contraband_systems=contraband_systems or [],
+            is_contraband=len(contraband_systems or []) > 0,
+            buy_region_id=buy_region_id,
+            sell_region_id=sell_region_id,
+        )
 
     @cached(cache_key_prefix="collect_all_types_from_group2")
     async def collect_all_types_from_group(self, group_id: int) -> set[int]:
@@ -289,25 +286,23 @@ class DealsService:
             return_exceptions=True,
         )
 
-        # Construire un map des groupes avec leur parent_group_id
         groups_map = {}
         for i, group_data in enumerate(all_groups_data):
-            if isinstance(group_data, dict):
-                gid = all_group_ids[i]
-                groups_map[gid] = {
-                    "data": group_data,
-                    "types": group_data.get("types", []),
-                    "parent_id": group_data.get("parent_group_id"),
-                    "children": [],
-                }
+            gid = all_group_ids[i]
+            if isinstance(group_data, Exception):
+                continue
+            groups_map[gid] = {
+                "data": group_data,
+                "types": group_data.types,
+                "parent_id": group_data.parent_group_id,
+                "children": [],
+            }
 
-        # Construire l'arbre des enfants
         for gid, group_info in groups_map.items():
             parent_id = group_info["parent_id"]
             if parent_id and parent_id in groups_map:
                 groups_map[parent_id]["children"].append(gid)
 
-        # Recursive function to collect all types
         def collect_all_types_recursive(gid: int, collected_types: set[int]) -> set[int]:
             """Recursively collects all types from a market group"""
             if gid not in groups_map:
@@ -316,13 +311,11 @@ class DealsService:
             group_info = groups_map[gid]
             collected_types.update(group_info["types"])
 
-            # Recursively traverse subgroups
             for child_id in group_info["children"]:
                 collect_all_types_recursive(child_id, collected_types)
 
             return collected_types
 
-        # Collect all types from the group (and subgroups)
         result_set = collect_all_types_recursive(group_id, set())
         return result_set
 
@@ -336,19 +329,17 @@ class DealsService:
         additional_regions: list[int] | None = None,
         from_system_id: int | None = None,
         to_system_id: int | None = None,
-    ) -> dict[str, Any] | None:
+    ) -> Deal | None:
         try:
             # Build the complete list of regions to search
             all_regions = [region_id]
             if additional_regions:
                 all_regions.extend(additional_regions)
 
-            # Collect orders from all regions
             all_buy_orders, all_sell_orders = await self._collect_orders_from_regions(
                 all_regions, type_id
             )
 
-            # Filter orders by system if system filters are provided
             if from_system_id is not None or to_system_id is not None:
                 all_buy_orders, all_sell_orders = await self._filter_orders_by_system(
                     all_buy_orders, all_sell_orders, from_system_id, to_system_id
@@ -357,47 +348,36 @@ class DealsService:
             if not all_buy_orders or not all_sell_orders:
                 return None
 
-            # In Eve Online:
-            # - buy_order (is_buy_order=True) = someone wants to BUY → we can SELL at this price
-            # - sell_order (is_buy_order=False) = someone wants to SELL → we can BUY at this price
-
-            # Best price to SELL (highest among all buy_orders)
-            best_sell_order_tuple = max(all_buy_orders, key=lambda x: x[0].get("price", 0))
+            best_sell_order_tuple = max(all_buy_orders, key=lambda x: x[0].price)
             best_sell_order, sell_region_id = best_sell_order_tuple
-            sell_price = best_sell_order.get("price", 0)
-            sell_location_id: int | None = best_sell_order.get("location_id")
+            sell_price = best_sell_order.price
+            sell_location_id: int | None = best_sell_order.location_id
             sell_volume = min(
-                best_sell_order.get("volume_remain", 0),
-                best_sell_order.get("volume_total", 0),
+                best_sell_order.volume_remain,
+                best_sell_order.volume_total,
             )
 
-            # Best price to BUY (lowest among all sell_orders)
-            best_buy_order_tuple = min(
-                all_sell_orders, key=lambda x: x[0].get("price", float("inf"))
-            )
+            best_buy_order_tuple = min(all_sell_orders, key=lambda x: x[0].price)
             best_buy_order, buy_region_id = best_buy_order_tuple
-            buy_price = best_buy_order.get("price", float("inf"))
-            buy_location_id: int | None = best_buy_order.get("location_id")
+            buy_price = best_buy_order.price
+            buy_location_id: int | None = best_buy_order.location_id
             buy_volume = min(
-                best_buy_order.get("volume_remain", 0),
-                best_buy_order.get("volume_total", 0),
+                best_buy_order.volume_remain,
+                best_buy_order.volume_total,
             )
 
             if sell_price <= 0 or buy_price <= 0:
                 return None
 
-            # Fetch type details for unit volume
             type_details = await self.repository.get_item_type(type_id)
-            item_volume = type_details.get("volume", 0.0)
+            item_volume = type_details.volume
 
-            # Calculate tradable volume considering limits
             tradable_volume = calculate_tradable_volume(
                 buy_volume, sell_volume, item_volume, max_transport_volume
             )
             if tradable_volume is None:
                 return None
 
-            # Apply buy cost limit if necessary
             tradable_volume = apply_buy_cost_limit(tradable_volume, buy_price, max_buy_cost)
             if tradable_volume is None:
                 return None
@@ -422,8 +402,8 @@ class DealsService:
                 buy_system_id = None
                 sell_system_id = None
                 jumps = None
-                route_details: list[dict[str, Any]] = []
-                contraband_systems: list[dict[str, Any]] = []
+                route_details: list[RouteDetail] = []
+                contraband_systems: list[ContrabandSystem] = []
             else:
                 (
                     buy_system_id,
@@ -433,13 +413,18 @@ class DealsService:
                 ) = await self._calculate_route_details(buy_location_id, sell_location_id, type_id)
                 contraband_systems = await self._check_contraband_in_route(type_id, route_details)
 
-            # Count orders in all regions
             total_buy_order_count = len(all_buy_orders)
             total_sell_order_count = len(all_sell_orders)
 
-            return self._build_deal_dict(
+            type_name = type_details.name
+            if isinstance(type_name, dict):
+                type_name = type_name.get("en") or type_name.get("fr") or f"Type {type_id}"
+            if not isinstance(type_name, str) or not type_name:
+                type_name = f"Type {type_id}"
+
+            return self._build_deal(
                 type_id=type_id,
-                type_name=type_details.get("name", f"Type {type_id}"),
+                type_name=type_name if isinstance(type_name, str) else f"Type {type_id}",
                 buy_price=buy_price,
                 sell_price=sell_price,
                 tradable_volume=tradable_volume,
@@ -472,7 +457,7 @@ class DealsService:
         max_buy_cost: float | None = None,
         additional_regions: list[int] | None = None,
         max_concurrent: int = DEFAULT_MAX_CONCURRENT_ANALYSES,
-    ) -> dict[str, Any]:
+    ) -> MarketDealsResult:
         regions_str = str(region_id)
         if additional_regions:
             regions_str += f" + {len(additional_regions)} other(s)"
@@ -489,17 +474,16 @@ class DealsService:
         all_types = await self._collect_types_for_deals(group_id)
 
         if not all_types:
-            result: dict[str, Any] = {
-                "region_id": region_id,
-                "min_profit_isk": min_profit_isk,
-                "max_transport_volume": max_transport_volume,
-                "max_buy_cost": max_buy_cost,
-                "total_types": 0,
-                "deals": [],
-            }
-            if group_id is not None:
-                result["group_id"] = group_id
-            return result
+            return MarketDealsResult(
+                region_id=region_id,
+                min_profit_isk=min_profit_isk,
+                max_transport_volume=max_transport_volume,
+                max_buy_cost=max_buy_cost,
+                total_types=0,
+                total_profit_isk=0.0,
+                deals=[],
+                group_id=group_id,
+            )
 
         group_str = f"group {group_id}" if group_id is not None else "all groups"
         logger.info(f"Found {len(all_types)} item types in {group_str}")
@@ -523,7 +507,8 @@ class DealsService:
             return_exceptions=True,
         )
 
-        deals = self._filter_valid_deals(results)
+        valid_results: list[Deal | None] = [r if isinstance(r, Deal) else None for r in results]
+        deals = self._filter_valid_deals(valid_results)
         deals = self._sort_deals_by_profit(deals)
         total_profit_isk = self._calculate_total_profit(deals)
 
@@ -533,18 +518,16 @@ class DealsService:
             f"{f', buy amount <= {max_buy_cost} ISK' if max_buy_cost else ''}"
         )
 
-        result = {
-            "region_id": region_id,
-            "min_profit_isk": min_profit_isk,
-            "max_transport_volume": max_transport_volume,
-            "max_buy_cost": max_buy_cost,
-            "total_types": len(all_types),
-            "total_profit_isk": round(total_profit_isk, 2),
-            "deals": deals,
-        }
-        if group_id is not None:
-            result["group_id"] = group_id
-        return result
+        return MarketDealsResult(
+            region_id=region_id,
+            min_profit_isk=min_profit_isk,
+            max_transport_volume=max_transport_volume,
+            max_buy_cost=max_buy_cost,
+            total_types=len(all_types),
+            total_profit_isk=total_profit_isk,
+            deals=deals,
+            group_id=group_id,
+        )
 
     def _generate_route_segments(self, route: list[int]) -> list[tuple[int, int]]:
         """
@@ -569,16 +552,16 @@ class DealsService:
 
     def _filter_deals_by_route_order(
         self,
-        deals: list[dict[str, Any]],
+        deals: list[Deal],
         expanded_route: list[int],
         original_route: list[int] | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> list[Deal]:
         """
         Filter deals to keep only those where buy_system_id and sell_system_id
         are in the expanded route and respect the order of the original route
 
         Args:
-            deals: List of deal dictionaries
+            deals: List of Deal objects
             expanded_route: List of system IDs forming the expanded route (includes detour systems)
             original_route: Optional original route for order checking (if None, uses expanded_route)
 
@@ -592,8 +575,8 @@ class DealsService:
         filtered_deals = []
 
         for deal in deals:
-            buy_system_id = deal.get("buy_system_id")
-            sell_system_id = deal.get("sell_system_id")
+            buy_system_id = deal.buy_system_id
+            sell_system_id = deal.sell_system_id
 
             if buy_system_id is None or sell_system_id is None:
                 continue
@@ -627,10 +610,10 @@ class DealsService:
 
         top_level_group_ids = []
         for i, group_data in enumerate(all_groups_data):
-            if isinstance(group_data, dict):
-                parent_group_id = group_data.get("parent_group_id")
-                if parent_group_id is None:
-                    top_level_group_ids.append(all_group_ids[i])
+            if isinstance(group_data, Exception):
+                continue
+            if group_data.parent_group_id is None:
+                top_level_group_ids.append(all_group_ids[i])
 
         all_types = set()
         for top_level_group_id in top_level_group_ids:
@@ -651,7 +634,7 @@ class DealsService:
         """
         try:
             system_data = await self.repository.get_system_details(system_id)
-            stargate_ids = system_data.get("stargates", [])
+            stargate_ids = system_data.stargates or []
 
             if not stargate_ids:
                 return []
@@ -659,8 +642,7 @@ class DealsService:
             async def get_destination_system_id(stargate_id: int) -> int | None:
                 try:
                     stargate_data = await self.repository.get_stargate_details(stargate_id)
-                    destination = stargate_data.get("destination", {})
-                    return destination.get("system_id")
+                    return stargate_data.destination_system_id
                 except Exception as e:
                     logger.warning(f"Error retrieving stargate {stargate_id}: {e}")
                     return None
@@ -753,9 +735,7 @@ class DealsService:
         expanded_route = route
 
         if max_detour_jumps > 0:
-            expanded_route = await self._expand_route_with_detour_systems(
-                route, max_detour_jumps
-            )
+            expanded_route = await self._expand_route_with_detour_systems(route, max_detour_jumps)
             logger.info(
                 f"Route expanded from {len(route)} to {len(expanded_route)} systems "
                 f"(max_detour_jumps={max_detour_jumps})"
@@ -782,19 +762,20 @@ class DealsService:
 
         system_to_region: dict[int, int] = {}
         for i, system_data in enumerate(route_systems_data):
-            if isinstance(system_data, dict):
-                system_id = expanded_route[i]
-                constellation_id = system_data.get("constellation_id")
-                if constellation_id:
-                    try:
-                        constellation = await self.repository.get_constellation_details(
-                            constellation_id
-                        )
-                        region_id = constellation.get("region_id")
-                        if region_id:
-                            system_to_region[system_id] = region_id
-                    except Exception as e:
-                        logger.warning(f"Error getting region for system {system_id}: {e}")
+            system_id = expanded_route[i]
+            if isinstance(system_data, Exception):
+                continue
+            constellation_id = system_data.constellation_id
+            if constellation_id:
+                try:
+                    constellation = await self.repository.get_constellation_details(
+                        constellation_id
+                    )
+                    region_id = constellation.region_id
+                    if region_id:
+                        system_to_region[system_id] = region_id
+                except Exception as e:
+                    logger.warning(f"Error getting region for system {system_id}: {e}")
 
         if not system_to_region:
             return {}, None, []
@@ -808,7 +789,7 @@ class DealsService:
 
     async def _process_and_filter_deals(
         self,
-        market_deals_result: dict[str, Any],
+        market_deals_result: MarketDealsResult,
         expanded_route: list[int],
         original_route: list[int],
         from_system_id: int,
@@ -817,7 +798,7 @@ class DealsService:
         min_profit_isk: float,
         max_transport_volume: float | None,
         max_buy_cost: float | None,
-    ) -> dict[str, Any]:
+    ) -> SystemToSystemDealsResult:
         """
         Process market deals result and filter by route order
 
@@ -833,11 +814,10 @@ class DealsService:
             max_buy_cost: Maximum buy cost
 
         Returns:
-            Dictionary with filtered deals and statistics
+            SystemToSystemDealsResult with filtered deals and statistics
         """
-        all_deals = market_deals_result.get("deals", [])
         filtered_deals = self._filter_deals_by_route_order(
-            all_deals, expanded_route, original_route
+            market_deals_result.deals, expanded_route, original_route
         )
         filtered_deals = self._sort_deals_by_profit(filtered_deals)
         total_profit_isk = self._calculate_total_profit(filtered_deals)
@@ -850,18 +830,18 @@ class DealsService:
             f"{f', buy amount <= {max_buy_cost} ISK' if max_buy_cost else ''}"
         )
 
-        return {
-            "from_system_id": from_system_id,
-            "to_system_id": to_system_id,
-            "route": original_route,
-            "route_segments": route_segments,
-            "min_profit_isk": min_profit_isk,
-            "max_transport_volume": max_transport_volume,
-            "max_buy_cost": max_buy_cost,
-            "total_types": market_deals_result.get("total_types", 0),
-            "total_profit_isk": round(total_profit_isk, 2),
-            "deals": filtered_deals,
-        }
+        return SystemToSystemDealsResult(
+            from_system_id=from_system_id,
+            to_system_id=to_system_id,
+            route=original_route,
+            route_segments=route_segments,
+            min_profit_isk=min_profit_isk,
+            max_transport_volume=max_transport_volume,
+            max_buy_cost=max_buy_cost,
+            total_types=market_deals_result.total_types,
+            total_profit_isk=total_profit_isk,
+            deals=filtered_deals,
+        )
 
     def _build_empty_result(
         self,
@@ -870,9 +850,9 @@ class DealsService:
         route: list[int],
         route_segments: list[tuple[int, int]],
         min_profit_isk: float,
-    ) -> dict[str, Any]:
+    ) -> SystemToSystemDealsResult:
         """
-        Build empty result dictionary for error cases
+        Build empty result for error cases
 
         Args:
             from_system_id: System ID where to start
@@ -882,17 +862,20 @@ class DealsService:
             min_profit_isk: Minimum profit threshold
 
         Returns:
-            Empty result dictionary
+            Empty SystemToSystemDealsResult
         """
-        return {
-            "from_system_id": from_system_id,
-            "to_system_id": to_system_id,
-            "route": route,
-            "route_segments": route_segments,
-            "min_profit_isk": min_profit_isk,
-            "total_types": 0,
-            "deals": [],
-        }
+        return SystemToSystemDealsResult(
+            from_system_id=from_system_id,
+            to_system_id=to_system_id,
+            route=route,
+            route_segments=route_segments,
+            min_profit_isk=min_profit_isk,
+            max_transport_volume=None,
+            max_buy_cost=None,
+            total_types=0,
+            total_profit_isk=0.0,
+            deals=[],
+        )
 
     def _log_search_start(
         self,
@@ -924,7 +907,7 @@ class DealsService:
         group_id: int | None = None,
         max_concurrent: int = DEFAULT_MAX_CONCURRENT_ANALYSES,
         max_detour_jumps: int = 0,
-    ) -> dict[str, Any]:
+    ) -> SystemToSystemDealsResult:
         """
         Finds profitable deals along a route between two systems
         Calculates the route and searches for deals on all segments of the route
@@ -964,9 +947,7 @@ class DealsService:
 
         if not original_route:
             logger.warning(f"No route found between systems {from_system_id} and {to_system_id}")
-            return self._build_empty_result(
-                from_system_id, to_system_id, [], [], min_profit_isk
-            )
+            return self._build_empty_result(from_system_id, to_system_id, [], [], min_profit_isk)
 
         route_segments = self._generate_route_segments(original_route)
         logger.info(
@@ -998,7 +979,7 @@ class DealsService:
         max_buy_cost: float | None,
         group_id: int | None,
         max_concurrent: int,
-    ) -> dict[str, Any]:
+    ) -> SystemToSystemDealsResult:
         """
         Search for deals along the route
 

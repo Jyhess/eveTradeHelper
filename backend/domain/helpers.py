@@ -15,7 +15,7 @@ async def get_system_id_from_location(
         raise ValueError(f"Location {location_id} is not a station")
 
     station_data = await location_validator.repository.get_station_details(location_id)
-    return station_data.get("system_id")
+    return station_data.system_id
 
 
 def calculate_tradable_volume(

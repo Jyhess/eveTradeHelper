@@ -32,12 +32,10 @@ class RegionData:
             return
 
         async with self._init_lock:
-            # Double-check after acquiring lock
             if self._initialized:
                 return
 
             if self._initializing:
-                # Wait for ongoing initialization
                 while self._initializing:
                     await asyncio.sleep(0.01)
                 return
@@ -61,8 +59,8 @@ class RegionData:
         for region_id in region_ids:
             try:
                 region_data = await self.repository.get_region_details(region_id)
-                region_name = region_data.get("name", "Unknown")
-                constellation_ids = region_data.get("constellations", [])
+                region_name = region_data.name
+                constellation_ids = region_data.constellations
 
                 region_info = {
                     "region_id": region_id,
@@ -76,8 +74,8 @@ class RegionData:
                         constellation_data = await self.repository.get_constellation_details(
                             constellation_id
                         )
-                        constellation_name = constellation_data.get("name", "Unknown")
-                        system_ids = constellation_data.get("systems", [])
+                        constellation_name = constellation_data.name
+                        system_ids = constellation_data.systems
 
                         constellation_info = {
                             "constellation_id": constellation_id,
@@ -92,13 +90,15 @@ class RegionData:
                         for system_id in system_ids:
                             try:
                                 system_data = await self.repository.get_system_details(system_id)
-                                system_name = system_data.get("name", "Unknown")
+                                system_name = system_data.name
+                                security_status = system_data.security_status
+                                security_class = system_data.security_class
 
                                 system_info = {
                                     "system_id": system_id,
                                     "name": system_name,
-                                    "security_status": system_data.get("security_status", 0.0),
-                                    "security_class": system_data.get("security_class", ""),
+                                    "security_status": security_status,
+                                    "security_class": security_class,
                                     "constellation_id": constellation_id,
                                     "region_id": region_id,
                                 }
@@ -183,4 +183,3 @@ class RegionData:
     async def get_all_constellations(self) -> list[dict[str, Any]]:
         await self._ensure_initialized()
         return list(self._constellations_by_id.values())
-

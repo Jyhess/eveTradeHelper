@@ -499,7 +499,9 @@ class TestEveAPIClientBestPractices:
         client = EveAPIClient(rate_limiter=rate_limiter, etag_cache=etag_cache)
 
         # Set an ETag but no cached response (inconsistent state)
-        client.etag_cache.set_etag("https://esi.evetech.net/latest/test/endpoint", '"abc123"')
+        # The URL will be constructed as base_url + endpoint = "https://esi.evetech.net/test/endpoint"
+        url = "https://esi.evetech.net/test/endpoint"
+        client.etag_cache.set_etag(url, '"abc123"')
 
         # Response with 304 (Not Modified) but no cached response available
         response_304 = AsyncMock()
@@ -518,9 +520,7 @@ class TestEveAPIClientBestPractices:
                 await client.get("/test/endpoint")
 
             # ETag should be cleared
-            assert (
-                client.etag_cache.get_etag("https://esi.evetech.net/latest/test/endpoint") is None
-            )
+            assert client.etag_cache.get_etag(url) is None
 
     @pytest.mark.asyncio
     async def test_slowdown_when_rate_limit_low(self, cache):

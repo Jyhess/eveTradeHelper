@@ -31,15 +31,14 @@ class TestRegionConstellations:
         assert len(result) > 0, "La liste ne doit pas être vide"
 
         for constellation in result:
-            assert isinstance(constellation, dict), "Chaque constellation doit être un dictionnaire"
-            assert (
-                "constellation_id" in constellation
+            assert hasattr(
+                constellation, "constellation_id"
             ), "Chaque constellation doit avoir un constellation_id"
-            assert "name" in constellation, "Chaque constellation doit avoir un name"
-            assert (
-                "systems" in constellation
+            assert hasattr(constellation, "name"), "Chaque constellation doit avoir un name"
+            assert hasattr(
+                constellation, "systems"
             ), "Chaque constellation doit avoir une liste de systems"
-            assert isinstance(constellation["systems"], list), "systems doit être une liste"
+            assert isinstance(constellation.systems, list), "systems doit être une liste"
 
     @pytest.mark.asyncio
     async def test_get_region_constellations_structure(self, region_service):
@@ -50,9 +49,9 @@ class TestRegionConstellations:
         if result:
             # Vérifier la structure du premier élément
             first = result[0]
-            assert "constellation_id" in first
-            assert "name" in first
-            assert "systems" in first
-            assert isinstance(first["constellation_id"], int)
-            assert isinstance(first["name"], str)
-            assert isinstance(first["systems"], list)
+            assert hasattr(first, "constellation_id")
+            assert hasattr(first, "name")
+            assert hasattr(first, "systems")
+            assert isinstance(first.constellation_id, int)
+            assert isinstance(first.name, str)
+            assert isinstance(first.systems, list)
