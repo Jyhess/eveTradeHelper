@@ -102,6 +102,20 @@
                   <p v-html="processDescription(typeDetails[selectedTypeId].description)"></p>
                 </div>
 
+                <!-- Contraband Warning -->
+                <div
+                  v-if="regionId && marketOrders && marketOrders.is_contraband"
+                  class="contraband-warning"
+                >
+                  <div class="contraband-warning-content">
+                    <span class="contraband-warning-icon">⚠️</span>
+                    <span class="contraband-warning-text">
+                      <strong>Warning:</strong> This item is considered
+                      <strong>contraband</strong> in {{ regionName }}.
+                    </span>
+                  </div>
+                </div>
+
                 <!-- Market orders (if on a region page) -->
                 <div v-if="regionId" class="market-orders">
                   <div class="market-orders-header">
@@ -709,6 +723,8 @@ export default {
   border-radius: 12px;
   padding: 30px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 
@@ -772,26 +788,32 @@ export default {
   display: flex;
   gap: 20px;
   margin-top: 20px;
+  min-width: 0;
+  width: 100%;
 }
 
 .tree-container {
-  flex: 0 0 33.333%;
+  flex: 0 1 33.333%;
+  min-width: 0;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   padding: 20px;
   background: #fafafa;
   max-height: 80vh;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .details-panel {
-  flex: 0 0 66.666%;
+  flex: 0 1 66.666%;
+  min-width: 0;
   background: white;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   display: flex;
   flex-direction: column;
   max-height: 80vh;
+  overflow: hidden;
 }
 
 .panel-header {
@@ -832,7 +854,9 @@ export default {
 .panel-content {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px;
+  min-width: 0;
 }
 
 .category-info {
@@ -1082,5 +1106,34 @@ export default {
   border-radius: 4px;
   color: #c33;
   font-size: 0.9em;
+}
+
+.contraband-warning {
+  margin-top: 20px;
+  padding: 15px;
+  background: #fff5f5;
+  border-left: 3px solid #dc3545;
+  border-radius: 4px;
+}
+
+.contraband-warning-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.contraband-warning-icon {
+  font-size: 1.2em;
+  flex-shrink: 0;
+}
+
+.contraband-warning-text {
+  color: #dc3545;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.contraband-warning-text strong {
+  font-weight: 700;
 }
 </style>

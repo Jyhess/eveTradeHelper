@@ -93,18 +93,32 @@ class EveRepositoryImpl(EveRepository):
         async def fetch_system_details(system_id: int) -> dict[str, Any]:
             try:
                 system_data = await self.get_system_details(system_id)
-                return {
+                result = {
                     "system_id": system_id,
                     "name": system_data.get("name", f"System {system_id}"),
                     "security_status": system_data.get("security_status", 0.0),
                 }
+
+                # Add factionID if available from static data
+                if self.local_data_repository:
+                    faction_id = self.local_data_repository.get_system_faction_id(system_id)
+                    if faction_id is not None:
+                        result["faction_id"] = faction_id
+
+                return result
             except Exception as e:
                 logger.warning(f"Error retrieving system {system_id}: {e}")
-                return {
+                result = {
                     "system_id": system_id,
                     "name": f"System {system_id}",
                     "security_status": 0.0,
                 }
+                # Add factionID even if system details failed
+                if self.local_data_repository:
+                    faction_id = self.local_data_repository.get_system_faction_id(system_id)
+                    if faction_id is not None:
+                        result["faction_id"] = faction_id
+                return result
 
         results = await asyncio.gather(*[fetch_system_details(sid) for sid in route_ids])
 

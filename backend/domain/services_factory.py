@@ -17,7 +17,9 @@ class Services:
         # Create RegionData and pass it to RegionService
         region_data = RegionData(eve_repository)
         self.region_service = RegionService(eve_repository, region_data)
-        self.deals_service = DealsService(eve_repository, location_validator, orders_service)
+        self.deals_service = DealsService(
+            eve_repository, location_validator, orders_service, local_data_repository
+        )
         self.market_service = MarketService(
             eve_repository,
             location_validator,

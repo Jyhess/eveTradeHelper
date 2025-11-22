@@ -9,6 +9,8 @@ from typing import Any
 
 from utils.cache import cached
 
+from repositories.local_data import LocalDataRepository
+
 from .constants import (
     DEFAULT_MAX_CONCURRENT_ANALYSES,
     DEFAULT_MIN_PROFIT_ISK,
@@ -34,10 +36,12 @@ class DealsService:
         repository: EveRepository,
         location_validator: LocationValidator,
         orders_service: OrdersService,
+        local_data_repository: LocalDataRepository | None = None,
     ):
         self.repository = repository
         self.location_validator = location_validator
         self.orders_service = orders_service
+        self.local_data_repository = local_data_repository
 
     async def _collect_orders_from_regions(
         self, region_ids: list[int], type_id: int
@@ -89,6 +93,28 @@ class DealsService:
         except Exception as e:
             logger.warning(f"Error calculating route for {type_id}: {e}")
             return None, None, None, []
+
+    async def _check_contraband_in_route(
+        self, type_id: int, route_details: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Check which systems in the route consider this item as contraband"""
+        if not self.local_data_repository:
+            return []
+
+        contraband_systems = []
+        for system in route_details:
+            faction_id = system.get("faction_id")
+            if faction_id is not None:
+                if self.local_data_repository.is_contraband_for_faction(type_id, faction_id):
+                    contraband_systems.append(
+                        {
+                            "system_id": system.get("system_id"),
+                            "system_name": system.get("name"),
+                            "faction_id": faction_id,
+                        }
+                    )
+
+        return contraband_systems
 
     def _filter_valid_deals(self, results: list[Any]) -> list[dict[str, Any]]:
         return [r for r in results if isinstance(r, dict) and r is not None]
@@ -217,6 +243,7 @@ class DealsService:
         route_details: list[dict[str, Any]],
         buy_region_id: int | None = None,
         sell_region_id: int | None = None,
+        contraband_systems: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """
         Build a deal dictionary with all required fields
@@ -243,6 +270,8 @@ class DealsService:
             "route_details": route_details,
             "buy_system_id": buy_system_id,
             "sell_system_id": sell_system_id,
+            "contraband_systems": contraband_systems or [],
+            "is_contraband": len(contraband_systems or []) > 0,
         }
 
         if buy_region_id is not None:
@@ -394,6 +423,7 @@ class DealsService:
                 sell_system_id = None
                 jumps = None
                 route_details: list[dict[str, Any]] = []
+                contraband_systems: list[dict[str, Any]] = []
             else:
                 (
                     buy_system_id,
@@ -401,6 +431,7 @@ class DealsService:
                     jumps,
                     route_details,
                 ) = await self._calculate_route_details(buy_location_id, sell_location_id, type_id)
+                contraband_systems = await self._check_contraband_in_route(type_id, route_details)
 
             # Count orders in all regions
             total_buy_order_count = len(all_buy_orders)
@@ -426,6 +457,7 @@ class DealsService:
                 route_details=route_details,
                 buy_region_id=buy_region_id,
                 sell_region_id=sell_region_id,
+                contraband_systems=contraband_systems,
             )
         except Exception as e:
             logger.warning(f"Error analyzing type {type_id}: {e}")

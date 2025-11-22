@@ -168,10 +168,20 @@ class MarketService:
             for i, order in enumerate(sell_orders_enriched)
         ]
 
+        # Check if item is contraband for this region
+        is_contraband = False
+        if type_id and self.local_data_repository:
+            region_faction_id = self.local_data_repository.get_region_faction_id(region_id)
+            if region_faction_id is not None:
+                is_contraband = self.local_data_repository.is_contraband_for_faction(
+                    type_id, region_faction_id
+                )
+
         return {
             "total": total_before_limit,
             "buy_orders": buy_orders_final,
             "sell_orders": sell_orders_final,
+            "is_contraband": is_contraband,
         }
 
     async def search_item_types(

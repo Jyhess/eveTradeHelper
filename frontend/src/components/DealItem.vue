@@ -213,7 +213,37 @@
         </span>
       </div>
 
-      <!-- Line 4: Orders -->
+      <!-- Line 4: Contraband Warning -->
+      <div
+        v-if="deal.contraband_systems && deal.contraband_systems.length > 0"
+        class="detail-line contraband-warning-line"
+      >
+        <span class="detail-label">⚠️ Warning:</span>
+        <span class="detail-content">
+          <span class="contraband-warning-text">
+            This item is considered <strong>contraband</strong> in the following system(s):
+          </span>
+          <span
+            v-for="(system, index) in deal.contraband_systems"
+            :key="system.system_id || index"
+            class="contraband-system"
+          >
+            <router-link
+              v-if="system.system_id"
+              :to="`/systems/${system.system_id}`"
+              class="contraband-system-link"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {{ system.system_name || `System ${system.system_id}` }}
+            </router-link>
+            <span v-else>{{ system.system_name || `System ${system.system_id}` }}</span>
+            <span v-if="index < deal.contraband_systems.length - 1">, </span>
+          </span>
+        </span>
+      </div>
+
+      <!-- Line 5: Orders -->
       <div class="detail-line orders-line">
         <span class="detail-label">Orders:</span>
         <span class="detail-content">
@@ -857,6 +887,37 @@ export default {
 
 .market-link-inline:hover {
   color: #5568d3;
+  text-decoration: underline;
+}
+
+.contraband-warning-line {
+  background: #fff5f5;
+  border-left: 3px solid #dc3545;
+}
+
+.contraband-warning-text {
+  color: #dc3545;
+  font-weight: 600;
+}
+
+.contraband-warning-text strong {
+  font-weight: 700;
+}
+
+.contraband-system {
+  color: #dc3545;
+  font-weight: 600;
+}
+
+.contraband-system-link {
+  color: #dc3545;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.contraband-system-link:hover {
+  color: #c82333;
   text-decoration: underline;
 }
 </style>

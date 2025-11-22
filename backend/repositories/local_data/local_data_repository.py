@@ -12,6 +12,9 @@ logger = logging.getLogger(__name__)
 STATIC_DATA_DIR = Path(__file__).parent.parent.parent / "eve-online-static-data-jsonl"
 TYPES_FROM_ID_FILE = STATIC_DATA_DIR / "typesFromId.json"
 TYPES_JSONL_FILE = STATIC_DATA_DIR / "types.jsonl"
+CONTRABAND_TYPES_FILE = STATIC_DATA_DIR / "contrabandTypes.jsonl"
+MAP_SOLAR_SYSTEMS_FILE = STATIC_DATA_DIR / "mapSolarSystems.jsonl"
+MAP_REGIONS_FILE = STATIC_DATA_DIR / "mapRegions.jsonl"
 INVALID_LOCATION_IDS_KEY_PREFIX = "invalid_location_ids"
 MAX_INT32 = 2147483647
 
@@ -21,6 +24,9 @@ class LocalDataRepository:
         self.cache = cache
         self.id_ranges: list[dict[str, Any]] = []
         self._types_data: list[dict[str, Any]] | None = None
+        self._contraband_data: dict[int, list[int]] | None = None
+        self._systems_faction_map: dict[int, int | None] | None = None
+        self._regions_faction_map: dict[int, int | None] | None = None
         self._load_id_ranges()
 
     def _load_id_ranges(self) -> None:
@@ -161,3 +167,140 @@ class LocalDataRepository:
 
         sorted_matches = sorted(matches, key=sort_key)
         return sorted_matches[:limit]
+
+    def _load_contraband_data(self) -> None:
+        """Load contraband types data from JSONL file"""
+        if self._contraband_data is not None:
+            return
+
+        self._contraband_data = {}
+
+        if not CONTRABAND_TYPES_FILE.exists():
+            logger.warning(f"Contraband types file not found: {CONTRABAND_TYPES_FILE}")
+            return
+
+        try:
+            with open(CONTRABAND_TYPES_FILE, encoding="utf-8") as file:
+                for line in file:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                        type_id = data.get("_key")
+                        factions = data.get("factions", [])
+
+                        if isinstance(type_id, int) and isinstance(factions, list):
+                            faction_ids: list[int] = []
+                            for f in factions:
+                                if isinstance(f, dict):
+                                    faction_key = f.get("_key")
+                                    if isinstance(faction_key, int):
+                                        faction_ids.append(faction_key)
+                            if faction_ids:
+                                self._contraband_data[type_id] = faction_ids
+                    except json.JSONDecodeError:
+                        continue
+            logger.info("Loaded %d contraband types from %s", len(self._contraband_data), CONTRABAND_TYPES_FILE)
+        except Exception as exc:  # pragma: no cover - logging only
+            logger.error("Error loading contraband types from %s: %s", CONTRABAND_TYPES_FILE, exc)
+            self._contraband_data = {}
+
+    def _load_systems_faction_map(self) -> None:
+        """Load systems to faction mapping from JSONL file"""
+        if self._systems_faction_map is not None:
+            return
+
+        self._systems_faction_map = {}
+
+        if not MAP_SOLAR_SYSTEMS_FILE.exists():
+            logger.warning(f"Solar systems file not found: {MAP_SOLAR_SYSTEMS_FILE}")
+            return
+
+        try:
+            with open(MAP_SOLAR_SYSTEMS_FILE, encoding="utf-8") as file:
+                for line in file:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                        system_id = data.get("_key")
+                        faction_id = data.get("factionID")
+
+                        if isinstance(system_id, int):
+                            self._systems_faction_map[system_id] = (
+                                faction_id if isinstance(faction_id, int) else None
+                            )
+                    except json.JSONDecodeError:
+                        continue
+            logger.info(
+                "Loaded %d systems with faction mapping from %s",
+                len(self._systems_faction_map),
+                MAP_SOLAR_SYSTEMS_FILE,
+            )
+        except Exception as exc:  # pragma: no cover - logging only
+            logger.error("Error loading systems faction map from %s: %s", MAP_SOLAR_SYSTEMS_FILE, exc)
+            self._systems_faction_map = {}
+
+    def is_contraband_for_faction(self, type_id: int, faction_id: int) -> bool:
+        """Check if an item is contraband for a specific faction"""
+        self._load_contraband_data()
+        if not self._contraband_data:
+            return False
+
+        contraband_factions = self._contraband_data.get(type_id, [])
+        return faction_id in contraband_factions
+
+    def get_system_faction_id(self, system_id: int) -> int | None:
+        """Get the faction ID for a system, or None if not available"""
+        self._load_systems_faction_map()
+        if not self._systems_faction_map:
+            return None
+
+        return self._systems_faction_map.get(system_id)
+
+    def _load_regions_faction_map(self) -> None:
+        """Load regions to faction mapping from JSONL file"""
+        if self._regions_faction_map is not None:
+            return
+
+        self._regions_faction_map = {}
+
+        if not MAP_REGIONS_FILE.exists():
+            logger.warning(f"Regions file not found: {MAP_REGIONS_FILE}")
+            return
+
+        try:
+            with open(MAP_REGIONS_FILE, encoding="utf-8") as file:
+                for line in file:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                        region_id = data.get("_key")
+                        faction_id = data.get("factionID")
+
+                        if isinstance(region_id, int):
+                            self._regions_faction_map[region_id] = (
+                                faction_id if isinstance(faction_id, int) else None
+                            )
+                    except json.JSONDecodeError:
+                        continue
+            logger.info(
+                "Loaded %d regions with faction mapping from %s",
+                len(self._regions_faction_map),
+                MAP_REGIONS_FILE,
+            )
+        except Exception as exc:  # pragma: no cover - logging only
+            logger.error("Error loading regions faction map from %s: %s", MAP_REGIONS_FILE, exc)
+            self._regions_faction_map = {}
+
+    def get_region_faction_id(self, region_id: int) -> int | None:
+        """Get the faction ID for a region, or None if not available"""
+        self._load_regions_faction_map()
+        if not self._regions_faction_map:
+            return None
+
+        return self._regions_faction_map.get(region_id)
