@@ -28,9 +28,12 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DB=0
+      - ZIPKIN_ENDPOINT=http://zipkin:9411/api/v2/spans
     depends_on:
       redis:
         condition: service_healthy
+      zipkin:
+        condition: service_started
     restart: unless-stopped
 
   frontend:
@@ -45,6 +48,15 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
+
+  zipkin:
+    image: openzipkin/zipkin:latest
+    container_name: eve_trade_zipkin
+    ports:
+      - "9411:9411"
+    restart: unless-stopped
+    environment:
+      - STORAGE_TYPE=mem
 
 volumes:
   redis_data:

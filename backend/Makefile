@@ -117,7 +117,7 @@ run: develop
 
 dev: develop
 	@echo "Lancement du backend en mode développement (hot reload activé)..."
-	@RELOAD=1 $(PYTHON) app.py
+	@RELOAD=1 ZIPKIN_ENDPOINT=http://localhost:9411/api/v2/spans $(PYTHON) app.py
 	@echo "✓ Backend lancé en mode développement"
 
 # ============================================================================

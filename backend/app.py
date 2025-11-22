@@ -14,6 +14,7 @@ from domain import Services
 from eve import make_eve_repository
 from repositories.local_data import LocalDataRepository
 from utils.cache import create_cache
+from utils.tracing import setup_tracing
 
 # Logging configuration
 logging.basicConfig(level=logging.INFO)
@@ -48,6 +49,9 @@ async def lifespan(app: FastAPI):
 
 
 app = AppFactory.make_app(lifespan)
+
+# Setup distributed tracing after app creation
+setup_tracing(app=app)
 
 if __name__ == "__main__":
     import uvicorn
